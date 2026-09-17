@@ -389,6 +389,11 @@ export interface OnlineEvaluatorUpdateParams {
 
 export interface OnlineEvaluatorListParams extends OffsetPaginationOnlineEvaluatorsParams {
   /**
+   * Filter to evaluators attached to the agent's environments or tagged datasets
+   */
+  agent_id?: string;
+
+  /**
    * Filter by feedback key
    */
   feedback_key?: string;

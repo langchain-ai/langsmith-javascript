@@ -63,6 +63,7 @@ describe('resource onlineEvaluators', () => {
     await expect(
       client.onlineEvaluators.list(
         {
+          agent_id: 'agent_id',
           feedback_key: 'feedback_key',
           limit: 0,
           name_contains: 'name_contains',
