@@ -60,6 +60,8 @@ describe('resource threads', () => {
       filter: 'filter',
       page_size: 1,
       selects: ['THREAD_ID'],
+      trace_filter: 'trace_filter',
+      tree_filter: 'tree_filter',
     });
   });
 
