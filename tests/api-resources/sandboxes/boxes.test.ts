@@ -124,6 +124,26 @@ describe('resource boxes', () => {
   });
 
   // Mock server tests are disabled
+  test.skip('deleteServiceURL', async () => {
+    const responsePromise = client.sandboxes.boxes.deleteServiceURL('name');
+    const rawResponse = await responsePromise.asResponse();
+    expect(rawResponse).toBeInstanceOf(Response);
+    const response = await responsePromise;
+    expect(response).not.toBeInstanceOf(Response);
+    const dataAndResponse = await responsePromise.withResponse();
+    expect(dataAndResponse.data).toBe(response);
+    expect(dataAndResponse.response).toBe(rawResponse);
+  });
+
+  // Mock server tests are disabled
+  test.skip('deleteServiceURL: request options and params are passed correctly', async () => {
+    // ensure the request options are being passed correctly by passing an invalid HTTP method in order to cause an error
+    await expect(
+      client.sandboxes.boxes.deleteServiceURL('name', { port: 0 }, { path: '/_stainless_unknown_path' }),
+    ).rejects.toThrow(Langsmith.NotFoundError);
+  });
+
+  // Mock server tests are disabled
   test.skip('generateDownloadURL: only required params', async () => {
     const responsePromise = client.sandboxes.boxes.generateDownloadURL('name', { path: 'path' });
     const rawResponse = await responsePromise.asResponse();
@@ -169,6 +189,30 @@ describe('resource boxes', () => {
     const dataAndResponse = await responsePromise.withResponse();
     expect(dataAndResponse.data).toBe(response);
     expect(dataAndResponse.response).toBe(rawResponse);
+  });
+
+  // Mock server tests are disabled
+  test.skip('listServiceURLs', async () => {
+    const responsePromise = client.sandboxes.boxes.listServiceURLs('name');
+    const rawResponse = await responsePromise.asResponse();
+    expect(rawResponse).toBeInstanceOf(Response);
+    const response = await responsePromise;
+    expect(response).not.toBeInstanceOf(Response);
+    const dataAndResponse = await responsePromise.withResponse();
+    expect(dataAndResponse.data).toBe(response);
+    expect(dataAndResponse.response).toBe(rawResponse);
+  });
+
+  // Mock server tests are disabled
+  test.skip('listServiceURLs: request options and params are passed correctly', async () => {
+    // ensure the request options are being passed correctly by passing an invalid HTTP method in order to cause an error
+    await expect(
+      client.sandboxes.boxes.listServiceURLs(
+        'name',
+        { cursor: 'cursor', page_size: 0 },
+        { path: '/_stainless_unknown_path' },
+      ),
+    ).rejects.toThrow(Langsmith.NotFoundError);
   });
 
   // Mock server tests are disabled

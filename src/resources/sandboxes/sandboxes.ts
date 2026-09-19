@@ -5,9 +5,13 @@ import * as BoxesAPI from './boxes';
 import {
   BoxCreateParams,
   BoxCreateSnapshotParams,
+  BoxDeleteServiceURLParams,
   BoxGenerateDownloadURLParams,
   BoxGenerateServiceURLParams,
   BoxListParams,
+  BoxListServiceURLsParams,
+  BoxListServiceURLsResponse,
+  BoxListServiceURLsResponsesItemsCursorGetPagination,
   BoxUpdateParams,
   Boxes,
 } from './boxes';
@@ -906,12 +910,16 @@ export declare namespace Sandboxes {
 
   export {
     Boxes as Boxes,
+    type BoxListServiceURLsResponse as BoxListServiceURLsResponse,
+    type BoxListServiceURLsResponsesItemsCursorGetPagination as BoxListServiceURLsResponsesItemsCursorGetPagination,
     type BoxCreateParams as BoxCreateParams,
     type BoxUpdateParams as BoxUpdateParams,
     type BoxListParams as BoxListParams,
     type BoxCreateSnapshotParams as BoxCreateSnapshotParams,
+    type BoxDeleteServiceURLParams as BoxDeleteServiceURLParams,
     type BoxGenerateDownloadURLParams as BoxGenerateDownloadURLParams,
     type BoxGenerateServiceURLParams as BoxGenerateServiceURLParams,
+    type BoxListServiceURLsParams as BoxListServiceURLsParams,
   };
 
   export {

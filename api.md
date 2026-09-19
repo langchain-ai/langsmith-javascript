@@ -280,6 +280,10 @@ Methods:
 
 ## Boxes
 
+Types:
+
+- <code><a href="./src/resources/sandboxes/boxes.ts">BoxListServiceURLsResponse</a></code>
+
 Methods:
 
 - <code title="post /api/v2/sandboxes/boxes">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">create</a>({ ...params }) -> SandboxResponse</code>
@@ -288,9 +292,11 @@ Methods:
 - <code title="get /api/v2/sandboxes/boxes">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">list</a>({ ...params }) -> SandboxResponsesItemsCursorGetPagination</code>
 - <code title="delete /api/v2/sandboxes/boxes/{name}">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">delete</a>(name) -> void</code>
 - <code title="post /api/v2/sandboxes/boxes/{name}/snapshot">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">createSnapshot</a>(name, { ...params }) -> SnapshotResponse</code>
+- <code title="delete /api/v2/sandboxes/boxes/{name}/service-urls">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">deleteServiceURL</a>(name, { ...params }) -> void</code>
 - <code title="post /api/v2/sandboxes/boxes/{name}/download-url">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">generateDownloadURL</a>(name, { ...params }) -> DownloadURLResponse</code>
 - <code title="post /api/v2/sandboxes/boxes/{name}/service-url">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">generateServiceURL</a>(name, { ...params }) -> ServiceURLResponse</code>
 - <code title="get /api/v2/sandboxes/boxes/{name}/status">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">getStatus</a>(name) -> SandboxStatusResponse</code>
+- <code title="get /api/v2/sandboxes/boxes/{name}/service-urls">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">listServiceURLs</a>(name, { ...params }) -> BoxListServiceURLsResponsesItemsCursorGetPagination</code>
 - <code title="post /api/v2/sandboxes/boxes/{name}/start">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">start</a>(name) -> SandboxResponse</code>
 - <code title="post /api/v2/sandboxes/boxes/{name}/stop">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">stop</a>(name) -> void</code>
 
