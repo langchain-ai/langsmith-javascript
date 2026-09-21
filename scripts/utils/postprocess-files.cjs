@@ -82,6 +82,11 @@ async function postprocess() {
       };
     }
   }
+  // entrypoints package.json points into lib/ (hand-written code) win over the generated file of the same name
+  const distPkg = JSON.parse(await fs.promises.readFile('dist/package.json', 'utf-8'));
+  for (const [subpath, target] of Object.entries(distPkg.exports ?? {})) {
+    if (JSON.stringify(target).includes('./lib/')) newExports[subpath] = target;
+  }
   await fs.promises.writeFile(
     'dist/package.json',
     JSON.stringify(

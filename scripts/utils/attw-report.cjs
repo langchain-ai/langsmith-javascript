@@ -11,7 +11,9 @@ const problems = Object.values(JSON.parse(fs.readFileSync('.attw.json', 'utf-8')
           (problem.kind === 'MissingExportEquals' && problem.implementationFileName.endsWith('/index.js')) ||
           // this is intentional, we deliberately attempt to import types that may not exist from parent node_modules
           // folders to better support various runtimes without triggering automatic type acquisition.
-          (problem.kind === 'InternalResolutionError' && problem.moduleSpecifier.includes('node_modules'))
+          (problem.kind === 'InternalResolutionError' && problem.moduleSpecifier.includes('node_modules')) ||
+          // langsmith/vitest is ESM-only (top-level await), as it was in langsmith-sdk: no CJS/node10 resolution.
+          (problem.kind === 'NoResolution' && /^\.\/vitest(\/|$)/.test(problem.entrypoint))
         )
       ),
   );

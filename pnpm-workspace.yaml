@@ -3,3 +3,11 @@ onlyBuiltDependencies:
 minimumReleaseAge: 1440
 minimumReleaseAgeExclude:
   - langsmith
+  - ai
+  - '@ai-sdk/gateway'
+  - '@ai-sdk/harness'
+  - '@ai-sdk/harness-claude-code'
+  - '@ai-sdk/harness-pi'
+  - '@ai-sdk/sandbox-just-bash'
+  - '@ai-sdk/sandbox-vercel'
+  - smol-toml

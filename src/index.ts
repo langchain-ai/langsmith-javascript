@@ -21,3 +21,6 @@ export {
   PermissionDeniedError,
   UnprocessableEntityError,
 } from './core/error';
+
+// Hand-written SDK surface (tracing Client, RunTree, traceable, ...). Lives in src/lib.
+export * from './lib/index';

@@ -1,7 +1,7 @@
 {
   "extends": "./tsconfig.json",
   "include": ["dist/src"],
-  "exclude": [],
+  "exclude": ["**/*.mts"],
   "compilerOptions": {
     "rootDir": "./dist/src",
     "paths": {

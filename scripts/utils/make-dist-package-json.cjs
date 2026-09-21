@@ -13,6 +13,15 @@ for (const key of ['types', 'main', 'module']) {
   if (typeof pkgJson[key] === 'string') pkgJson[key] = pkgJson[key].replace(/^(\.\/)?dist\//, './');
 }
 
+if (pkgJson.browser) {
+  pkgJson.browser = Object.fromEntries(
+    Object.entries(pkgJson.browser).map(([k, v]) => [
+      k.replace(/^\.\/dist\//, './'),
+      v.replace(/^\.\/dist\//, './'),
+    ]),
+  );
+}
+
 delete pkgJson.devDependencies;
 delete pkgJson.scripts.prepack;
 delete pkgJson.scripts.prepublishOnly;

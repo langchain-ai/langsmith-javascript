@@ -4,6 +4,15 @@ import unusedImports from 'eslint-plugin-unused-imports';
 
 export default tseslint.config(
   {
+    ignores: [
+      'dist/',
+      // vendored third-party code under the hand-written SDK
+      'src/lib/utils/chalk/**',
+      'src/lib/utils/console-table-printer/**',
+      'src/lib/utils/simple-wcswidth/**',
+    ],
+  },
+  {
     languageOptions: {
       parser: tseslint.parser,
       parserOptions: { sourceType: 'module' },

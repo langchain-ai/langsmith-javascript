@@ -10,3 +10,5 @@ dist-deno
 .idea/
 .eslintcache
 
+.env
+_build

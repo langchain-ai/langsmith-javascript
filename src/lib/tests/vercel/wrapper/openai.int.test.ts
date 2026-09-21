@@ -1,0 +1,730 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+import { openai } from "@ai-sdk/openai";
+import * as ai from "ai";
+import z from "zod";
+import { v4 } from "../../../utils/uuid/src/index.js";
+import * as fs from "fs/promises";
+import { fileURLToPath } from "url";
+import path from "path";
+
+import { Client } from "../../../index.js";
+import {
+  createLangSmithProviderOptions,
+  wrapAISDK,
+} from "../../../experimental/vercel/index.js";
+import { generateLongContext, waitUntilRunFound } from "../../utils.js";
+import { mockClient } from "../../utils/mock_client.js";
+import { traceable } from "../../../traceable.js";
+import { requiresClickhouse } from "../../utils/markers.js";
+
+const { tool, stepCountIs } = ai;
+
+const {
+  generateText,
+  streamText,
+  generateObject,
+  streamObject,
+  ToolLoopAgent,
+} = wrapAISDK(ai);
+
+test("wrap generateText", async () => {
+  const result = await generateText({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What are my orders? My user ID is 123. Always use tools.",
+      },
+    ],
+    tools: {
+      listOrders: tool({
+        description: "list all orders",
+        inputSchema: z.object({ userId: z.string() }),
+        execute: async ({ userId }) =>
+          `User ${userId} has the following orders: 1`,
+      }),
+    },
+    stopWhen: stepCountIs(10),
+    providerOptions: { openai: { store: false } },
+  });
+  expect(result.text).toBeDefined();
+  expect(result.text.length).toBeGreaterThan(0);
+  expect(result.usage).toBeDefined();
+  expect(result.providerMetadata).toBeDefined();
+});
+
+test("wrap generateText with tool class", async () => {
+  class MyTool {
+    inputSchema: z.ZodSchema;
+    description: string;
+
+    constructor(inputSchema: z.ZodSchema, description: string) {
+      this.inputSchema = inputSchema;
+      this.description = description;
+    }
+
+    async execute() {
+      return this.helperMethod();
+    }
+
+    helperMethod() {
+      return `User has the following orders: 1`;
+    }
+  }
+
+  const result = await generateText({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What are my orders? My user ID is 123. Always use tools.",
+      },
+    ],
+    tools: {
+      listOrders: new MyTool(
+        z.object({ userId: z.string() }),
+        "list all orders",
+      ),
+    },
+    stopWhen: stepCountIs(10),
+    providerOptions: { openai: { store: false } },
+  });
+  expect(result.text).toBeDefined();
+  expect(result.text.length).toBeGreaterThan(0);
+  expect(result.usage).toBeDefined();
+  expect(result.providerMetadata).toBeDefined();
+});
+
+test("wrap generateText with flex service tier", async () => {
+  const { client, callSpy } = mockClient();
+
+  const result = await generateText({
+    model: openai("gpt-5-mini"),
+    messages: [
+      {
+        role: "user",
+        content: "What color is the sky in one word?",
+      },
+    ],
+    providerOptions: {
+      openai: {
+        serviceTier: "flex",
+      },
+      langsmith: createLangSmithProviderOptions({
+        client,
+      }),
+    },
+  });
+  expect(result.text).toBeDefined();
+  expect(result.text.length).toBeGreaterThan(0);
+  expect(result.usage).toBeDefined();
+  expect(result.providerMetadata).toBeDefined();
+  await client.awaitPendingTraceBatches();
+  const patchBodies = await Promise.all(
+    callSpy.mock.calls
+      .filter((call: any) => call[1]!.method === "PATCH")
+      .map((call: any) => new Response(call[1]!.body).json()),
+  );
+  const childRunPatchBodies = patchBodies.filter(
+    (body) => body.parent_run_id != null,
+  );
+
+  expect(childRunPatchBodies.length).toBeGreaterThanOrEqual(1);
+
+  const llmChildRun = childRunPatchBodies.find(
+    (body) => body.extra?.metadata?.usage_metadata,
+  );
+  expect(llmChildRun).toBeDefined();
+
+  const usageMetadata = llmChildRun!.extra.metadata.usage_metadata;
+  expect(usageMetadata.input_token_details.flex).toBeGreaterThan(1);
+  expect(usageMetadata.input_token_details.flex).toEqual(
+    usageMetadata.input_tokens,
+  );
+  expect(usageMetadata.output_token_details.flex).toBeGreaterThan(1);
+  expect(
+    usageMetadata.output_token_details.flex +
+      usageMetadata.output_token_details.flex_reasoning,
+  ).toEqual(usageMetadata.output_tokens);
+});
+
+test("wrap streamText", async () => {
+  const result = streamText({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What are my orders? My user ID is 123. Always use tools.",
+      },
+    ],
+    tools: {
+      listOrders: tool({
+        description: "list all orders",
+        inputSchema: z.object({ userId: z.string() }),
+        execute: async ({ userId }) =>
+          `User ${userId} has the following orders: 1`,
+      }),
+    },
+    stopWhen: stepCountIs(10),
+    providerOptions: { openai: { store: false } },
+  });
+  let total = "";
+  for await (const chunk of result.textStream) {
+    total += chunk;
+  }
+  expect(total).toBeDefined();
+  expect(total.length).toBeGreaterThan(0);
+  expect(result.usage).toBeDefined();
+  expect(result.providerMetadata).toBeDefined();
+});
+
+test("wrap streamText with service tier", async () => {
+  const { client, callSpy } = mockClient();
+
+  const result = streamText({
+    model: openai("gpt-5-mini"),
+    messages: [
+      {
+        role: "user",
+        content: "What color is the sky in one word?",
+      },
+    ],
+    providerOptions: {
+      openai: {
+        serviceTier: "flex",
+      },
+      langsmith: createLangSmithProviderOptions({
+        client,
+      }),
+    },
+  });
+  await result.consumeStream();
+  const patchBodies = await Promise.all(
+    callSpy.mock.calls
+      .filter((call: any) => call[1]!.method === "PATCH")
+      .map((call: any) => new Response(call[1]!.body).json()),
+  );
+  const childRunPatchBodies = patchBodies.filter(
+    (body) => body.parent_run_id != null,
+  );
+
+  expect(childRunPatchBodies.length).toBeGreaterThanOrEqual(1);
+
+  const llmChildRun = childRunPatchBodies.find(
+    (body) => body.extra?.metadata?.usage_metadata,
+  );
+  expect(llmChildRun).toBeDefined();
+
+  const usageMetadata = llmChildRun!.extra.metadata.usage_metadata;
+  expect(usageMetadata.input_token_details.flex).toBeGreaterThan(1);
+  expect(usageMetadata.input_token_details.flex).toEqual(
+    usageMetadata.input_tokens,
+  );
+  expect(usageMetadata.output_token_details.flex).toBeGreaterThan(1);
+  expect(
+    usageMetadata.output_token_details.flex +
+      usageMetadata.output_token_details.flex_reasoning,
+  ).toEqual(usageMetadata.output_tokens);
+});
+
+test("wrap generateText with an output schema", async () => {
+  const schema = z.object({
+    color: z.string(),
+  });
+  const output = ai.Output.object({
+    schema,
+  });
+  const result = await generateText({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What color is the sky in one word?",
+      },
+    ],
+    output,
+  });
+  expect(result.output).toBeDefined();
+  expect(schema.parse(result.output)).toBeDefined();
+  expect(result.usage).toBeDefined();
+  expect(result.providerMetadata).toBeDefined();
+});
+
+test.skip("wrap generateObject (deprecated)", async () => {
+  const schema = z.object({
+    color: z.string(),
+  });
+  const result = await generateObject({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What color is the sky in one word?",
+      },
+    ],
+    schema,
+  });
+  expect(result.object).toBeDefined();
+  expect(schema.parse(result.object)).toBeDefined();
+  expect(result.usage).toBeDefined();
+  expect(result.providerMetadata).toBeDefined();
+});
+
+test("wrap streamText with an output schema", async () => {
+  const schema = z.object({
+    color: z.string(),
+  });
+  const output = ai.Output.object({
+    schema,
+  });
+  const result = streamText({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What color is the sky in one word?",
+      },
+    ],
+    output,
+  });
+  const chunks = [];
+  for await (const chunk of result.partialOutputStream) {
+    chunks.push(chunk);
+  }
+  expect(chunks.length).toBeGreaterThan(0);
+  expect(schema.parse(chunks.at(-1))).toBeDefined();
+  expect(result.usage).toBeDefined();
+  expect(result.providerMetadata).toBeDefined();
+});
+
+// Deprecated in AI SDK v6
+test.skip("wrap streamObject", async () => {
+  const schema = z.object({
+    color: z.string(),
+  });
+  const result = streamObject({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What color is the sky in one word?",
+      },
+    ],
+    schema,
+  });
+  const chunks = [];
+  for await (const chunk of result.partialObjectStream) {
+    chunks.push(chunk);
+  }
+  expect(chunks.length).toBeGreaterThan(0);
+  expect(schema.parse(chunks.at(-1))).toBeDefined();
+  expect(result.usage).toBeDefined();
+  expect(result.providerMetadata).toBeDefined();
+});
+
+requiresClickhouse.test("can set run id", async () => {
+  const runId = v4();
+  const client = new Client();
+  const { generateText } = wrapAISDK(ai, { id: runId });
+  await generateText({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What color is the sky in one word?",
+      },
+    ],
+  });
+  await waitUntilRunFound(client, runId);
+  const run = await client.readRun(runId);
+  expect(run.id).toBe(runId);
+});
+
+test("should reuse tool def without double wrapping tool traces", async () => {
+  const toolDef = {
+    listOrders: tool({
+      description: "list all orders",
+      inputSchema: z.object({ userId: z.string() }),
+      execute: async ({ userId }) =>
+        `User ${userId} has the following orders: 1`,
+    }),
+  };
+  const result = await generateText({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What are my orders? My user ID is 123. Always use tools.",
+      },
+    ],
+    tools: toolDef,
+    stopWhen: stepCountIs(10),
+    providerOptions: { openai: { store: false } },
+  });
+  expect(result.text).toBeDefined();
+  expect(result.text.length).toBeGreaterThan(0);
+  expect(result.usage).toBeDefined();
+  expect(result.providerMetadata).toBeDefined();
+  const result2 = await generateText({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What are my orders? My user ID is 123. Always use tools.",
+      },
+    ],
+    tools: toolDef,
+    stopWhen: stepCountIs(10),
+    providerOptions: { openai: { store: false } },
+  });
+  expect(result2.text).toBeDefined();
+  expect(result2.text.length).toBeGreaterThan(0);
+  expect(result2.usage).toBeDefined();
+  expect(result2.providerMetadata).toBeDefined();
+});
+
+// Skipped: data: URL in image part triggers SSRF validation bug in
+// @ai-sdk/provider-utils@4.0.21. Fix merged upstream (vercel/ai#13376)
+// but not yet released. Re-enable once a patched version is available.
+test.skip("image and file data normalization", async () => {
+  const pathname = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "..",
+    "test_data",
+    "parrot-icon.png",
+  );
+  const imgBuffer = await fs.readFile(pathname);
+  const imgArrayBuffer = imgBuffer.buffer.slice(
+    imgBuffer.byteOffset,
+    imgBuffer.byteOffset + imgBuffer.byteLength,
+  ) as ArrayBuffer;
+  const imgBase64 = imgBuffer.toString("base64");
+  const imgUrl = "https://smith.langchain.com/og_image.png";
+  const imgDataUrl = `data:image/png;base64,${imgBase64}`;
+  const imgUrlObject = new URL("https://smith.langchain.com/og_image.png");
+
+  const result = await generateText({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "Analyze all these images and files:" },
+          { type: "image", image: imgBuffer }, // Node.js Buffer
+          { type: "image", image: imgArrayBuffer }, // ArrayBuffer
+          { type: "image", image: imgBase64 }, // Base64 string
+          { type: "image", image: imgUrl }, // HTTP URL string
+          { type: "image", image: imgDataUrl }, // Data URL
+          { type: "image", image: imgUrlObject }, // URL object
+          {
+            type: "file",
+            data: imgBuffer,
+            mediaType: "image/png",
+            filename: "test.png",
+          }, // File with Buffer data
+        ],
+      },
+    ],
+  });
+  expect(result.text).toBeDefined();
+  expect(result.text.length).toBeGreaterThan(0);
+  expect(result.usage).toBeDefined();
+  expect(result.providerMetadata).toBeDefined();
+});
+
+test("process inputs and outputs", async () => {
+  const lsConfig = createLangSmithProviderOptions<typeof ai.generateText>({
+    processInputs: (inputs) => {
+      const { messages } = inputs;
+      return {
+        messages: messages?.map((message) => ({
+          providerMetadata: message.providerOptions,
+          role: "assistant",
+          content: "REDACTED",
+        })),
+        prompt: "REDACTED",
+      };
+    },
+    processOutputs: (outputs) => {
+      return {
+        providerMetadata: outputs.outputs.providerMetadata,
+        role: "assistant",
+        content: "REDACTED",
+      };
+    },
+    processChildLLMRunInputs: (inputs) => {
+      const { prompt } = inputs;
+      return {
+        messages: prompt.map((message) => ({
+          ...message,
+          content: "REDACTED CHILD INPUTS",
+        })),
+      };
+    },
+    processChildLLMRunOutputs: (outputs) => {
+      return {
+        ...outputs,
+        content: "REDACTED CHILD OUTPUTS",
+        role: "assistant",
+      };
+    },
+  });
+  const { text } = await generateText({
+    model: openai("gpt-5-nano"),
+    prompt: "What is the capital of France?",
+    providerOptions: {
+      langsmith: lsConfig,
+    },
+  });
+  expect(text).not.toContain("REDACTED");
+});
+
+test("generateText with output should display as structured object in LangSmith", async () => {
+  const outputSchema = z.object({
+    city: z.string(),
+    temperature: z.number().nullable(),
+    unit: z.enum(["celsius", "fahrenheit"]),
+    conditions: z.string(),
+  });
+
+  const { generateText: wrappedGenerateText } = wrapAISDK(ai);
+
+  const result = await wrappedGenerateText({
+    model: openai("gpt-5-nano"),
+    prompt: "What's the weather in Prague? Return a structured response.",
+    output: ai.Output.object({ schema: outputSchema }),
+  });
+
+  // Verify the output is returned correctly and can be parsed
+  expect(result.output).toBeDefined();
+  const parsedOutput = outputSchema.parse(result.output);
+  expect(parsedOutput.city).toBeDefined();
+  expect(parsedOutput.temperature).toBeDefined();
+  expect(parsedOutput.unit).toBeDefined();
+  expect(parsedOutput.conditions).toBeDefined();
+});
+
+test("streamText with output should display as structured object in LangSmith", async () => {
+  const outputSchema = z.object({
+    city: z.string(),
+    temperature: z.number().nullable(),
+    unit: z.enum(["celsius", "fahrenheit"]),
+    conditions: z.string(),
+  });
+
+  const { streamText: wrappedStreamText } = wrapAISDK(ai);
+
+  const result = wrappedStreamText({
+    model: openai("gpt-5-nano"),
+    prompt: "What's the weather in Paris? Return a structured response.",
+    output: ai.Output.object({
+      schema: outputSchema,
+    }),
+  });
+
+  const chunks = [];
+  // Consume the stream
+  for await (const chunk of result.experimental_partialOutputStream) {
+    chunks.push(chunk);
+  }
+  expect(chunks.length).toBeGreaterThan(0);
+  expect(outputSchema.parse(chunks.at(-1))).toBeDefined();
+});
+
+it.skip("openai cache with large prompt for automatic caching", async () => {
+  const meta = v4();
+  const client = new Client();
+  const aiSDKResponses: unknown[] = [];
+
+  // Create a large prompt (>1024 tokens) to trigger OpenAI's automatic prompt caching
+  const largeProgrammingContext = generateLongContext();
+
+  const wrapper = traceable(
+    async () => {
+      // First call - should create cache due to large prompt (>1024 tokens)
+      try {
+        const res1 = await generateText({
+          model: openai("gpt-5-nano"),
+          messages: [
+            {
+              role: "system",
+              content: largeProgrammingContext,
+            },
+            {
+              role: "user",
+              content:
+                "What are the top 3 memory optimization strategies you would recommend for this Java service?",
+            },
+          ],
+        });
+        aiSDKResponses.push(res1);
+        console.log("Cache create response:", res1.usage);
+      } catch (error) {
+        console.error("Cache create error:", error);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // Second call - should read from cache with same large context
+      try {
+        const res2 = await generateText({
+          model: openai("gpt-5-nano"),
+          messages: [
+            {
+              role: "system",
+              content: largeProgrammingContext,
+            },
+            {
+              role: "user",
+              content:
+                "How would you redesign the database access pattern to reduce connection pool pressure?",
+            },
+          ],
+        });
+        aiSDKResponses.push(res2);
+        console.log("Cache read response:", res2.usage);
+      } catch (error) {
+        console.error("Cache read error:", error);
+      }
+
+      return "OpenAI cache test completed";
+    },
+    {
+      name: "OpenAI Cache Test Wrapper",
+      metadata: { testKey: meta },
+      client,
+    },
+  );
+
+  await wrapper();
+
+  await client.awaitPendingTraceBatches();
+});
+
+it.skip("openai cache with streamText", async () => {
+  const meta = v4();
+  const client = new Client();
+  const aiSDKResponses: unknown[] = [];
+
+  // Create a large prompt (>1024 tokens) to trigger OpenAI's automatic prompt caching
+  const largeProgrammingContext = generateLongContext();
+
+  const wrapper = traceable(
+    async () => {
+      // First call - should create cache due to large prompt (>1024 tokens)
+      try {
+        const { textStream } = streamText({
+          model: openai("gpt-5-nano"),
+          messages: [
+            {
+              role: "system",
+              content: largeProgrammingContext,
+            },
+            {
+              role: "user",
+              content:
+                "What are the top 3 memory optimization strategies you would recommend for this Java service?",
+            },
+          ],
+        });
+
+        let fullText = "";
+        for await (const chunk of textStream) {
+          fullText += chunk;
+        }
+        aiSDKResponses.push({ text: fullText });
+        console.log("Cache create response with streamText");
+      } catch (error) {
+        console.error("Cache create error:", error);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+
+      // Second call - should read from cache with same large context
+      try {
+        const { textStream } = streamText({
+          model: openai("gpt-5-nano"),
+          messages: [
+            {
+              role: "system",
+              content: largeProgrammingContext,
+            },
+            {
+              role: "user",
+              content:
+                "How would you redesign the database access pattern to reduce connection pool pressure?",
+            },
+          ],
+          providerOptions: {
+            openai: {
+              stream_options: {
+                include_usage: true,
+              },
+            },
+          },
+        });
+
+        let fullText = "";
+        for await (const chunk of textStream) {
+          fullText += chunk;
+        }
+        aiSDKResponses.push({ text: fullText });
+        console.log("Cache read response with streamText");
+      } catch (error) {
+        console.error("Cache read error:", error);
+      }
+
+      return "OpenAI cache streamText test completed";
+    },
+    {
+      name: "OpenAI Cache StreamText Test Wrapper",
+      metadata: { testKey: meta },
+      client,
+    },
+  );
+
+  await wrapper();
+
+  await client.awaitPendingTraceBatches();
+});
+
+test.skip("ToolLoopAgent generate", async () => {
+  const agent = new ToolLoopAgent({
+    model: openai("gpt-5-nano"),
+    tools: {
+      listOrders: tool({
+        description: "list all orders",
+        inputSchema: z.object({ userId: z.string() }),
+        execute: async ({ userId }) =>
+          `User ${userId} has the following orders: 1`,
+      }),
+    },
+  });
+
+  const result = await agent.generate({
+    prompt: "What are my orders? My user id is 1",
+  });
+  console.log(result);
+});
+
+test.skip("ToolLoopAgent stream", async () => {
+  const agent = new ToolLoopAgent({
+    model: openai("gpt-5-nano"),
+    tools: {
+      listOrders: tool({
+        description: "list all orders",
+        inputSchema: z.object({ userId: z.string() }),
+        execute: async ({ userId }) =>
+          `User ${userId} has the following orders: 1`,
+      }),
+    },
+  });
+
+  const result = await agent.stream({
+    prompt: "What are my orders? My user id is 1",
+  });
+  for await (const chunk of result.textStream) {
+    console.log(chunk);
+  }
+});
