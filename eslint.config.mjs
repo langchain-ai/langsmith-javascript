@@ -6,6 +6,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist/',
+      'internal/environment_tests/**',
       // vendored third-party code under the hand-written SDK
       'src/lib/utils/chalk/**',
       'src/lib/utils/console-table-printer/**',

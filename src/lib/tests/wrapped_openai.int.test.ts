@@ -1097,7 +1097,10 @@ describe("Usage Metadata Tests", () => {
       checkReasoningTokens,
       checkServiceTier,
     }) => {
-      it(`should handle ${description}`, async () => {
+      // The LLM gateway injects usage into streams OpenAI leaves bare.
+      const run =
+        !expectUsageMetadata && process.env.OPENAI_BASE_URL ? it.skip : it;
+      run(`should handle ${description}`, async () => {
         const { client, callSpy } = mockClient();
         const openai = wrapOpenAI(new OpenAI(), {
           tracingEnabled: true,

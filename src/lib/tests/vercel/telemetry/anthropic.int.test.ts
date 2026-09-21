@@ -1,5 +1,8 @@
 import { jest } from "@jest/globals";
-import { anthropic } from "@ai-sdk/anthropic";
+import {
+  anthropic as defaultAnthropic,
+  createAnthropic,
+} from "@ai-sdk/anthropic";
 import * as ai from "ai";
 import z from "zod";
 
@@ -9,6 +12,12 @@ import { getAssumedTreeFromCalls } from "../../utils/tree.js";
 import { Client } from "../../../index.js";
 
 const { tool, stepCountIs } = ai;
+
+// The provider posts to `${baseURL}/messages`; the LLM gateway serves
+// `/anthropic/v1/messages`, so a gateway base URL needs the `/v1` added.
+const anthropic = process.env.ANTHROPIC_BASE_URL
+  ? createAnthropic({ baseURL: `${process.env.ANTHROPIC_BASE_URL}/v1` })
+  : defaultAnthropic;
 
 test("telemetry generateText", async () => {
   const callSpy = jest.fn(fetch);

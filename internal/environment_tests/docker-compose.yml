@@ -1,0 +1,79 @@
+version: "3"
+
+services:
+  test-exports-esm:
+    image: node:22
+    working_dir: /app/internal/environment_tests/test-exports-esm
+    volumes:
+      - ../..:/app
+    command: bash -c "corepack enable && pnpm install --frozen-lockfile && pnpm test"
+
+  test-exports-cjs:
+    image: node:22
+    working_dir: /app/internal/environment_tests/test-exports-cjs
+    volumes:
+      - ../..:/app
+    command: bash -c "corepack enable && pnpm install --frozen-lockfile && pnpm test"
+
+  test-exports-cf:
+    image: node:22
+    working_dir: /app/internal/environment_tests/test-exports-cf
+    volumes:
+      - ../..:/app
+    command: bash -c "corepack enable && pnpm install --frozen-lockfile && pnpm test"
+
+  test-exports-vite:
+    image: node:22
+    working_dir: /app/internal/environment_tests/test-exports-vite
+    volumes:
+      - ../..:/app
+    command: bash -c "corepack enable && pnpm install --frozen-lockfile && pnpm test"
+
+  test-exports-webpack:
+    image: node:22
+    working_dir: /app/internal/environment_tests/test-exports-webpack
+    volumes:
+      - ../..:/app
+    command: bash -c "corepack enable && pnpm install --frozen-lockfile && pnpm test"
+
+  test-exports-esbuild:
+    image: node:22
+    working_dir: /app/internal/environment_tests/test-exports-esbuild
+    volumes:
+      - ../..:/app
+    command: bash -c "corepack enable && pnpm install --frozen-lockfile && pnpm test"
+
+  test-exports-metro:
+    image: node:22
+    working_dir: /app/internal/environment_tests/test-exports-metro
+    volumes:
+      - ../..:/app
+    command: bash -c "corepack enable && pnpm install --frozen-lockfile && pnpm test"
+
+  test-deepagent-compat:
+    image: node:22
+    working_dir: /app/internal/environment_tests/test-deepagent-compat
+    volumes:
+      - ../..:/app
+    command: bash -c "corepack enable && pnpm install --frozen-lockfile && pnpm test"
+
+  success:
+    image: alpine:3.14
+    depends_on:
+      test-exports-esm:
+        condition: service_completed_successfully
+      test-exports-cjs:
+        condition: service_completed_successfully
+      test-exports-cf:
+        condition: service_completed_successfully
+      test-exports-vite:
+        condition: service_completed_successfully
+      test-exports-webpack:
+        condition: service_completed_successfully
+      test-exports-esbuild:
+        condition: service_completed_successfully
+      test-exports-metro:
+        condition: service_completed_successfully
+      test-deepagent-compat:
+        condition: service_completed_successfully
+    command: echo "All export tests passed!"

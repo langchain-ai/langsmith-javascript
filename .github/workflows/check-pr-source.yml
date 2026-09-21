@@ -1,0 +1,36 @@
+name: Check PR source
+
+# Production main only takes the stlc promotion PR (stainless/release) and the
+# release-please PR. Urgent fix: add the `skip-pr-source-check` label, then run
+# "stlc: sync from production" in the staging repo.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions: {}
+
+jobs:
+  check:
+    name: PR comes from staging
+    if: github.repository == 'langchain-ai/langsmith-javascript'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the head branch
+        env:
+          HEAD: ${{ github.head_ref }}
+          SAME_REPO: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+          SKIP: ${{ contains(github.event.pull_request.labels.*.name, 'skip-pr-source-check') }}
+        run: |
+          if [ "$SKIP" = "true" ]; then
+            echo "::warning::skip-pr-source-check label present. After merging, run 'stlc: sync from production' in langsmith-javascript-staging so staging catches up."
+            exit 0
+          fi
+          if [ "$SAME_REPO" = "true" ]; then
+            case "$HEAD" in
+              stainless/release|release-please--branches--main) exit 0 ;;
+            esac
+          fi
+          echo "::error::PRs to main must come from stainless/release. Open the change against langsmith-javascript-staging instead, or add the skip-pr-source-check label for an urgent production fix."
+          exit 1

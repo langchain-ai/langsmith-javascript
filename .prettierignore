@@ -12,3 +12,6 @@ CHANGELOG.md
 /src/lib/utils/simple-wcswidth
 /src/lib/tests/test_data
 /_build
+
+# standalone pnpm projects with their own lockfiles
+/internal/environment_tests

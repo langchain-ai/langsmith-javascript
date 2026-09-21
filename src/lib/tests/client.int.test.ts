@@ -1004,7 +1004,12 @@ test("Test list prompts", async () => {
 // "Test delete prompt", "Test create commit", "Test like and unlike prompt",
 // "Test pull prompt commit", and "Test push and pull prompt".
 test("Prompt CRUD lifecycle (push, get, exists, update, commit, like/unlike, pull, delete)", async () => {
-  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  // No global prompt cache: its refresh timer would keep polling the deleted
+  // prompt after this file finishes, and jest fails the run on late logs.
+  const client = new Client({
+    callerOptions: { maxRetries: 6 },
+    disablePromptCache: true,
+  });
 
   const promptName = `test_prompt_lifecycle_${uuidv4().slice(0, 8)}`;
   const initialTemplate = ChatPromptTemplate.fromMessages(
@@ -1130,7 +1135,12 @@ test("Test pull prompt include model", async () => {
     return;
   }
 
-  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  // No global prompt cache: its refresh timer would keep polling the deleted
+  // prompt after this file finishes, and jest fails the run on late logs.
+  const client = new Client({
+    callerOptions: { maxRetries: 6 },
+    disablePromptCache: true,
+  });
   let promptName: string | undefined;
   try {
     const model = new ChatOpenAI({});
