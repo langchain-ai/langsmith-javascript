@@ -1,11 +1,7 @@
 {
   "name": "langsmith",
   "version": "0.10.4",
-<<<<<<< HEAD
   "description": "The official TypeScript library for the LangChain API",
-=======
-  "description": "Client library to connect to the LangSmith Observability and Evaluation Platform.",
->>>>>>> 24b9362 (Apply custom code)
   "author": "LangChain <>",
   "types": "dist/index.d.ts",
   "main": "dist/index.js",
