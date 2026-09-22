@@ -4,6 +4,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { wrapGemini } from "../wrappers/gemini.js";
 import { mockClient } from "./utils/mock_client.js";
+import { requiresProvider } from "./utils/markers.js";
+const { test } = requiresProvider;
 
 function parseRequestBody(body: any) {
   return body instanceof Uint8Array

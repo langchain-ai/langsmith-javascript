@@ -182,13 +182,14 @@ jobs:
               "v16-smithdb-only": "https://stable-smithdb.eks.smith.langchain.dev/api",
           }
           # SmithDB-only lacks the legacy ClickHouse endpoints, ClickHouse-only lacks v2,
-          # and only the beta tenant resolves the shared dataset token.
+          # only the beta tenant resolves the shared dataset token, and the provider
+          # wrapper tests (mocked LangSmith client) run once, on beta.
           EXCLUDED = {"v16-ch-only": ["require_v2"], "v16-smithdb-only": ["require_clickhouse"]}
           selected = os.environ["SELECTED"]
           envs = list(ENDPOINTS) if selected == "all" else [selected if selected in ENDPOINTS else "beta"]
           include = []
           for env in envs:
-              markers = EXCLUDED.get(env, []) + ([] if env == "beta" else ["require_beta_dataset"])
+              markers = EXCLUDED.get(env, []) + ([] if env == "beta" else ["require_beta_dataset", "require_provider"])
               include.append({
                   "environment": env,
                   "endpoint": ENDPOINTS[env],

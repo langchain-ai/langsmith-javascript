@@ -1,12 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-process-env */
-import { describe, beforeAll, test, expect } from "@jest/globals";
+import { beforeAll, test, expect } from "@jest/globals";
 import * as claudeSDK from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
 import { wrapClaudeAgentSDK } from "../experimental/anthropic/index.js";
 import { traceable } from "../traceable.js";
 import { mockClient } from "./utils/mock_client.js";
 import { getAssumedTreeFromCalls } from "./utils/tree.js";
+import { requiresProvider } from "./utils/markers.js";
+const { describe } = requiresProvider;
 
 // Note: These tests require an ANTHROPIC_API_KEY environment variable.
 // They are skipped by default to avoid requiring API keys in CI.

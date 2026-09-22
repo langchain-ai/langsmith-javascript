@@ -22,15 +22,27 @@ const excluded = new Set(
  * Returns `test` / `describe` for the given marker, swapped for their `.skip`
  * variants when the target environment excludes it.
  */
-export function requires(marker: string): {
+export function requires(...markers: string[]): {
   test: typeof test;
+  it: typeof test;
   describe: typeof describe;
 } {
-  if (!excluded.has(marker)) return { test, describe };
-  return {
-    test: test.skip as unknown as typeof test,
-    describe: describe.skip as unknown as typeof describe,
-  };
+  if (!markers.some((marker) => excluded.has(marker)))
+    return { test, it: test, describe };
+  const skippedTest = skipped(test);
+  return { test: skippedTest, it: skippedTest, describe: skipped(describe) };
+}
+
+/**
+ * A `test`/`describe` stand-in that skips everything but keeps the modifier
+ * surface (`.skip`, `.only`, `.each`, ...) the test files already use.
+ */
+function skipped<T extends typeof test | typeof describe>(fn: T): T {
+  const skip = fn.skip as unknown as (...args: unknown[]) => unknown;
+  return Object.assign((...args: unknown[]) => skip(...args), fn, {
+    only: fn.skip,
+    each: fn.skip.each,
+  }) as unknown as T;
 }
 
 /** Needs the v2 (SmithDB) endpoints, which V15 deployments don't serve. */
@@ -44,3 +56,9 @@ export const requiresClickhouse = requires("require_clickhouse");
  * or a public dataset URL that no self-hosted deployment can resolve.
  */
 export const requiresBetaDataset = requires("require_beta_dataset");
+
+/**
+ * Exercises an LLM provider wrapper against a mocked LangSmith client, so the
+ * target deployment plays no part. Run once, on beta.
+ */
+export const requiresProvider = requires("require_provider");

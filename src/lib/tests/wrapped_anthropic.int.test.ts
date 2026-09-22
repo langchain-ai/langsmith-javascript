@@ -6,6 +6,8 @@ import { mockClient } from "./utils/mock_client.js";
 import { getAssumedTreeFromCalls } from "./utils/tree.js";
 import { UsageMetadata } from "../schemas.js";
 import { generateLongContext } from "./utils.js";
+import { requiresProvider } from "./utils/markers.js";
+const { test, it, describe } = requiresProvider;
 
 function parseRequestBody(body: any) {
   return body instanceof Uint8Array

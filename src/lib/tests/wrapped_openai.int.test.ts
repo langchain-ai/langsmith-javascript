@@ -8,6 +8,8 @@ import { zodResponseFormat, zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
 import { UsageMetadata } from "../schemas.js";
 import fs from "fs";
+import { requiresProvider } from "./utils/markers.js";
+const { test, describe } = requiresProvider;
 
 function parseRequestBody(body: any) {
   return body instanceof Uint8Array
