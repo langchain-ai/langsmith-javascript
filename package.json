@@ -170,6 +170,7 @@
       "import": "./dist/lib/client.mjs",
       "require": "./dist/lib/client.js"
     },
+    "./package.json": "./package.json",
     "./*.mjs": {
       "default": "./dist/*.mjs"
     },
