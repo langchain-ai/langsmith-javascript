@@ -10,7 +10,7 @@
     "langsmith": "file:../../../dist"
   },
   "devDependencies": {
-    "@react-native/babel-preset": "^0.76.0",
-    "metro": "^0.81.0"
+    "@react-native/babel-preset": "^0.87.1",
+    "metro": "^0.87.1"
   }
 }

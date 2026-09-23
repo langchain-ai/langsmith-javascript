@@ -11,6 +11,6 @@
     "langsmith": "file:../../../dist"
   },
   "devDependencies": {
-    "vite": "^6.4.2"
+    "vite": "^8.3.0"
   }
 }
