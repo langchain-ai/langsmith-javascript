@@ -74,6 +74,7 @@ describe('resource boxes', () => {
           sort_direction: 'sort_direction',
           sort_order: 'sort_order',
           status: 'status',
+          tag_value_id: ['string'],
         },
         { path: '/_stainless_unknown_path' },
       ),

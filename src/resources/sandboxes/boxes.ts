@@ -1113,6 +1113,11 @@ export interface BoxListParams extends ItemsCursorGetPaginationParams {
    * Filter by status (provisioning, ready, failed, stopped, deleting)
    */
   status?: string;
+
+  /**
+   * Filter by workspace resource tag value IDs; all must match
+   */
+  tag_value_id?: Array<string>;
 }
 
 export interface BoxCreateSnapshotParams {
