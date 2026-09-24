@@ -85,6 +85,10 @@ export class Runs extends APIResource {
       headers: buildHeaders([{ ...(Accept != null ? { Accept: Accept } : undefined) }, options?.headers]),
     });
   }
+
+  retrieve = this.retrieveV2;
+
+  query = this.queryV2;
 }
 
 export type RunsItemsCursorPostPagination = ItemsCursorPostPagination<Run>;
