@@ -12,3 +12,4 @@ dist-deno
 
 .env
 _build
+.attw.json
