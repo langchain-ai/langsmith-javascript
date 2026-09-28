@@ -362,7 +362,9 @@ export class SandboxTokenVerifier {
       return await key;
     } catch (e) {
       fail(
-        `signing key ${kid} is not a usable Ed25519 key: ${(e as Error).message}`,
+        `signing key ${kid} is not a usable Ed25519 key: ${
+          (e as Error).message
+        }`,
       );
     }
   }
