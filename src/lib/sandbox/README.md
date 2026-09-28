@@ -688,9 +688,12 @@ import { SandboxTokenVerifier, USER_TOKEN_HEADER } from "langsmith/sandbox";
 
 const verifier = new SandboxTokenVerifier();
 
-const user = await verifier.verifyUserToken(req.headers.get(USER_TOKEN_HEADER)!, {
-  audience: req.headers.get("host")!, // the service URL host
-});
+const user = await verifier.verifyUserToken(
+  req.headers.get(USER_TOKEN_HEADER)!,
+  {
+    audience: req.headers.get("host")!, // the service URL host
+  },
+);
 console.log(user.subject, user.email);
 ```
 

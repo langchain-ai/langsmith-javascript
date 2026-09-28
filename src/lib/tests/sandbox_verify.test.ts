@@ -42,7 +42,9 @@ async function sign(
   claims: Record<string, unknown>,
   header: Record<string, unknown> = { alg: "EdDSA", kid: KID },
 ): Promise<string> {
-  const input = `${b64url(JSON.stringify(header))}.${b64url(JSON.stringify(claims))}`;
+  const input = `${b64url(JSON.stringify(header))}.${b64url(
+    JSON.stringify(claims),
+  )}`;
   const sig = await crypto.subtle.sign(
     { name: "Ed25519" },
     pair.privateKey,
@@ -167,7 +169,9 @@ describe("SandboxTokenVerifier", () => {
 
     it("rejects a tampered payload", async () => {
       const [h, , s] = (await sign(pair, userClaims())).split(".");
-      const forged = `${h}.${b64url(JSON.stringify(userClaims({ sub: "admin" })))}.${s}`;
+      const forged = `${h}.${b64url(
+        JSON.stringify(userClaims({ sub: "admin" })),
+      )}.${s}`;
       await expect(
         verifier().verifyUserToken(forged, { audience: SERVICE_HOST }),
       ).rejects.toThrow("invalid signature");

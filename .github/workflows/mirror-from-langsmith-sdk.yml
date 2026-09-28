@@ -60,12 +60,28 @@ jobs:
       - name: Clone langsmith-sdk
         run: git clone --quiet "https://github.com/$SOURCE_REPO.git" ../langsmith-sdk
 
+      - name: Protect formatter dependency installs
+        uses: socketdev/action@ba6de6cc0565af1f42295590380973573297e31f
+        with:
+          mode: firewall-free
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '20'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: '10.30.1'
+
       - name: Append new commits to the mirror branch
         id: mirror
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           cp .github/scripts/mirror-from-langsmith-sdk.sh "$RUNNER_TEMP/mirror.sh"
+          cp .github/scripts/format-mirror.sh "$RUNNER_TEMP/format-mirror.sh"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -83,7 +99,7 @@ jobs:
             git checkout --quiet -B "$BRANCH" origin/main
           fi
 
-          staging=$PWD added=0 conflict=
+          staging=$PWD added=0 conflict= formatter_ready=false
           pointer=$(cat .mirror-source-sha)
           cd ../langsmith-sdk
           for sha in $(git log --reverse --format=%H "$pointer..origin/main" -- "$SOURCE_PATH"); do
@@ -95,6 +111,13 @@ jobs:
               | grep -v "^$SOURCE_PATH/src/_openapi_client/" >/dev/null; then continue; fi
             out=$RUNNER_TEMP/mirror-$sha
             "$RUNNER_TEMP/mirror.sh" "$LANG_KEY" "$sha" "$staging" "$out"
+            if [ "$(cat "$out/status")" = clean ]; then
+              if [ "$formatter_ready" = false ]; then
+                (cd "$staging" && pnpm install --frozen-lockfile --ignore-scripts)
+                formatter_ready=true
+              fi
+              "$RUNNER_TEMP/format-mirror.sh" "$staging"
+            fi
             echo "$sha" > "$staging/.mirror-source-sha"
             {
               # Explicit URLs keep release-please from linking to production issue numbers.
