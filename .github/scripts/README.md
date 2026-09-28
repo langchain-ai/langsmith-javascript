@@ -18,3 +18,16 @@ Manual fixes on the mirror branch survive later runs. Slack notifies Thibaut of 
 
 Enable **Allow rebase merging** in repository settings if needed.
 Closing an unmerged mirror PR discards its fixes; the next run replays from `main`.
+
+## Formatting policy
+
+Prettier formats handwritten and generated code. `.prettierrc.json` retains the
+80-column, double-quote override for `src/lib/`; the version comes from `pnpm-lock.yaml`.
+
+1. Run `scripts/format` locally. `scripts/lint` checks formatting without changing files.
+2. Mirroring formats changed files after clean patch application, before committing.
+3. Conflicted patches keep their markers. Run `scripts/format` after resolving them.
+4. Keep formatter configuration in staging; upstream tooling files remain manual ports.
+
+STLC seals custom changes from `main` and runs `scripts/lint` after regeneration.
+Formatting-only changes can still conflict with later upstream edits; review them normally.

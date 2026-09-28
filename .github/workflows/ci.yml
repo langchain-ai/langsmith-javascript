@@ -53,6 +53,9 @@ jobs:
       - name: Bootstrap
         run: ./scripts/bootstrap
 
+      - name: Test mirror formatting
+        run: .github/scripts/test-format-mirror.sh
+
       - name: Check types
         run: ./scripts/lint
 
