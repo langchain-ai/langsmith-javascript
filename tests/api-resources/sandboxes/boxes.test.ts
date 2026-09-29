@@ -162,6 +162,7 @@ describe('resource boxes', () => {
       path: 'path',
       content_disposition: 'content_disposition',
       content_type: 'content_type',
+      csp_sandbox: true,
       csp_sandbox_flags: ['allow-downloads'],
       csp_source_bundles: ['cdnjs'],
       expires_in_seconds: 0,
