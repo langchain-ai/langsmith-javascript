@@ -34,6 +34,12 @@ Types:
 - <code><a href="./src/resources/datasets/datasets.ts">Missing</a></code>
 - <code><a href="./src/resources/datasets/datasets.ts">SortByDatasetColumn</a></code>
 
+## Examples
+
+Methods:
+
+- <code title="delete /api/v1/platform/datasets/{dataset_id}/examples/{example_id}">client.datasets.examples.<a href="./src/resources/datasets/examples.ts">delete</a>(exampleID, { ...params }) -> void</code>
+
 ## ExperimentRuns
 
 Types:

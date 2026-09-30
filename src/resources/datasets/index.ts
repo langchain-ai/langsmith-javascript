@@ -10,6 +10,7 @@ export {
   type Missing,
   type SortByDatasetColumn,
 } from './datasets';
+export { Examples, type ExampleDeleteParams } from './examples';
 export {
   ExperimentRuns,
   type ExperimentRunQueryResponse,
