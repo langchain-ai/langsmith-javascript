@@ -1,0 +1,38 @@
+version: 2
+updates:
+  - package-ecosystem: 'npm'
+    directory: '/'
+    target-branch: 'main'
+    schedule:
+      interval: 'monthly'
+    ignore:
+      - dependency-name: 'p-queue'
+    groups:
+      minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+      major:
+        patterns:
+          - '*'
+        update-types:
+          - 'major'
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    target-branch: 'main'
+    schedule:
+      interval: 'monthly'
+    groups:
+      minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+      major:
+        patterns:
+          - '*'
+        update-types:
+          - 'major'

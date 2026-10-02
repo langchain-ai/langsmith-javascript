@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+
+
+# Two jest invocations: jest caches "is this file ESM?" per path across projects, so the
+# CJS `stainless` project breaks once the ESM `lib` project has loaded a shared source file.
+echo "==> Running tests (generated SDK)"
+./node_modules/.bin/jest --selectProjects stainless "$@"
+
+echo "==> Running tests (hand-written SDK)"
+NODE_OPTIONS="${NODE_OPTIONS:-} --experimental-vm-modules" ./node_modules/.bin/jest --selectProjects lib "$@"

@@ -1,0 +1,17 @@
+CHANGELOG.md
+/ecosystem-tests/*/**
+/node_modules
+/deno
+
+# don't format tsc output, will break source maps
+/dist
+
+# vendored / fixtures (hand-written SDK)
+/src/lib/utils/chalk
+/src/lib/utils/console-table-printer
+/src/lib/utils/simple-wcswidth
+/src/lib/tests/test_data
+/_build
+
+# standalone pnpm projects with their own lockfiles
+/internal/environment_tests
