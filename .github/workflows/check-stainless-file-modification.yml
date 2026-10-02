@@ -47,10 +47,9 @@ jobs:
           while IFS= read -r FILE; do
             [ -z "$FILE" ] && continue
             [ ! -f "$FILE" ] && continue
-            # This workflow quotes the generated-file marker in its own grep
-            # below, so scanning it would always flag it.
-            [ "$FILE" = ".github/workflows/check-stainless-file-modification.yml" ] && continue
-            if grep -qF "File generated from our OpenAPI spec by Stainless." "$FILE"; then
+            # Generated files carry the marker in their first-line header.
+            # Documentation and this workflow may quote it later in the file.
+            if head -n 1 "$FILE" | grep -qF "File generated from our OpenAPI spec by Stainless."; then
               STAINLESS_FILES="$STAINLESS_FILES\n  - $FILE"
             fi
           done <<< "$CHANGED_FILES"
