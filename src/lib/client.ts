@@ -87,7 +87,7 @@ import { Public } from "../resources/public/public.js";
 import { assertUuid } from "./utils/_uuid.js";
 import { isSampledById } from "./utils/sampling.js";
 import { warnOnce } from "./utils/warn.js";
-import { type Address, EnvAddressError, toPayload } from "./address.js";
+import { type Address, EnvAddressError } from "./address.js";
 import {
   applyToPayload,
   checkAddress,
@@ -5631,9 +5631,7 @@ export class Client implements LangSmithTracingClientInterface {
     if (samplingId != null && !this._shouldSample(samplingId)) {
       return feedback as Feedback;
     }
-    const body = JSON.stringify(
-      address ? { ...feedback, ...toPayload(address) } : feedback,
-    );
+    const body = JSON.stringify(address ? { ...feedback, address } : feedback);
     const url = `${this.apiUrl}/feedback`;
     await this.caller.call(async () => {
       const res = await this._fetch(url, {
