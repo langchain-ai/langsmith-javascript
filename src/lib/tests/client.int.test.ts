@@ -1,0 +1,2588 @@
+import {
+  Dataset,
+  Example,
+  ExampleUpdateWithAttachments,
+  Feedback,
+  Run,
+  TracerSession,
+} from "../schemas.js";
+import { LangSmithConflictError } from "../utils/error.js";
+import {
+  FunctionMessage,
+  HumanMessage,
+  SystemMessage,
+} from "@langchain/core/messages";
+
+import { Client } from "../client.js";
+import { v4 as uuidv4 } from "../utils/uuid/src/index.js";
+import { ExampleCreate } from "../schemas.js";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  createRunsFactory,
+  deleteDataset,
+  deleteProject,
+  pollRunsUntilCount,
+  toArray,
+  waitUntil,
+  skipIfTransientError,
+} from "./utils.js";
+import { requiresBetaDataset, requiresClickhouse } from "./utils/markers.js";
+import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
+import { ChatOpenAI } from "@langchain/openai";
+import { RunnableSequence } from "@langchain/core/runnables";
+import { load } from "langchain/load";
+import { _getFetchImplementation } from "../singletons/fetch.js";
+import { traceable } from "../traceable.js";
+
+type CheckOutputsType = boolean | ((run: Run) => boolean);
+async function waitUntilRunFound(
+  client: Client,
+  runId: string,
+  checkOutputs: CheckOutputsType = false,
+) {
+  return waitUntil(
+    async () => {
+      try {
+        const run = await client.readRun(runId);
+        if (checkOutputs) {
+          const hasOutputs = run.outputs !== null && run.outputs !== undefined;
+          if (typeof checkOutputs === "boolean") {
+            return hasOutputs;
+          } else if (typeof checkOutputs === "function") {
+            return hasOutputs && checkOutputs(run);
+          }
+        }
+        return true;
+      } catch (_e) {
+        return false;
+      }
+    },
+    210_000,
+    5_000,
+  );
+}
+
+// Test Dataset Creation, List, Read, Delete + upload CSV
+// Test Example Creation, List, Read, Update, Delete
+test("Test LangSmith Client Dataset CRD", async () => {
+  const client = new Client({
+    autoBatchTracing: false,
+    callerOptions: { maxRetries: 6 },
+  });
+
+  const csvContent = `col1,col2,col3,col4\nval1,val2,val3,val4`;
+  const blobData = new Blob([Buffer.from(csvContent)]);
+
+  const description = "Test Dataset";
+  const inputKeys = ["col1", "col3"];
+  const outputKeys = ["col2", "col4"];
+  const fileName = "__some_file.int.csv";
+  await deleteDataset(client, fileName);
+  const newDataset = await client.uploadCsv({
+    csvFile: blobData,
+    fileName: fileName,
+    description,
+    inputKeys,
+    outputKeys,
+  });
+  expect(newDataset).toHaveProperty("id");
+  expect(newDataset.description).toBe(description);
+
+  const dataset = await client.readDataset({ datasetId: newDataset.id });
+  const datasetId = dataset.id;
+  const dataset2 = await client.readDataset({ datasetId });
+  expect(dataset.id).toBe(dataset2.id);
+
+  const datasets = await toArray(
+    client.listDatasets({ datasetName: fileName }),
+  );
+  expect(datasets.length).toBeGreaterThan(0);
+  expect(datasets.map((d) => d.id)).toContain(datasetId);
+
+  const example = await client.createExample(
+    { col1: "addedExampleCol1" },
+    { col2: "addedExampleCol2" },
+    { datasetId: newDataset.id, split: "my_split" },
+  );
+  const exampleValue = await client.readExample(example.id);
+  expect(exampleValue.inputs.col1).toBe("addedExampleCol1");
+  expect(exampleValue.outputs?.col2).toBe("addedExampleCol2");
+
+  const examples = await toArray(
+    client.listExamples({ datasetId: newDataset.id }),
+  );
+  expect(examples.length).toBe(2);
+  expect(examples.map((e) => e.id)).toContain(example.id);
+
+  const _examples = await toArray(
+    client.listExamples({ datasetId: newDataset.id, splits: ["my_split"] }),
+  );
+  expect(_examples.length).toBe(1);
+  expect(_examples.map((e) => e.id)).toContain(example.id);
+
+  await client.updateExample(example.id, {
+    inputs: { col1: "updatedExampleCol1" },
+    outputs: { col2: "updatedExampleCol2" },
+    split: ["my_split2"],
+  });
+  // Says 'example updated' or something similar
+  const newExampleValue = await client.readExample(example.id);
+  expect(newExampleValue.inputs.col1).toBe("updatedExampleCol1");
+  expect(newExampleValue.metadata?.dataset_split).toStrictEqual(["my_split2"]);
+
+  await client.updateExample(example.id, {
+    inputs: { col1: "updatedExampleCol3" },
+    outputs: { col2: "updatedExampleCol4" },
+    split: "my_split3",
+  });
+  // Says 'example updated' or something similar
+  const newExampleValue2 = await client.readExample(example.id);
+  expect(newExampleValue2.inputs.col1).toBe("updatedExampleCol3");
+  expect(newExampleValue2.metadata?.dataset_split).toStrictEqual(["my_split3"]);
+
+  const newExample = await client.createExample(
+    { col1: "newAddedExampleCol1" },
+    { col2: "newAddedExampleCol2" },
+    { datasetId: newDataset.id },
+  );
+  const newExampleValue_ = await client.readExample(newExample.id);
+  expect(newExampleValue_.inputs.col1).toBe("newAddedExampleCol1");
+  expect(newExampleValue_.outputs?.col2).toBe("newAddedExampleCol2");
+
+  await client.updateExamples([
+    {
+      id: newExample.id,
+      inputs: { col1: "newUpdatedExampleCol1" },
+      outputs: { col2: "newUpdatedExampleCol2" },
+      metadata: { foo: "baz" },
+    },
+    {
+      id: example.id,
+      inputs: { col1: "newNewUpdatedExampleCol" },
+      outputs: { col2: "newNewUpdatedExampleCol2" },
+      metadata: { foo: "qux" },
+    },
+  ]);
+  const updatedExample = await client.readExample(newExample.id);
+  expect(updatedExample.inputs.col1).toBe("newUpdatedExampleCol1");
+  expect(updatedExample.outputs?.col2).toBe("newUpdatedExampleCol2");
+  expect(updatedExample.metadata?.foo).toBe("baz");
+
+  const updatedExample2 = await client.readExample(example.id);
+  expect(updatedExample2.inputs.col1).toBe("newNewUpdatedExampleCol");
+  expect(updatedExample2.outputs?.col2).toBe("newNewUpdatedExampleCol2");
+  expect(updatedExample2.metadata?.foo).toBe("qux");
+
+  await client.deleteExample(example.id);
+  const examples2 = await toArray(
+    client.listExamples({ datasetId: newDataset.id }),
+  );
+  expect(examples2.length).toBe(2);
+  await client.createExample({ dataset_id: newDataset.id, inputs: {} });
+
+  const examples3 = await toArray(
+    client.listExamples({ datasetId: newDataset.id }),
+  );
+  expect(examples3.length).toBe(3);
+
+  await client.deleteDataset({ datasetId });
+  const rawDataset = await client.createDataset(fileName, {
+    description: "Test Dataset",
+  });
+  await client.deleteDataset({ datasetId: rawDataset.id });
+});
+
+test("test create dataset", async () => {
+  const langchainClient = new Client({
+    autoBatchTracing: false,
+    callerOptions: { maxRetries: 6 },
+  });
+  const datasetName = "__test_create_dataset JS";
+  const datasets = await toArray(langchainClient.listDatasets({ datasetName }));
+  datasets.map(async (dataset: Dataset) => {
+    if (dataset.name === datasetName) {
+      await langchainClient.deleteDataset({ datasetName });
+    }
+  });
+  const dataset = await langchainClient.createDataset(datasetName, {
+    dataType: "llm",
+    metadata: { key: "valuefoo" },
+  });
+  await langchainClient.createExample(
+    { input: "hello world" },
+    { output: "hi there" },
+    {
+      datasetId: dataset.id,
+    },
+  );
+  const loadedDataset = await langchainClient.readDataset({ datasetName });
+  expect(loadedDataset.data_type).toEqual("llm");
+
+  const datasetsByMetadata = await toArray(
+    langchainClient.listDatasets({ metadata: { key: "valuefoo" } }),
+  );
+  expect(datasetsByMetadata.length).toEqual(1);
+  expect(datasetsByMetadata.map((d) => d.id)).toContain(dataset.id);
+  await langchainClient.deleteDataset({ datasetName });
+}, 180_000);
+
+test("evaluators generated client CRUD", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const evaluatorName = `__test_evaluator_${uuidv4().slice(0, 8)}`;
+  let evaluatorId: string | undefined;
+
+  try {
+    const created = await client.evaluators.create({
+      name: evaluatorName,
+      type: "code",
+      code_evaluator: {
+        code: "def perform_eval(run, example):\n    return {'score': 1}",
+        language: "python",
+      },
+    });
+
+    evaluatorId = created.evaluator?.id;
+    expect(evaluatorId).toBeDefined();
+    expect(created.evaluator?.name).toBe(evaluatorName);
+    expect(created.evaluator?.type).toBe("code");
+
+    const retrieved = await client.evaluators.retrieve(evaluatorId!);
+    expect(retrieved.id).toBe(evaluatorId);
+    expect(retrieved.name).toBe(evaluatorName);
+  } finally {
+    if (evaluatorId) {
+      await client.evaluators.delete(evaluatorId, {
+        delete_run_rules: true,
+      });
+    }
+  }
+}, 180_000);
+
+requiresClickhouse.test(
+  "Test share and unshare run",
+  async () => {
+    const langchainClient = new Client({
+      autoBatchTracing: false,
+      callerOptions: { maxRetries: 6 },
+    });
+
+    // Create a new run
+    const runId = uuidv4();
+    await langchainClient.createRun({
+      name: "Test run",
+      inputs: { input: "hello world" },
+      run_type: "chain",
+      id: runId,
+    });
+
+    await waitUntilRunFound(langchainClient, runId);
+    const sharedUrl = await langchainClient.shareRun(runId);
+    const response = await _getFetchImplementation()(sharedUrl);
+    expect(response.status).toEqual(200);
+    expect(await langchainClient.readRunSharedLink(runId)).toEqual(sharedUrl);
+
+    await langchainClient.unshareRun(runId);
+    const sharedLink = await langchainClient.readRunSharedLink(runId);
+    expect(sharedLink).toBe(undefined);
+  },
+  180_000,
+);
+
+test("Test list datasets", async () => {
+  const langchainClient = new Client({
+    autoBatchTracing: false,
+    callerOptions: { maxRetries: 6 },
+  });
+  const datasetName1 = "___TEST dataset1 JS";
+  const datasetName2 = "___TEST dataset2 JS";
+  await deleteDataset(langchainClient, datasetName1);
+  await deleteDataset(langchainClient, datasetName2);
+  // Create two new datasets
+  const dataset1 = await langchainClient.createDataset(datasetName1, {
+    dataType: "llm",
+  });
+  const dataset2 = await langchainClient.createDataset(datasetName2, {
+    dataType: "kv",
+  });
+
+  // List datasets by ID
+  const datasetsById: Dataset[] = [];
+  const datasetsByIdIterable = langchainClient.listDatasets({
+    datasetIds: [dataset1.id, dataset2.id],
+  });
+  for await (const dataset of datasetsByIdIterable) {
+    datasetsById.push(dataset);
+  }
+  expect(datasetsById).toHaveLength(2);
+  expect(datasetsById.map((dataset) => dataset.id)).toContain(dataset1.id);
+  expect(datasetsById.map((dataset) => dataset.id)).toContain(dataset2.id);
+
+  // List datasets by name
+  const datasetsByNameIterable = langchainClient.listDatasets({
+    datasetName: datasetName1,
+  });
+  const datasetsByName = [];
+  for await (const dataset of datasetsByNameIterable) {
+    datasetsByName.push(dataset);
+  }
+  expect(datasetsByName).toHaveLength(1);
+  expect(datasetsByName.map((dataset) => dataset.id)).toContain(dataset1.id);
+
+  await langchainClient.deleteDataset({ datasetId: dataset1.id });
+  await langchainClient.deleteDataset({ datasetId: dataset2.id });
+}, 180_000);
+
+requiresClickhouse.test(
+  "Test create feedback with source run",
+  async () => {
+    await skipIfTransientError(async () => {
+      const langchainClient = new Client({
+        autoBatchTracing: false,
+        callerOptions: { maxRetries: 6 },
+      });
+      const projectName = "__test_create_feedback_with_source_run JS";
+      if (await langchainClient.hasProject({ projectName })) {
+        await deleteProject(langchainClient, projectName);
+      }
+      const runId = uuidv4();
+      await langchainClient.createRun({
+        id: runId,
+        project_name: projectName,
+        name: "test_run",
+        run_type: "llm",
+        inputs: { prompt: "hello world" },
+        outputs: { generation: "hi there" },
+        start_time: new Date().getTime(),
+        end_time: new Date().getTime(),
+      });
+
+      const runId2 = uuidv4();
+      await langchainClient.createRun({
+        id: runId2,
+        project_name: projectName,
+        name: "test_run_2",
+        run_type: "llm",
+        inputs: { prompt: "hello world 2" },
+        outputs: { generation: "hi there 2" },
+        start_time: new Date().getTime(),
+        end_time: new Date().getTime(),
+      });
+
+      // Wait for runs to be ingested before creating feedback
+      await Promise.all([
+        waitUntilRunFound(langchainClient, runId, true),
+        waitUntilRunFound(langchainClient, runId2, true),
+      ]);
+
+      await langchainClient.createFeedback(runId, "test_feedback", {
+        score: 0.5,
+        sourceRunId: runId2,
+        feedbackSourceType: "app",
+      });
+      await langchainClient.createFeedback(runId2, "test_feedback_2", {
+        score: 0.5,
+        feedbackSourceType: "app",
+      });
+
+      // Poll for feedbacks to be available (up to 10 seconds)
+      let feedbacks: Feedback[] = [];
+      const deadline = Date.now() + 10_000;
+      while (Date.now() < deadline) {
+        feedbacks = await toArray(
+          langchainClient.listFeedback({
+            runIds: [runId, runId2],
+          }),
+        );
+        if (feedbacks.length >= 2) break;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      expect(feedbacks).toHaveLength(2);
+      expect(feedbacks.map((f) => f.run_id)).toContain(runId);
+      expect(feedbacks.map((f) => f.run_id)).toContain(runId2);
+    });
+  },
+  180_000,
+);
+
+requiresClickhouse.test(
+  "Test create run with masked inputs/outputs",
+  async () => {
+    const langchainClient = new Client({
+      hideInputs: true,
+      hideOutputs: true,
+      autoBatchTracing: false,
+      callerOptions: { maxRetries: 6 },
+    });
+    const projectName = "__test_create_run_with_masked_inputs_outputs JS";
+    await deleteProject(langchainClient, projectName);
+    const runId = uuidv4();
+    await langchainClient.createRun({
+      id: runId,
+      project_name: projectName,
+      name: "test_run",
+      run_type: "llm",
+      inputs: { prompt: "hello world" },
+      outputs: { generation: "hi there" },
+      start_time: new Date().getTime(),
+      end_time: new Date().getTime(),
+    });
+
+    const runId2 = uuidv4();
+    await langchainClient.createRun({
+      id: runId2,
+      project_name: projectName,
+      name: "test_run_2",
+      run_type: "llm",
+      inputs: { messages: "hello world 2" },
+      start_time: new Date().getTime(),
+    });
+
+    await langchainClient.updateRun(runId2, {
+      outputs: { generation: "hi there 2" },
+      end_time: new Date().getTime(),
+    });
+    await waitUntilRunFound(langchainClient, runId, false);
+    const run1 = await langchainClient.readRun(runId);
+    expect(Object.keys(run1.inputs ?? {})).toHaveLength(0);
+    expect(Object.keys(run1.outputs ?? {})).toHaveLength(0);
+    await waitUntilRunFound(langchainClient, runId2, false);
+    const run2 = await langchainClient.readRun(runId2);
+    expect(Object.keys(run2.inputs ?? {})).toHaveLength(0);
+    expect(Object.keys(run2.outputs ?? {})).toHaveLength(0);
+  },
+  240_000,
+);
+
+// TODO: investigate - revision_id metadata not being set consistently
+// Environment variables (LANGCHAIN_REVISION_ID) may not be properly propagating to the API
+test.skip("Test create run with revision id", async () => {
+  const langchainClient = new Client({
+    autoBatchTracing: false,
+    callerOptions: { maxRetries: 6 },
+  });
+
+  try {
+    // eslint-disable-next-line no-process-env
+    process.env.LANGCHAIN_REVISION_ID = "test_revision_id";
+    // eslint-disable-next-line no-process-env
+    process.env.LANGCHAIN_OTHER_FIELD = "test_other_field";
+    // eslint-disable-next-line no-process-env
+    process.env.LANGCHAIN_OTHER_KEY = "test_other_key";
+    const projectName = "__test_create_run_with_revision_id JS";
+    await deleteProject(langchainClient, projectName);
+    const runId = uuidv4();
+    await langchainClient.createRun({
+      id: runId,
+      project_name: projectName,
+      name: "test_run_with_revision",
+      run_type: "llm",
+      inputs: { prompt: "hello world" },
+      outputs: { generation: "hi there" },
+      start_time: new Date().getTime(),
+      end_time: new Date().getTime(),
+    });
+
+    const runId2 = uuidv4();
+    await langchainClient.createRun({
+      id: runId2,
+      project_name: projectName,
+      name: "test_run_2_with_revision",
+      run_type: "llm",
+      inputs: { messages: "hello world 2" },
+      start_time: new Date().getTime(),
+      revision_id: "different_revision_id",
+    });
+
+    // Wait for both runs to be fully persisted
+    await waitUntilRunFound(
+      langchainClient,
+      runId,
+      (run: Run | undefined) => Object.keys(run?.outputs || {}).length !== 0,
+    );
+    await waitUntilRunFound(langchainClient, runId2);
+
+    // Add a delay to ensure metadata is fully propagated (sometimes takes longer in CI)
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
+    const run1 = await langchainClient.readRun(runId);
+    expect(run1.extra?.metadata?.revision_id).toEqual("test_revision_id");
+    expect(run1.extra?.metadata.LANGCHAIN_OTHER_FIELD).toEqual(
+      "test_other_field",
+    );
+    expect(run1.extra?.metadata.LANGCHAIN_OTHER_KEY).toBeUndefined();
+    expect(run1.extra?.metadata).not.toHaveProperty("LANGCHAIN_API_KEY");
+
+    const run2 = await langchainClient.readRun(runId2);
+    expect(run2.extra?.metadata?.revision_id).toEqual("different_revision_id");
+    expect(run2.extra?.metadata.LANGCHAIN_OTHER_FIELD).toEqual(
+      "test_other_field",
+    );
+    expect(run2.extra?.metadata.LANGCHAIN_OTHER_KEY).toBeUndefined();
+    expect(run2.extra?.metadata).not.toHaveProperty("LANGCHAIN_API_KEY");
+  } finally {
+    // Clean up environment variables
+    // eslint-disable-next-line no-process-env
+    delete process.env.LANGCHAIN_REVISION_ID;
+    // eslint-disable-next-line no-process-env
+    delete process.env.LANGCHAIN_OTHER_FIELD;
+    // eslint-disable-next-line no-process-env
+    delete process.env.LANGCHAIN_OTHER_KEY;
+  }
+}, 180_000);
+
+describe("createChatExample", () => {
+  it("should convert LangChainBaseMessage objects to examples", async () => {
+    const langchainClient = new Client({
+      autoBatchTracing: false,
+      // Test the fetch options option
+      fetchOptions: { cache: "no-store" },
+    });
+
+    const datasetName = `__createChatExample-test-dataset JS ${uuidv4()}`;
+    const dataset = await langchainClient.createDataset(datasetName);
+
+    try {
+      const input = [new HumanMessage({ content: "Hello, world!" })];
+      const generation = new FunctionMessage({
+        name: "foo",
+        content: "",
+        additional_kwargs: {
+          function_call: { arguments: "args", name: "foo" },
+        },
+      });
+      const options = { datasetId: dataset.id };
+
+      // Create the example from messages
+      await langchainClient.createChatExample(input, generation, options);
+
+      // Read the example
+      const examples = [];
+      for await (const example of langchainClient.listExamples({
+        datasetId: dataset.id,
+      })) {
+        examples.push(example);
+      }
+      expect(examples.length).toBe(1);
+      expect(examples[0].inputs).toEqual({
+        input: [
+          {
+            type: "human",
+            data: { content: "Hello, world!" },
+          },
+        ],
+      });
+      expect(examples[0].outputs).toEqual({
+        output: {
+          type: "function",
+          data: {
+            content: "",
+            additional_kwargs: {
+              function_call: { arguments: "args", name: "foo" },
+            },
+          },
+        },
+      });
+    } finally {
+      await langchainClient.deleteDataset({ datasetId: dataset.id });
+    }
+  }, 180_000);
+});
+
+requiresClickhouse.test(
+  "Test getRunUrl with run",
+  async () => {
+    const client = new Client({
+      autoBatchTracing: false,
+      callerOptions: { maxRetries: 6 },
+    });
+    const runId = uuidv4();
+    const run: Run = {
+      id: runId,
+      name: "foo",
+      run_type: "llm",
+      inputs: { input: "hello world" },
+      outputs: { output: "hi there" },
+    };
+    await client.createRun({ project_name: "foo", ...run });
+    await waitUntilRunFound(
+      client,
+      runId,
+      (run: Run | undefined) => Object.keys(run?.outputs || {}).length !== 0,
+    );
+    const result = await client.getRunUrl({
+      run,
+      projectOpts: { projectName: "foo" },
+    });
+    expect(result).toContain(runId);
+  },
+  180_000,
+);
+
+test("Examples CRUD", async () => {
+  const client = new Client({
+    autoBatchTracing: false,
+    callerOptions: { maxRetries: 6 },
+  });
+  const datasetName = "__test_examples_crud JS" + Date.now();
+  await deleteDataset(client, datasetName);
+  const dataset = await client.createDataset(datasetName);
+  const example = await client.createExample(
+    { input: "hello world" },
+    { output: "hi there" },
+    {
+      datasetId: dataset.id,
+      metadata: { key: "value" },
+    },
+  );
+  const exampleValue = await client.readExample(example.id);
+  const initialVersion = exampleValue.modified_at;
+  expect(exampleValue.inputs.input).toEqual("hello world");
+  expect(exampleValue?.outputs?.output).toEqual("hi there");
+  expect(exampleValue?.metadata?.key).toEqual("value");
+
+  // Update the example by modifying the metadata
+  await client.updateExample(example.id, {
+    metadata: { key: "new value" },
+  });
+  const updatedExampleValue = await client.readExample(example.id);
+  expect(updatedExampleValue?.metadata?.key).toEqual("new value");
+
+  // Create multiple
+  await client.createExamples({
+    inputs: [
+      { input: "hello world 1" },
+      { input: "hello world 2" },
+      { input: "hello world 3" },
+    ],
+    outputs: [
+      { output: "hi there 1" },
+      { output: "hi there 2" },
+      { output: "hi there 3" },
+    ],
+    metadata: [{ key: "value 1" }, { key: "value 2" }, { key: "value 3" }],
+    splits: ["train", "test", ["train", "validation"]],
+    datasetId: dataset.id,
+  });
+  const initialExamplesList = await toArray(
+    client.listExamples({ datasetId: dataset.id, asOf: initialVersion }),
+  );
+  expect(initialExamplesList.length).toEqual(1);
+  const examplesList = await toArray(
+    client.listExamples({ datasetId: dataset.id }),
+  );
+  expect(examplesList.length).toEqual(4);
+
+  const examplesListLimited = await toArray(
+    client.listExamples({ datasetId: dataset.id, limit: 2 }),
+  );
+  expect(examplesListLimited.length).toEqual(2);
+
+  const examplesListOffset = await toArray(
+    client.listExamples({ datasetId: dataset.id, offset: 2 }),
+  );
+  expect(examplesListOffset.length).toEqual(2);
+
+  const examplesListLimitedOffset = await toArray(
+    client.listExamples({ datasetId: dataset.id, limit: 1, offset: 2 }),
+  );
+  expect(examplesListLimitedOffset.length).toEqual(1);
+
+  await client.deleteExample(example.id);
+  const examplesList2 = await toArray(
+    client.listExamples({ datasetId: dataset.id }),
+  );
+  expect(examplesList2.length).toEqual(3);
+  const datasetDiff = await client.diffDatasetVersions({
+    datasetId: dataset.id,
+    fromVersion: initialVersion!,
+    toVersion: "latest",
+  });
+  expect(datasetDiff.examples_added.length).toEqual(3);
+  expect(datasetDiff.examples_modified.length).toEqual(0);
+  expect(datasetDiff.examples_removed.length).toEqual(1);
+
+  // verify the example inputs, outputs, and metadata
+  const example1 = examplesList2.find(
+    (e) => e.inputs.input === "hello world 1",
+  );
+  expect(example1?.outputs?.output).toEqual("hi there 1");
+  expect(example1?.metadata?.key).toEqual("value 1");
+  expect(example1?.metadata?.dataset_split).toEqual(["train"]);
+  const example2 = examplesList2.find(
+    (e) => e.inputs.input === "hello world 2",
+  );
+  expect(example2?.outputs?.output).toEqual("hi there 2");
+  expect(example2?.metadata?.key).toEqual("value 2");
+  expect(example2?.metadata?.dataset_split).toEqual(["test"]);
+  const example3 = examplesList2.find(
+    (e) => e.inputs.input === "hello world 3",
+  );
+  expect(example3?.outputs?.output).toEqual("hi there 3");
+  expect(example3?.metadata?.key).toEqual("value 3");
+  expect(example3?.metadata?.dataset_split).toContain("train");
+  expect(example3?.metadata?.dataset_split).toContain("validation");
+
+  await client.createExample(
+    { input: "hello world" },
+    { output: "hi there" },
+    {
+      datasetId: dataset.id,
+      metadata: { foo: "bar", baz: "qux" },
+    },
+  );
+  let examplesList3 = await toArray(
+    client.listExamples({ datasetId: dataset.id, metadata: { foo: "bar" } }),
+  );
+  expect(examplesList3.length).toEqual(1);
+  expect(examplesList3[0].metadata?.foo).toEqual("bar");
+  expect(examplesList3[0].metadata?.baz).toEqual("qux");
+
+  examplesList3 = await toArray(
+    client.listExamples({ datasetId: dataset.id, metadata: { foo: "qux" } }),
+  );
+  expect(examplesList3.length).toEqual(0);
+
+  examplesList3 = await toArray(
+    client.listExamples({ datasetId: dataset.id, metadata: { baz: "qux" } }),
+  );
+  expect(examplesList3.length).toEqual(1);
+
+  expect(examplesList3[0].metadata?.foo).toEqual("bar");
+  expect(examplesList3[0].metadata?.baz).toEqual("qux");
+
+  examplesList3 = await toArray(
+    client.listExamples({
+      datasetId: dataset.id,
+      metadata: { foo: "bar", baz: "qux" },
+    }),
+  );
+  expect(examplesList3.length).toEqual(1);
+  expect(examplesList3[0].metadata?.foo).toEqual("bar");
+  expect(examplesList3[0].metadata?.baz).toEqual("qux");
+
+  examplesList3 = await toArray(
+    client.listExamples({
+      datasetId: dataset.id,
+      filter: 'exists(metadata, "baz")',
+    }),
+  );
+  expect(examplesList3.length).toEqual(1);
+  expect(examplesList3[0].metadata?.foo).toEqual("bar");
+  expect(examplesList3[0].metadata?.baz).toEqual("qux");
+
+  examplesList3 = await toArray(
+    client.listExamples({
+      datasetId: dataset.id,
+      filter: 'has("metadata", \'{"foo": "bar"}\')',
+    }),
+  );
+  expect(examplesList3.length).toEqual(1);
+  expect(examplesList3[0].metadata?.foo).toEqual("bar");
+  expect(examplesList3[0].metadata?.baz).toEqual("qux");
+
+  examplesList3 = await toArray(
+    client.listExamples({
+      datasetId: dataset.id,
+      filter: 'exists(metadata, "bazzz")',
+    }),
+  );
+  expect(examplesList3.length).toEqual(0);
+
+  examplesList3 = await toArray(
+    client.listExamples({
+      datasetId: dataset.id,
+      splits: ["train"],
+    }),
+  );
+  expect(examplesList3.length).toEqual(2);
+
+  examplesList3 = await toArray(
+    client.listExamples({
+      datasetId: dataset.id,
+      splits: ["test"],
+    }),
+  );
+  expect(examplesList3.length).toEqual(1);
+
+  examplesList3 = await toArray(
+    client.listExamples({
+      datasetId: dataset.id,
+      splits: ["train", "test"],
+    }),
+  );
+  expect(examplesList3.length).toEqual(3);
+
+  // Test batch soft delete - at the end so it doesn't affect other tests
+  const allExamples = await toArray(
+    client.listExamples({ datasetId: dataset.id }),
+  );
+  const exampleIdsToDelete = allExamples.slice(0, 2).map((e) => e.id);
+  await client.deleteExamples(exampleIdsToDelete);
+  const examplesAfterBatchDelete = await toArray(
+    client.listExamples({ datasetId: dataset.id }),
+  );
+  expect(examplesAfterBatchDelete.length).toEqual(allExamples.length - 2);
+
+  // Test hard delete
+  const remainingExamples = await toArray(
+    client.listExamples({ datasetId: dataset.id }),
+  );
+  if (remainingExamples.length > 0) {
+    const hardDeleteIds = [remainingExamples[0].id];
+    await client.deleteExamples(hardDeleteIds, { hardDelete: true });
+    const examplesAfterHardDelete = await toArray(
+      client.listExamples({ datasetId: dataset.id }),
+    );
+    expect(examplesAfterHardDelete.length).toEqual(
+      remainingExamples.length - 1,
+    );
+  }
+
+  await client.deleteDataset({ datasetId: dataset.id });
+}, 180_000);
+
+requiresClickhouse.test(
+  "list runs limit arg works",
+  async () => {
+    const client = new Client({ callerOptions: { maxRetries: 6 } });
+
+    const projectName = `test-limit-runs-${uuidv4().substring(0, 4)}`;
+    const limit = 6;
+
+    // delete the project just in case
+    if (await client.hasProject({ projectName })) {
+      await client.deleteProject({ projectName });
+    }
+
+    try {
+      const runsArr: Array<Run> = [];
+      // create a fresh project with 10 runs --default amount created by createRunsFactory
+      await client.createProject({ projectName });
+      await Promise.all(
+        createRunsFactory(projectName).map(async (payload) => {
+          if (!payload.id) payload.id = uuidv4();
+          await client.createRun(payload);
+          await waitUntilRunFound(client, payload.id);
+        }),
+      );
+
+      let iters = 0;
+      for await (const run of client.listRuns({ limit, projectName })) {
+        expect(run).toBeDefined();
+        runsArr.push(run);
+        iters += 1;
+        if (iters > limit) {
+          throw new Error(
+            `More runs returned than expected.\nExpected: ${limit}\nReceived: ${iters}`,
+          );
+        }
+      }
+
+      expect(runsArr.length).toBe(limit);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      if (e.message.startsWith("More runs returned than expected.")) {
+        throw e;
+      } else {
+        console.error(e);
+      }
+    } finally {
+      if (await client.hasProject({ projectName })) {
+        await client.deleteProject({ projectName });
+      }
+    }
+  },
+  180_000,
+); // Increased timeout for creating/waiting for 10 runs
+
+test("Test run stats", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const stats = await client.getRunStats({
+    projectNames: ["default"],
+    runType: "llm",
+  });
+  expect(stats).toBeDefined();
+});
+
+test("Test createProject raises LangSmithConflictError on duplicate name", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const projectName = `test_project_${uuidv4()}`;
+
+  try {
+    // Create the project for the first time
+    await client.createProject({ projectName });
+
+    // Attempt to create the project with the same name again
+    await expect(client.createProject({ projectName })).rejects.toThrow(
+      expect.objectContaining({
+        name: "LangSmithConflictError",
+      }),
+    );
+  } finally {
+    try {
+      // Clean up: delete the project
+      if (await client.hasProject({ projectName })) {
+        await client.deleteProject({ projectName });
+      }
+    } catch (_e) {
+      // Everyone has those days.
+    }
+  }
+});
+
+test("Test list prompts", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const uid = uuidv4();
+  // push 3 prompts
+  const promptName1 = `test_prompt_${uid}__0`;
+  const promptName2 = `test_prompt_${uid}__1`;
+  const promptName3 = `test_prompt_${uid}__2`;
+
+  await client.pushPrompt(promptName1, {
+    object: ChatPromptTemplate.fromMessages(
+      [
+        new SystemMessage({ content: "System message" }),
+        new HumanMessage({ content: "{{question}}" }),
+      ],
+      { templateFormat: "mustache" },
+    ),
+    isPublic: true,
+  });
+  await client.pushPrompt(promptName2, {
+    object: ChatPromptTemplate.fromMessages(
+      [
+        new SystemMessage({ content: "System message" }),
+        new HumanMessage({ content: "{{question}}" }),
+      ],
+      { templateFormat: "mustache" },
+    ),
+  });
+  await client.pushPrompt(promptName3, {
+    object: ChatPromptTemplate.fromMessages(
+      [
+        new SystemMessage({ content: "System message" }),
+        new HumanMessage({ content: "{{question}}" }),
+      ],
+      { templateFormat: "mustache" },
+    ),
+  });
+
+  // expect at least one of the prompts to have promptName1
+  const response = client.listPrompts({ isPublic: true, query: uid });
+  let found = false;
+  expect(response).toBeDefined();
+  for await (const prompt of response) {
+    expect(prompt).toBeDefined();
+    if (prompt.repo_handle === promptName1) {
+      found = true;
+    }
+  }
+  expect(found).toBe(true);
+
+  // expect the prompts to be sorted by updated_at
+  const response2 = client.listPrompts({ sortField: "updated_at", query: uid });
+  expect(response2).toBeDefined();
+  let lastUpdatedAt: number | undefined;
+  for await (const prompt of response2) {
+    expect(prompt.updated_at).toBeDefined();
+    const currentUpdatedAt = new Date(prompt.updated_at).getTime();
+    if (lastUpdatedAt !== undefined) {
+      expect(currentUpdatedAt).toBeLessThanOrEqual(lastUpdatedAt);
+    }
+    lastUpdatedAt = currentUpdatedAt;
+  }
+  expect(lastUpdatedAt).toBeDefined();
+});
+
+// Consolidated: exercises the full prompt lifecycle against a single prompt
+// repo: push + exists + get + update + commit + like/unlike + pullPromptCommit
+// + push/pull with metadata + delete + exists-after-delete. Previously split
+// across "Test get prompt", "Test prompt exists", "Test update prompt",
+// "Test delete prompt", "Test create commit", "Test like and unlike prompt",
+// "Test pull prompt commit", and "Test push and pull prompt".
+test("Prompt CRUD lifecycle (push, get, exists, update, commit, like/unlike, pull, delete)", async () => {
+  // No global prompt cache: its refresh timer would keep polling the deleted
+  // prompt after this file finishes, and jest fails the run on late logs.
+  const client = new Client({
+    callerOptions: { maxRetries: 6 },
+    disablePromptCache: true,
+  });
+
+  const promptName = `test_prompt_lifecycle_${uuidv4().slice(0, 8)}`;
+  const initialTemplate = ChatPromptTemplate.fromMessages(
+    [
+      new SystemMessage({ content: "System message" }),
+      new HumanMessage({ content: "{{question}}" }),
+    ],
+    { templateFormat: "mustache" },
+  );
+  const updatedTemplate = ChatPromptTemplate.fromMessages(
+    [
+      new SystemMessage({ content: "System message" }),
+      new HumanMessage({ content: "My question is: {{question}}" }),
+    ],
+    { templateFormat: "mustache" },
+  );
+
+  try {
+    // 1) Non-existent prompts should report as not-existing.
+    const nonExistentPrompt = `non_existent_${uuidv4().slice(0, 8)}`;
+    expect(await client.promptExists(nonExistentPrompt)).toBe(false);
+
+    // 2) Push initial version with metadata.
+    const pushUrl = await client.pushPrompt(promptName, {
+      object: initialTemplate,
+      description: "Test description",
+      readme: "Test readme",
+      tags: ["test", "tag"],
+    });
+    expect(pushUrl).toBeDefined();
+
+    // 3) exists / get reflect the newly pushed prompt.
+    expect(await client.promptExists(promptName)).toBe(true);
+    const prompt = await client.getPrompt(promptName);
+    expect(prompt).toBeDefined();
+    expect(prompt?.repo_handle).toBe(promptName);
+    expect(prompt?.description).toBe("Test description");
+    expect(prompt?.readme).toBe("Test readme");
+    expect(prompt?.tags).toEqual(expect.arrayContaining(["test", "tag"]));
+    expect(prompt?.is_public).toBe(false);
+
+    // 4) updatePrompt changes description / isPublic / tags.
+    const updatedData = await client.updatePrompt(promptName, {
+      description: "Updated description",
+      isPublic: true,
+      tags: ["test", "update"],
+    });
+    expect(updatedData).toBeDefined();
+    const updatedPrompt = await client.getPrompt(promptName);
+    expect(updatedPrompt?.description).toBe("Updated description");
+    expect(updatedPrompt?.is_public).toBe(true);
+    expect(updatedPrompt?.tags).toEqual(
+      expect.arrayContaining(["test", "update"]),
+    );
+
+    // 5) createCommit records a new commit URL referencing the prompt.
+    const commitUrl = await client.createCommit(promptName, updatedTemplate);
+    expect(commitUrl).toBeDefined();
+    expect(commitUrl).toContain(promptName);
+
+    // 6) like / unlike toggles num_likes.
+    await client.likePrompt(promptName);
+    expect((await client.getPrompt(promptName))?.num_likes).toBe(1);
+    await client.unlikePrompt(promptName);
+    expect((await client.getPrompt(promptName))?.num_likes).toBe(0);
+
+    // 7) pullPromptCommit returns the latest commit for this repo.
+    const promptCommit = await client.pullPromptCommit(promptName);
+    expect(promptCommit).toBeDefined();
+    expect(promptCommit.repo).toBe(promptName);
+
+    // 8) Pushing again without additional options still succeeds; _pullPrompt
+    //    returns the underlying manifest.
+    // Note: This may throw a LangSmithConflictError if the content hasn't changed
+    // (e.g., if the same template was already committed in step 5).
+    try {
+      await client.pushPrompt(promptName, { object: updatedTemplate });
+    } catch (e) {
+      if (!(e instanceof LangSmithConflictError)) {
+        throw e;
+      }
+      // Conflict is expected if the same template was already committed
+    }
+    const pulledPrompt = await client._pullPrompt(promptName);
+    expect(pulledPrompt).toBeDefined();
+  } finally {
+    // 9) Delete and confirm it no longer exists.
+    await client.deletePrompt(promptName);
+    expect(await client.promptExists(promptName)).toBe(false);
+  }
+});
+
+test("test listing projects by metadata", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const uid = uuidv4();
+  const projectName = `my_metadata_project_${uid}`;
+
+  await client.createProject({
+    projectName: projectName,
+    metadata: {
+      foobar: uid,
+      baz: "barfooqux",
+    },
+  });
+
+  const projects = await client.listProjects({ metadata: { foobar: uid } });
+
+  let myProject: TracerSession | null = null;
+  for await (const project of projects) {
+    myProject = project;
+  }
+  expect(myProject?.name).toEqual(projectName);
+
+  await client.deleteProject({ projectName: projectName });
+});
+
+// This test requires OPENAI_API_KEY to be set and valid
+test("Test pull prompt include model", async () => {
+  // eslint-disable-next-line no-process-env
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey || openaiKey.trim() === "" || openaiKey === "placeholder") {
+    console.log("⚠️  Test skipped: OPENAI_API_KEY not set or invalid");
+    return;
+  }
+
+  // No global prompt cache: its refresh timer would keep polling the deleted
+  // prompt after this file finishes, and jest fails the run on late logs.
+  const client = new Client({
+    callerOptions: { maxRetries: 6 },
+    disablePromptCache: true,
+  });
+  let promptName: string | undefined;
+  try {
+    const model = new ChatOpenAI({});
+    const promptTemplate = PromptTemplate.fromTemplate(
+      "Tell me a joke about {topic}",
+    );
+    const promptWithModel = promptTemplate.pipe(model);
+
+    promptName = `test_prompt_with_model_${uuidv4().slice(0, 8)}`;
+    await client.pushPrompt(promptName, { object: promptWithModel });
+
+    const pulledPrompt = await client._pullPrompt(promptName, {
+      includeModel: true,
+    });
+    const rs: RunnableSequence = await load(pulledPrompt);
+    expect(rs).toBeDefined();
+    expect(rs).toBeInstanceOf(RunnableSequence);
+  } catch (error: any) {
+    // Skip test if it fails due to missing/invalid API key during deserialization
+    if (error?.message?.includes("Missing secret")) {
+      console.log(
+        "⚠️  Test skipped: OPENAI_API_KEY not valid for model loading",
+      );
+      return;
+    }
+    throw error;
+  } finally {
+    if (promptName) {
+      try {
+        await client.deletePrompt(promptName);
+      } catch {
+        // Ignore cleanup errors
+      }
+    }
+  }
+});
+
+// The share token below only resolves on the beta tenant.
+requiresBetaDataset.test(
+  "list shared examples can list shared examples",
+  async () => {
+    const client = new Client({ callerOptions: { maxRetries: 6 } });
+    const multiverseMathPublicDatasetShareToken =
+      "cce9c8a9-761a-4756-b159-58ed2640e274";
+    const sharedExamples = await client.listSharedExamples(
+      multiverseMathPublicDatasetShareToken,
+    );
+    expect(sharedExamples.length).toBeGreaterThan(0);
+  },
+);
+
+// Clones from a beta.smith.langchain.com public URL, absent on self-hosted.
+requiresBetaDataset.test(
+  "clonePublicDataset method can clone a dataset",
+  async () => {
+    const client = new Client({ callerOptions: { maxRetries: 6 } });
+    const datasetName = "multiverse_math_public_testing";
+    const multiverseMathPublicDatasetURL =
+      "https://beta.smith.langchain.com/public/cce9c8a9-761a-4756-b159-58ed2640e274/d";
+
+    try {
+      await client.clonePublicDataset(multiverseMathPublicDatasetURL, {
+        datasetName,
+      });
+
+      const clonedDataset = await client.hasDataset({ datasetName });
+      expect(clonedDataset).toBe(true);
+
+      const examples: Example[] = [];
+      for await (const ex of client.listExamples({ datasetName })) {
+        examples.push(ex);
+      }
+      expect(examples.length).toBeGreaterThan(0);
+    } finally {
+      try {
+        // Attempt to remove the newly created dataset if successful.
+        await client.deleteDataset({ datasetName });
+      } catch (_) {
+        // no-op if failure
+      }
+    }
+  },
+);
+
+requiresClickhouse.test("annotationqueue crud", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const queueName = `test-queue-${uuidv4().substring(0, 8)}`;
+  const projectName = `test-project-${uuidv4().substring(0, 8)}`;
+  const queueId = uuidv4();
+
+  try {
+    // 1. Create an annotation queue
+    const queue = await client.createAnnotationQueue({
+      name: queueName,
+      description: "Initial description",
+      queueId,
+    });
+    expect(queue).toBeDefined();
+    expect(queue.name).toBe(queueName);
+
+    // 1a. Get the annotation queue
+    const fetchedQueue = await client.readAnnotationQueue(queue.id);
+    expect(fetchedQueue).toBeDefined();
+    expect(fetchedQueue.name).toBe(queueName);
+
+    // 1b. List annotation queues and check nameContains
+    const listedQueues = await toArray(
+      client.listAnnotationQueues({ nameContains: queueName }),
+    );
+    expect(listedQueues.length).toBeGreaterThan(0);
+    expect(listedQueues.some((q) => q.id === queue.id)).toBe(true);
+
+    // 2. Create a run in a random project
+    await client.createProject({ projectName });
+    const runId = uuidv4();
+    await client.createRun({
+      id: runId,
+      name: "Test Run",
+      run_type: "chain",
+      inputs: { foo: "bar" },
+      outputs: { baz: "qux" },
+      project_name: projectName,
+    });
+
+    // Wait for run to be found in the db
+    const maxWaitTime = 30000; // 30 seconds
+    const startTime = Date.now();
+    let foundRun = null;
+
+    while (Date.now() - startTime < maxWaitTime) {
+      try {
+        foundRun = await client.readRun(runId);
+        if (foundRun) break;
+      } catch (_error) {
+        // If run is not found, getRun might throw an error
+        // We'll ignore it and keep trying
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait for 1 second before trying again
+    }
+
+    if (!foundRun) {
+      throw new Error(
+        `Run with ID ${runId} not found after ${maxWaitTime / 1000} seconds`,
+      );
+    }
+
+    // 3. Add the run to the annotation queue
+    await client.addRunsToAnnotationQueue(fetchedQueue.id, [runId]);
+
+    // 4. Update the annotation queue description and check that it is updated
+    const newDescription = "Updated description";
+    await client.updateAnnotationQueue(queue.id, {
+      name: queueName,
+      description: newDescription,
+    });
+    const updatedQueue = await client.readAnnotationQueue(queue.id);
+    expect(updatedQueue.description).toBe(newDescription);
+
+    // Get the run from the annotation queue
+    const run = await client.getRunFromAnnotationQueue(queueId, 0);
+    expect(run).toBeDefined();
+    expect(run.id).toBe(runId);
+    expect(run.name).toBe("Test Run");
+    expect(run.run_type).toBe("chain");
+    expect(run.inputs).toEqual({ foo: "bar" });
+    expect(run.outputs).toEqual({ baz: "qux" });
+
+    // List runs in the annotation queue
+    const listed = await toArray(client.listRunsFromAnnotationQueue(queueId));
+    expect(listed.length).toBe(1);
+    expect(listed[0].id).toBe(runId);
+
+    // Limit should cap the number of yielded runs
+    const limited = await toArray(
+      client.listRunsFromAnnotationQueue(queueId, { limit: 1 }),
+    );
+    expect(limited.length).toBe(1);
+  } finally {
+    // 6. Delete the annotation queue
+    await client.deleteAnnotationQueue(queueId);
+
+    // Clean up the project
+    if (await client.hasProject({ projectName })) {
+      await client.deleteProject({ projectName });
+    }
+  }
+});
+
+requiresClickhouse.test("annotationqueue add runs by key", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const queueName = `test-queue-${uuidv4().substring(0, 8)}`;
+  const projectName = `test-project-${uuidv4().substring(0, 8)}`;
+  const queueId = uuidv4();
+
+  try {
+    const queue = await client.createAnnotationQueue({
+      name: queueName,
+      description: "by-key queue",
+      queueId,
+    });
+
+    await client.createProject({ projectName });
+    const runId = uuidv4();
+    await client.createRun({
+      id: runId,
+      name: "Test Run",
+      run_type: "chain",
+      inputs: { foo: "bar" },
+      project_name: projectName,
+    });
+
+    // Wait for the run to be found in the db.
+    const maxWaitTime = 30000;
+    const startWait = Date.now();
+    let foundRun = null;
+    while (Date.now() - startWait < maxWaitTime) {
+      try {
+        foundRun = await client.readRun(runId);
+        if (foundRun) break;
+      } catch (_error) {
+        // keep retrying until the run shows up
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    if (!foundRun) {
+      throw new Error(
+        `Run with ID ${runId} not found after ${maxWaitTime / 1000} seconds`,
+      );
+    }
+
+    // Add the run using its SmithDB partition key.
+    await client.addRunsToAnnotationQueue(queue.id, [
+      {
+        runId: foundRun.id,
+        sessionId: foundRun.session_id as string,
+        startTime: foundRun.start_time as string | number,
+      },
+    ]);
+
+    const listed = await toArray(client.listRunsFromAnnotationQueue(queueId));
+    expect(listed.length).toBe(1);
+    expect(listed[0].id).toBe(runId);
+  } finally {
+    await client.deleteAnnotationQueue(queueId);
+    if (await client.hasProject({ projectName })) {
+      await client.deleteProject({ projectName });
+    }
+  }
+});
+
+// Consolidated: exercises rubric_instructions behavior across both creation
+// paths (unset vs set at creation time) plus the update path, using a single
+// pair of queues. Previously split across
+// "annotationqueue crud with rubric instructions" and
+// "annotationqueue crud with rubric instructions 2".
+test("annotationqueue rubric instructions (unset, set at create, update)", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+
+  // Queue A: created WITHOUT rubric instructions, then updated to have them.
+  const queueAName = `test-queue-${uuidv4().substring(0, 8)}`;
+  const queueAId = uuidv4();
+
+  // Queue B: created WITH rubric instructions, then updated.
+  const queueBName = `test-queue-${uuidv4().substring(0, 8)}`;
+  const queueBId = uuidv4();
+
+  try {
+    const queueA = await client.createAnnotationQueue({
+      name: queueAName,
+      description: "Initial description",
+      queueId: queueAId,
+    });
+    expect(queueA).toBeDefined();
+    expect(queueA.name).toBe(queueAName);
+    expect(queueA.rubric_instructions).toBeUndefined();
+
+    const fetchedQueueA = await client.readAnnotationQueue(queueA.id);
+    expect(fetchedQueueA.name).toBe(queueAName);
+    expect(fetchedQueueA.rubric_instructions).toBeNull();
+
+    const queueB = await client.createAnnotationQueue({
+      name: queueBName,
+      description: "Initial description",
+      queueId: queueBId,
+      rubricInstructions: "This is a rubric instruction",
+    });
+    expect(queueB).toBeDefined();
+    expect(queueB.name).toBe(queueBName);
+
+    const fetchedQueueB = await client.readAnnotationQueue(queueB.id);
+    expect(fetchedQueueB.name).toBe(queueBName);
+    expect(fetchedQueueB.rubric_instructions).toBe(
+      "This is a rubric instruction",
+    );
+
+    // Update path: set on previously-unset, and overwrite on previously-set.
+    const newInstructions = "Updated rubric instructions";
+    await client.updateAnnotationQueue(queueA.id, {
+      name: queueAName,
+      rubricInstructions: newInstructions,
+    });
+    await client.updateAnnotationQueue(queueB.id, {
+      name: queueBName,
+      rubricInstructions: newInstructions,
+    });
+    expect(
+      (await client.readAnnotationQueue(queueA.id)).rubric_instructions,
+    ).toBe(newInstructions);
+    expect(
+      (await client.readAnnotationQueue(queueB.id)).rubric_instructions,
+    ).toBe(newInstructions);
+  } finally {
+    await client.deleteAnnotationQueue(queueAId);
+    await client.deleteAnnotationQueue(queueBId);
+  }
+});
+
+test("feedback config crud", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const feedbackKey = `test-feedback-config-${uuidv4().substring(0, 8)}`;
+
+  try {
+    // 1. Create a continuous feedback config
+    const config = await client.createFeedbackConfig({
+      feedbackKey,
+      feedbackConfig: { type: "continuous", min: 0, max: 1 },
+      isLowerScoreBetter: false,
+    });
+    expect(config).toBeDefined();
+    expect(config.feedback_key).toBe(feedbackKey);
+    expect(config.feedback_config.type).toBe("continuous");
+    expect(config.feedback_config.min).toBe(0);
+    expect(config.feedback_config.max).toBe(1);
+    expect(config.is_lower_score_better).toBe(false);
+
+    // 2. List and verify
+    const configs: any[] = [];
+    for await (const c of client.listFeedbackConfigs({
+      feedbackKeys: [feedbackKey],
+    })) {
+      configs.push(c);
+    }
+    expect(configs.length).toBe(1);
+    expect(configs[0].feedback_key).toBe(feedbackKey);
+
+    // 3. Update is_lower_score_better
+    const updated = await client.updateFeedbackConfig(feedbackKey, {
+      isLowerScoreBetter: true,
+    });
+    expect(updated.is_lower_score_better).toBe(true);
+
+    // 4. Upsert (create with same config should return existing)
+    const upserted = await client.createFeedbackConfig({
+      feedbackKey,
+      feedbackConfig: { type: "continuous", min: 0, max: 1 },
+      isLowerScoreBetter: true,
+    });
+    expect(upserted.feedback_key).toBe(feedbackKey);
+
+    // 5. Delete
+    await client.deleteFeedbackConfig(feedbackKey);
+
+    // 6. Verify deleted
+    const remaining: any[] = [];
+    for await (const c of client.listFeedbackConfigs({
+      feedbackKeys: [feedbackKey],
+    })) {
+      remaining.push(c);
+    }
+    expect(remaining.length).toBe(0);
+  } catch (e) {
+    // Clean up on failure
+    try {
+      await client.deleteFeedbackConfig(feedbackKey);
+    } catch {
+      // ignore cleanup errors
+    }
+    throw e;
+  }
+}, 180_000);
+
+test("upload examples multipart", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const datasetName = `__test_upload_examples_multipart${uuidv4().slice(0, 4)}`;
+
+  // Clean up existing dataset if it exists
+  if (await client.hasDataset({ datasetName })) {
+    await client.deleteDataset({ datasetName });
+  }
+
+  // Create actual dataset
+  const dataset = await client.createDataset(datasetName, {
+    description: "Test dataset for multipart example upload",
+    dataType: "kv",
+  });
+
+  const pathname = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "test_data",
+    "parrot-icon.png",
+  );
+  // Create test examples
+  const exampleId = uuidv4();
+  const example1: ExampleCreate = {
+    id: exampleId,
+    inputs: { text: "hello world" },
+    // check that passing no outputs works fine
+    attachments: {
+      test_file: {
+        mimeType: "image/png",
+        data: fs.readFileSync(pathname),
+      },
+    },
+  };
+
+  const example2: ExampleCreate = {
+    inputs: { text: "foo bar" },
+    outputs: { response: "baz" },
+    attachments: {
+      my_file: ["image/png", fs.readFileSync(pathname)],
+    },
+  };
+
+  // Test creating examples
+  const createdExamples = await client.uploadExamplesMultipart(dataset.id, [
+    example1,
+    example2,
+  ]);
+
+  expect(createdExamples.count).toBe(2);
+  expect(createdExamples.as_of).toBeDefined();
+  expect(typeof createdExamples.as_of).toBe("string");
+  if (createdExamples.as_of) {
+    expect(new Date(createdExamples.as_of).getTime()).toBeLessThanOrEqual(
+      Date.now(),
+    );
+  }
+
+  const createdExample1 = await client.readExample(exampleId);
+  expect(createdExample1.inputs["text"]).toBe("hello world");
+
+  const createdExample2 = await client.readExample(
+    createdExamples.example_ids.find((id) => id !== exampleId)!,
+  );
+  expect(createdExample2.inputs["text"]).toBe("foo bar");
+  expect(createdExample2.outputs?.["response"]).toBe("baz");
+
+  // Test examples were sent to correct dataset
+  const allExamplesInDataset = [];
+  for await (const example of client.listExamples({
+    datasetId: dataset.id,
+  })) {
+    allExamplesInDataset.push(example);
+  }
+  expect(allExamplesInDataset.length).toBe(2);
+
+  // Clean up
+  await client.deleteDataset({ datasetName });
+});
+
+test("update examples multipart", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const datasetName = `__test_update_examples_multipart${uuidv4().slice(0, 4)}`;
+
+  // Clean up existing dataset if it exists
+  if (await client.hasDataset({ datasetName })) {
+    await client.deleteDataset({ datasetName });
+  }
+
+  // Create actual dataset
+  const dataset = await client.createDataset(datasetName, {
+    description: "Test dataset for multipart example upload",
+    dataType: "kv",
+  });
+
+  const pathname = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "test_data",
+    "parrot-icon.png",
+  );
+  // Create test examples
+  const exampleId = uuidv4();
+  const example: ExampleCreate = {
+    id: exampleId,
+    metadata: { bar: "foo" },
+    inputs: { text: "hello world" },
+    // check that passing no outputs works fine
+    attachments: {
+      test_file: ["image/png", fs.readFileSync(pathname)],
+      foo: ["image/png", fs.readFileSync(pathname)],
+    },
+  };
+
+  // Create examples
+  await client.uploadExamplesMultipart(dataset.id, [example]);
+
+  const exampleUpdate1: ExampleUpdateWithAttachments = {
+    id: exampleId,
+    inputs: { text: "hello world" },
+    attachments_operations: {
+      retain: ["test_file"],
+      rename: { foo: "test_file" },
+    },
+  };
+
+  await expect(
+    client.updateExamplesMultipart(dataset.id, [exampleUpdate1]),
+  ).rejects.toThrow();
+
+  const exampleUpdate2: ExampleUpdateWithAttachments = {
+    id: exampleId,
+    inputs: { text: "hello world" },
+    attachments_operations: {
+      retain: ["test_file"],
+      rename: { test_file: "test_file2" },
+    },
+  };
+
+  await expect(
+    client.updateExamplesMultipart(dataset.id, [exampleUpdate2]),
+  ).rejects.toThrow();
+
+  const exampleUpdate3: ExampleUpdateWithAttachments = {
+    id: exampleId,
+    inputs: { text: "hello world2" },
+    attachments_operations: {
+      retain: ["test_file"],
+      rename: { foo: "bar" },
+    },
+  };
+
+  const updateResponse = await client.updateExamplesMultipart(dataset.id, [
+    exampleUpdate3,
+  ]);
+  expect(updateResponse.as_of).toBeDefined();
+  expect(typeof updateResponse.as_of).toBe("string");
+  if (updateResponse.as_of) {
+    expect(new Date(updateResponse.as_of).getTime()).toBeLessThanOrEqual(
+      Date.now(),
+    );
+  }
+
+  let updatedExample = await client.readExample(exampleId);
+  expect(updatedExample.inputs.text).toEqual("hello world2");
+  expect(Object.keys(updatedExample.attachments ?? {}).sort()).toEqual(
+    ["bar", "test_file"].sort(),
+  );
+  expect(updatedExample.metadata?.bar).toEqual("foo");
+  let attachmentData: Uint8Array | undefined = updatedExample.attachments?.[
+    "test_file"
+  ].presigned_url
+    ? new Uint8Array(
+        (await fetch(
+          updatedExample.attachments?.["test_file"].presigned_url,
+        ).then((res) => res.arrayBuffer())) as ArrayBuffer,
+      )
+    : undefined;
+  expect(attachmentData).toEqual(new Uint8Array(fs.readFileSync(pathname)));
+  attachmentData = updatedExample.attachments?.["bar"].presigned_url
+    ? new Uint8Array(
+        (await fetch(updatedExample.attachments?.["bar"].presigned_url).then(
+          (res) => res.arrayBuffer(),
+        )) as ArrayBuffer,
+      )
+    : undefined;
+  expect(attachmentData).toEqual(new Uint8Array(fs.readFileSync(pathname)));
+
+  const exampleUpdate4: ExampleUpdateWithAttachments = {
+    id: exampleId,
+    metadata: { foo: "bar" },
+    attachments: {
+      test_file2: ["image/png", fs.readFileSync(pathname)],
+    },
+  };
+
+  await client.updateExamplesMultipart(dataset.id, [exampleUpdate4]);
+  updatedExample = await client.readExample(exampleId);
+  expect(updatedExample.metadata?.foo).toEqual("bar");
+  expect(Object.keys(updatedExample.attachments ?? {})).toEqual(["test_file2"]);
+  attachmentData = updatedExample.attachments?.["test_file2"].presigned_url
+    ? new Uint8Array(
+        (await fetch(
+          updatedExample.attachments?.["test_file2"].presigned_url,
+        ).then((res) => res.arrayBuffer())) as ArrayBuffer,
+      )
+    : undefined;
+  expect(attachmentData).toEqual(new Uint8Array(fs.readFileSync(pathname)));
+
+  const exampleUpdate5: ExampleUpdateWithAttachments = {
+    id: exampleId,
+    split: ["foo", "bar"],
+    attachments: {
+      test_file: ["image/png", fs.readFileSync(pathname)],
+    },
+  };
+
+  await client.updateExamplesMultipart(dataset.id, [exampleUpdate5]);
+
+  updatedExample = await client.readExample(exampleId);
+  expect(updatedExample.metadata).toEqual({
+    foo: "bar",
+    dataset_split: ["foo", "bar"],
+  });
+  expect(Object.keys(updatedExample.attachments ?? {})).toEqual(["test_file"]);
+  attachmentData = updatedExample.attachments?.["test_file"].presigned_url
+    ? new Uint8Array(
+        (await fetch(
+          updatedExample.attachments?.["test_file"].presigned_url,
+        ).then((res) => res.arrayBuffer())) as ArrayBuffer,
+      )
+    : undefined;
+  expect(attachmentData).toEqual(new Uint8Array(fs.readFileSync(pathname)));
+
+  // Clean up
+  await client.deleteDataset({ datasetName });
+});
+
+test("create example go backend", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const datasetName = `__test_create_examples_go_backend${uuidv4().slice(
+    0,
+    4,
+  )}`;
+
+  // Clean up existing dataset if it exists
+  if (await client.hasDataset({ datasetName })) {
+    await client.deleteDataset({ datasetName });
+  }
+
+  // Create actual dataset
+  const dataset = await client.createDataset(datasetName, {
+    description: "Test dataset for multipart example upload",
+    dataType: "kv",
+  });
+
+  const pathname = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "test_data",
+    "parrot-icon.png",
+  );
+
+  // Create test examples
+  const exampleId = uuidv4();
+  const example: ExampleCreate = {
+    id: exampleId,
+    dataset_id: dataset.id,
+    inputs: { text: "hello world" },
+    attachments: {
+      test_file: ["image/png", fs.readFileSync(pathname)],
+    },
+  };
+
+  let createdExample = await client.createExample(example);
+  expect(createdExample.id).toEqual(exampleId);
+  expect(createdExample.inputs.text).toEqual("hello world");
+  expect(Object.keys(createdExample.attachments ?? {})).toEqual(["test_file"]);
+  let attachmentData: Uint8Array | undefined = createdExample.attachments?.[
+    "test_file"
+  ].presigned_url
+    ? new Uint8Array(
+        (await fetch(
+          createdExample.attachments?.["test_file"].presigned_url,
+        ).then((res) => res.arrayBuffer())) as ArrayBuffer,
+      )
+    : undefined;
+  expect(attachmentData).toEqual(new Uint8Array(fs.readFileSync(pathname)));
+
+  createdExample = await client.createExample(
+    { text: "hello world" },
+    {
+      foo: "bar",
+    },
+    {
+      attachments: {
+        test_file: ["image/png", fs.readFileSync(pathname)],
+      },
+      datasetName: datasetName,
+    },
+  );
+  expect(createdExample.inputs.text).toEqual("hello world");
+  expect(createdExample.outputs?.foo).toEqual("bar");
+  expect(Object.keys(createdExample.attachments ?? {})).toEqual(["test_file"]);
+  attachmentData = createdExample.attachments?.["test_file"].presigned_url
+    ? new Uint8Array(
+        (await fetch(
+          createdExample.attachments?.["test_file"].presigned_url,
+        ).then((res) => res.arrayBuffer())) as ArrayBuffer,
+      )
+    : undefined;
+  expect(attachmentData).toEqual(new Uint8Array(fs.readFileSync(pathname)));
+
+  // Clean up
+  await client.deleteDataset({ datasetName });
+});
+
+// Backend changes for go endpoint using runs still needs to land
+test.skip("test use source run io multiple examples", async () => {
+  const client = new Client({
+    autoBatchTracing: false,
+    callerOptions: { maxRetries: 6 },
+  });
+
+  const datasetName = `__test_use_source_run_io${uuidv4().slice(0, 4)}`;
+  const dataset = await client.createDataset(datasetName, {
+    description: "Test dataset for creating dataset with description",
+  });
+
+  const runId = uuidv4();
+  await client.createRun({
+    name: "foo",
+    run_type: "llm",
+    inputs: { foo: "bar" },
+    outputs: { foo: "bar" },
+    id: runId,
+    attachments: {
+      test_file: { data: Buffer.from("test content"), mimeType: "text/plain" },
+      real_file: { data: Buffer.from("real content"), mimeType: "text/plain" },
+    },
+  });
+
+  const exampleIds = [uuidv4(), uuidv4(), uuidv4()];
+  await client.createExamples([
+    {
+      id: exampleIds[0],
+      inputs: { bar: "baz" },
+      outputs: { bar: "baz" },
+      attachments: {
+        test_file2: {
+          data: Buffer.from("test content"),
+          mimeType: "text/plain",
+        },
+      },
+      use_source_run_io: true,
+      use_source_run_attachments: [],
+      source_run_id: runId,
+      dataset_id: dataset.id,
+    },
+    {
+      id: exampleIds[1],
+      inputs: { bar: "baz" },
+      outputs: { bar: "baz" },
+      attachments: {
+        test_file2: {
+          data: Buffer.from("test content"),
+          mimeType: "text/plain",
+        },
+      },
+      use_source_run_io: false,
+      use_source_run_attachments: ["test_file"],
+      source_run_id: runId,
+      dataset_id: dataset.id,
+    },
+    {
+      id: exampleIds[2],
+      inputs: { bar: "baz" },
+      outputs: { bar: "baz" },
+      attachments: {
+        test_file2: {
+          data: Buffer.from("test content"),
+          mimeType: "text/plain",
+        },
+      },
+      use_source_run_io: true,
+      use_source_run_attachments: ["test_file"],
+      source_run_id: runId,
+      dataset_id: dataset.id,
+    },
+  ]);
+
+  const example1 = await client.readExample(exampleIds[0]);
+  const example2 = await client.readExample(exampleIds[1]);
+  const example3 = await client.readExample(exampleIds[2]);
+
+  expect(example1.dataset_id).toBe(dataset.id);
+  expect(example1.inputs).toEqual({ foo: "bar" });
+  expect(example1.outputs).toEqual({ foo: "bar" });
+  expect(Object.keys(example1.attachments ?? {}).sort()).toEqual([
+    "real_file",
+    "test_file",
+  ]);
+
+  expect(example2.dataset_id).toBe(dataset.id);
+  expect(example2.inputs).toEqual({ bar: "baz" });
+  expect(example2.outputs).toEqual({ bar: "baz" });
+  expect(Object.keys(example2.attachments ?? {}).sort()).toEqual(["test_file"]);
+
+  expect(example3.dataset_id).toBe(dataset.id);
+  expect(example3.inputs).toEqual({ foo: "bar" });
+  expect(example3.outputs).toEqual({ foo: "bar" });
+  expect(Object.keys(example3.attachments ?? {}).sort()).toEqual([
+    "real_file",
+    "test_file",
+  ]);
+
+  // Clean up
+  await client.deleteDataset({ datasetName });
+});
+
+// Backend changes for go endpoint using runs still needs to land
+test.skip("test use source run io single example", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const datasetName = `__test_create_examples_go_backend${uuidv4().slice(
+    0,
+    4,
+  )}`;
+
+  // Clean up existing dataset if it exists
+  if (await client.hasDataset({ datasetName })) {
+    await client.deleteDataset({ datasetName });
+  }
+
+  // Create actual dataset
+  const dataset = await client.createDataset(datasetName, {
+    description: "Test dataset for multipart example upload",
+    dataType: "kv",
+  });
+
+  const runId = uuidv4();
+  await client.createRun({
+    name: "foo",
+    run_type: "llm",
+    inputs: { foo: "bar" },
+    outputs: { foo: "bar" },
+    id: runId,
+    attachments: {
+      test_file: { data: Buffer.from("test content"), mimeType: "text/plain" },
+      real_file: { data: Buffer.from("real content"), mimeType: "text/plain" },
+    },
+  });
+
+  const pathname = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "test_data",
+    "parrot-icon.png",
+  );
+
+  // Create test examples
+  const exampleId = uuidv4();
+  const example: ExampleCreate = {
+    id: exampleId,
+    dataset_id: dataset.id,
+    inputs: { text: "hello world" },
+    attachments: {
+      test_file2: ["image/png", fs.readFileSync(pathname)],
+    },
+    use_source_run_io: true,
+    use_source_run_attachments: [],
+    source_run_id: runId,
+  };
+
+  let createdExample = await client.createExample(example);
+  expect(createdExample.id).toEqual(exampleId);
+  expect(createdExample.inputs.text).toEqual("hello world");
+  // using source run io overrides everything else with regards to attachments
+  expect(Object.keys(createdExample.attachments ?? {})).toEqual([
+    "real_file",
+    "test_file",
+  ]);
+
+  createdExample = await client.createExample(
+    { text: "hello world" },
+    {
+      foo: "bar",
+    },
+    {
+      attachments: {
+        test_file2: ["image/png", fs.readFileSync(pathname)],
+      },
+      datasetName: datasetName,
+      useSourceRunIO: true,
+      useSourceRunAttachments: [],
+      sourceRunId: runId,
+    },
+  );
+  expect(createdExample.inputs.text).toEqual("hello world");
+  expect(createdExample.outputs?.foo).toEqual("bar");
+  // using source run io overrides everything else with regards to attachments
+  expect(Object.keys(createdExample.attachments ?? {})).toEqual([
+    "real_file",
+    "test_file",
+  ]);
+
+  // Clean up
+  await client.deleteDataset({ datasetName });
+});
+
+test("update example go backend", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const datasetName = `__test_create_examples_go_backend${uuidv4().slice(
+    0,
+    4,
+  )}`;
+
+  // Clean up existing dataset if it exists
+  if (await client.hasDataset({ datasetName })) {
+    await client.deleteDataset({ datasetName });
+  }
+
+  // Create actual dataset
+  const dataset = await client.createDataset(datasetName, {
+    description: "Test dataset for multipart example upload",
+    dataType: "kv",
+  });
+
+  const pathname = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "test_data",
+    "parrot-icon.png",
+  );
+
+  // Create test examples
+  const exampleId = uuidv4();
+  const example: ExampleCreate = {
+    id: exampleId,
+    dataset_id: dataset.id,
+    inputs: { text: "hello world" },
+    attachments: {
+      test_file: ["image/png", fs.readFileSync(pathname)],
+    },
+  };
+
+  await client.createExample(example);
+
+  // Update old way
+  await client.updateExample(exampleId, {
+    attachments: {
+      test_file3: ["image/png", fs.readFileSync(pathname)],
+    },
+    attachments_operations: {
+      rename: { test_file: "test_file2" },
+    },
+  });
+
+  let retrievedExample = await client.readExample(exampleId);
+  expect(retrievedExample.inputs.text).toEqual("hello world");
+  expect(Object.keys(retrievedExample.attachments ?? {}).sort()).toEqual(
+    ["test_file2", "test_file3"].sort(),
+  );
+
+  // Update new way
+  await client.updateExample({
+    id: exampleId,
+    attachments: {
+      test_file4: ["image/png", fs.readFileSync(pathname)],
+    },
+    attachments_operations: {
+      rename: { test_file3: "test_file5" },
+    },
+  });
+  retrievedExample = await client.readExample(exampleId);
+  expect(retrievedExample.inputs.text).toEqual("hello world");
+  expect(Object.keys(retrievedExample.attachments ?? {}).sort()).toEqual(
+    ["test_file4", "test_file5"].sort(),
+  );
+
+  // Clean up
+  await client.deleteDataset({ datasetName });
+});
+
+test("create examples go backend", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const datasetName = `__test_create_examples_go_backend${uuidv4().slice(
+    0,
+    4,
+  )}`;
+
+  // Clean up existing dataset if it exists
+  if (await client.hasDataset({ datasetName })) {
+    await client.deleteDataset({ datasetName });
+  }
+
+  // Create actual dataset
+  const dataset = await client.createDataset(datasetName, {
+    description: "Test dataset for multipart example upload",
+    dataType: "kv",
+  });
+
+  const pathname = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "test_data",
+    "parrot-icon.png",
+  );
+
+  // Create test examples
+  const exampleId = uuidv4();
+  const example: ExampleCreate = {
+    id: exampleId,
+    dataset_id: dataset.id,
+    inputs: { text: "hello world" },
+    attachments: {
+      test_file: ["image/png", fs.readFileSync(pathname)],
+    },
+  };
+
+  let createdExample = (await client.createExamples([example]))[0];
+  expect(createdExample.id).toEqual(exampleId);
+  expect(createdExample.inputs.text).toEqual("hello world");
+  expect(Object.keys(createdExample.attachments ?? {})).toEqual(["test_file"]);
+  let attachmentData: Uint8Array | undefined = createdExample.attachments?.[
+    "test_file"
+  ].presigned_url
+    ? new Uint8Array(
+        (await fetch(
+          createdExample.attachments?.["test_file"].presigned_url,
+        ).then((res) => res.arrayBuffer())) as ArrayBuffer,
+      )
+    : undefined;
+  expect(attachmentData).toEqual(new Uint8Array(fs.readFileSync(pathname)));
+
+  createdExample = (
+    await client.createExamples({
+      inputs: [{ text: "hello world" }],
+      outputs: [
+        {
+          foo: "bar",
+        },
+      ],
+      attachments: [
+        {
+          test_file: ["image/png", fs.readFileSync(pathname)],
+        },
+      ],
+      datasetName: datasetName,
+    })
+  )[0];
+  expect(createdExample.inputs.text).toEqual("hello world");
+  expect(createdExample.outputs?.foo).toEqual("bar");
+  expect(Object.keys(createdExample.attachments ?? {})).toEqual(["test_file"]);
+  attachmentData = createdExample.attachments?.["test_file"].presigned_url
+    ? new Uint8Array(
+        (await fetch(
+          createdExample.attachments?.["test_file"].presigned_url,
+        ).then((res) => res.arrayBuffer())) as ArrayBuffer,
+      )
+    : undefined;
+  expect(attachmentData).toEqual(new Uint8Array(fs.readFileSync(pathname)));
+
+  // Clean up
+  await client.deleteDataset({ datasetName });
+});
+
+test("update examples go backend", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const datasetName = `__test_create_examples_go_backend${uuidv4().slice(
+    0,
+    4,
+  )}`;
+
+  // Clean up existing dataset if it exists
+  if (await client.hasDataset({ datasetName })) {
+    await client.deleteDataset({ datasetName });
+  }
+
+  // Create actual dataset
+  const dataset = await client.createDataset(datasetName, {
+    description: "Test dataset for multipart example upload",
+    dataType: "kv",
+  });
+
+  const pathname = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "test_data",
+    "parrot-icon.png",
+  );
+
+  // Create test examples
+  const exampleId = uuidv4();
+  const example: ExampleCreate = {
+    id: exampleId,
+    dataset_id: dataset.id,
+    inputs: { text: "hello world" },
+    attachments: {
+      test_file: ["image/png", fs.readFileSync(pathname)],
+    },
+  };
+
+  await client.createExample(example);
+
+  // Update
+  await client.updateExamples([
+    {
+      id: exampleId,
+      attachments: {
+        test_file3: ["image/png", fs.readFileSync(pathname)],
+      },
+      attachments_operations: {
+        rename: { test_file: "test_file2" },
+      },
+    },
+  ]);
+
+  const retrievedExample = await client.readExample(exampleId);
+  expect(retrievedExample.inputs.text).toEqual("hello world");
+  expect(Object.keys(retrievedExample.attachments ?? {}).sort()).toEqual(
+    ["test_file2", "test_file3"].sort(),
+  );
+
+  // Clean up
+  await client.deleteDataset({ datasetName });
+});
+
+test("create example errors", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const datasetName = `__test_create_examples_go_backend${uuidv4().slice(
+    0,
+    4,
+  )}`;
+
+  // Clean up existing dataset if it exists
+  if (await client.hasDataset({ datasetName })) {
+    await client.deleteDataset({ datasetName });
+  }
+
+  // Create actual dataset
+  const dataset = await client.createDataset(datasetName, {
+    description: "Test dataset for multipart example upload",
+    dataType: "kv",
+  });
+
+  const exampleId = uuidv4();
+  const example: ExampleCreate = {
+    id: exampleId,
+    dataset_id: dataset.id,
+    inputs: { text: "hello world" },
+    attachments: {
+      test_file: ["plain/txt", Buffer.from("data")],
+    },
+  };
+
+  const invalidExample: ExampleCreate = {
+    id: exampleId,
+    inputs: { text: "hello world" },
+    attachments: {
+      test_file: ["plain/txt", Buffer.from("data")],
+    },
+  };
+
+  const invalidExample2: ExampleCreate = {
+    id: exampleId,
+    dataset_id: dataset.id,
+    dataset_name: datasetName,
+    inputs: { text: "hello world" },
+    attachments: {
+      test_file: ["plain/txt", Buffer.from("data")],
+    },
+  };
+
+  await expect(
+    client.createExample(example, { foo: "bar" }, {}),
+  ).rejects.toThrow(
+    "Cannot provide outputs or options when using ExampleCreate object",
+  );
+
+  await expect(client.createExample(invalidExample)).rejects.toThrow(
+    "Must provide either datasetName or datasetId",
+  );
+
+  await expect(client.createExample(invalidExample2)).rejects.toThrow(
+    "Must provide either datasetName or datasetId, not both",
+  );
+
+  await expect(client.createExample({ foo: "bar" }, {}, {})).rejects.toThrow(
+    "Must provide either datasetName or datasetId",
+  );
+
+  await expect(
+    client.createExample(
+      { foo: "bar" },
+      {},
+      { datasetId: dataset.id, datasetName: datasetName },
+    ),
+  ).rejects.toThrow("Must provide either datasetName or datasetId, not both");
+
+  // Clean up
+  await client.deleteDataset({ datasetName });
+});
+
+requiresClickhouse.test("fetch child runs", async () => {
+  const client = new Client({ callerOptions: { maxRetries: 6 } });
+  const projectName = `__test_fetch_child_runs_${uuidv4().slice(0, 4)}`;
+  await deleteProject(client, projectName);
+  try {
+    const parentRunId = uuidv4();
+    const childRunId = uuidv4();
+    const parent = traceable(
+      async () => {
+        const child = traceable(
+          async () => {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+            return "From child";
+          },
+          {
+            client,
+            id: childRunId,
+          },
+        );
+        const result = await child();
+        return result + "|From parent";
+      },
+      {
+        client,
+        id: parentRunId,
+      },
+    );
+    const result = await parent();
+    expect(result).toEqual("From child|From parent");
+
+    await client.awaitPendingTraceBatches();
+    await waitUntilRunFound(client, parentRunId);
+
+    const noChildRun = await client.readRun(parentRunId);
+    expect(noChildRun.id).toEqual(parentRunId);
+    expect(noChildRun.child_runs?.length).toBeUndefined();
+
+    const run = await client.readRun(parentRunId, { loadChildRuns: true });
+    expect(run.child_runs?.length).toEqual(1);
+    expect(run.child_runs?.[0].id).toEqual(childRunId);
+    expect(run.child_runs?.[0].outputs?.outputs).toEqual("From child");
+  } finally {
+    await deleteProject(client, projectName);
+  }
+});
+
+// Consolidated: covers listThreads (threads grouped by thread_id) and
+// readThread (runs for a single thread_id) using a single project and set of
+// runs. Previously split across
+// "listThreads returns threads grouped by thread_id" and
+// "readThread yields runs for a single thread_id".
+requiresClickhouse.test(
+  "listThreads groups runs by thread_id and readThread yields per-thread runs",
+  async () => {
+    const client = new Client({
+      autoBatchTracing: false,
+      callerOptions: { maxRetries: 6 },
+    });
+    const projectName = `test-list-threads-${uuidv4().slice(0, 12)}`;
+    if (await client.hasProject({ projectName })) {
+      await deleteProject(client, projectName);
+    }
+    try {
+      const base = uuidv4().slice(0, 8);
+      const threadA = `thread-${base}-a`;
+      const threadB = `thread-${base}-b`;
+      const now = new Date();
+      const threadMeta = (tid: string) => ({
+        metadata: {
+          thread_id: tid,
+          session_id: null,
+          conversation_id: null,
+        },
+      });
+      await client.createRun({
+        name: "run_a1",
+        inputs: { x: 1 },
+        run_type: "llm",
+        project_name: projectName,
+        start_time: now.getTime(),
+        extra: threadMeta(threadA),
+      });
+      await client.createRun({
+        name: "run_a2",
+        inputs: { x: 2 },
+        run_type: "llm",
+        project_name: projectName,
+        start_time: now.getTime() + 1000,
+        extra: threadMeta(threadA),
+      });
+      await client.createRun({
+        name: "run_b1",
+        inputs: { y: 1 },
+        run_type: "llm",
+        project_name: projectName,
+        start_time: now.getTime() + 2000,
+        extra: threadMeta(threadB),
+      });
+      await pollRunsUntilCount(client, projectName, 3, 30_000);
+      const threads = await client.listThreads({
+        projectName,
+        limit: 10,
+      });
+      expect(Array.isArray(threads)).toBe(true);
+      expect(threads.length).toBeGreaterThanOrEqual(2);
+      for (const item of threads) {
+        expect(item).toHaveProperty("thread_id");
+        expect(item).toHaveProperty("runs");
+        expect(item).toHaveProperty("count");
+        expect(item).toHaveProperty("min_start_time");
+        expect(item).toHaveProperty("max_start_time");
+        expect(Array.isArray(item.runs)).toBe(true);
+        expect(item.count).toEqual(item.runs.length);
+      }
+      const threadIds = new Set(threads.map((t) => t.thread_id));
+      expect(threadIds.has(threadA)).toBe(true);
+      expect(threadIds.has(threadB)).toBe(true);
+      const threadAItem = threads.find((t) => t.thread_id === threadA);
+      const threadBItem = threads.find((t) => t.thread_id === threadB);
+      expect(threadAItem).toBeDefined();
+      expect(threadBItem).toBeDefined();
+      expect(threadAItem!.count).toEqual(2);
+      expect(threadBItem!.count).toEqual(1);
+
+      // readThread should yield only the runs belonging to the requested thread.
+      const readRunsA: Run[] = [];
+      for await (const run of client.readThread({
+        threadId: threadA,
+        projectName,
+        limit: 10,
+      })) {
+        readRunsA.push(run);
+      }
+      expect(readRunsA.length).toEqual(2);
+      const readNamesA = new Set(readRunsA.map((r) => r.name));
+      expect(readNamesA.has("run_a1")).toBe(true);
+      expect(readNamesA.has("run_a2")).toBe(true);
+
+      const readRunsB: Run[] = [];
+      for await (const run of client.readThread({
+        threadId: threadB,
+        projectName,
+        limit: 10,
+      })) {
+        readRunsB.push(run);
+      }
+      expect(readRunsB.length).toEqual(1);
+      expect(readRunsB[0].name).toBe("run_b1");
+    } finally {
+      if (await client.hasProject({ projectName })) {
+        await deleteProject(client, projectName);
+      }
+    }
+  },
+  60_000,
+);
+
+// ---------------------------------------------------------------------------
+// v2 OpenAPI client resources
+// ---------------------------------------------------------------------------
+
+function v2ProjectName(suffix: string): string {
+  return `__test_v2_resources_${suffix}_${uuidv4().replace(/-/g, "")}`;
+}
+
+async function getV2ProjectId(
+  client: Client,
+  proj: string,
+  maxRetries = 30,
+  sleepMs = 2000,
+): Promise<string | null> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const project = await client.readProject({ projectName: proj });
+      return String(project.id);
+    } catch (e: any) {
+      const msg = String(e?.message ?? e);
+      if (msg.includes("403") || msg.includes("projects:read")) {
+        return null;
+      }
+    }
+    await new Promise((r) => setTimeout(r, sleepMs));
+  }
+  throw new Error(`Project "${proj}" not found after ${maxRetries} retries`);
+}
+
+async function postV2Trace(
+  client: Client,
+  proj: string,
+): Promise<{ traceId: string; projectId: string | null; startTime: Date }> {
+  const traceId = uuidv4();
+  const startTime = new Date();
+  await client.createRun({
+    id: traceId,
+    name: "root_run",
+    run_type: "chain",
+    inputs: { input: "hello" },
+    outputs: { result: "ok" },
+    start_time: startTime.getTime(),
+    end_time: new Date().getTime(),
+    project_name: proj,
+  });
+  const projectId = await getV2ProjectId(client, proj);
+  return { traceId, projectId, startTime };
+}
+
+describe("client.runs v2 resource", () => {
+  let client: Client;
+
+  beforeAll(() => {
+    client = new Client();
+  });
+
+  test("queryV2 (alias: query)", async () => {
+    const proj = v2ProjectName("runs_query");
+    const { traceId, projectId } = await postV2Trace(client, proj);
+    if (!projectId) {
+      console.warn(
+        "SKIPPED: requires projects:read permission (service key limitation)",
+      );
+      await deleteProject(client, proj);
+      return;
+    }
+    let runs: unknown[] = [];
+    for (let i = 0; i < 30; i++) {
+      runs = [];
+      for await (const run of client.runs.queryV2({
+        project_ids: [projectId],
+        selects: ["ID", "NAME", "RUN_TYPE", "TRACE_ID"],
+      })) {
+        runs.push(run);
+      }
+      if (runs.length >= 1) break;
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    expect(runs.length).toBeGreaterThanOrEqual(1);
+    const traceIds = runs.map((r: any) => r.trace_id);
+    expect(traceIds).toContain(traceId);
+    await deleteProject(client, proj);
+  });
+
+  test("retrieveV2 (alias: retrieve)", async () => {
+    const proj = v2ProjectName("runs_retrieve");
+    const { traceId, projectId, startTime } = await postV2Trace(client, proj);
+    if (!projectId) {
+      console.warn(
+        "SKIPPED: requires projects:read permission (service key limitation)",
+      );
+      await deleteProject(client, proj);
+      return;
+    }
+    let run: any;
+    for (let i = 0; i < 30; i++) {
+      try {
+        run = await client.runs.retrieveV2(traceId, {
+          project_id: projectId,
+          start_time: startTime.toISOString(),
+        });
+        if (run?.id === traceId) break;
+      } catch {
+        // not indexed yet
+      }
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    expect(run?.id).toBe(traceId);
+    await deleteProject(client, proj);
+  });
+});

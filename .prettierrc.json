@@ -1,0 +1,17 @@
+{
+  "arrowParens": "always",
+  "experimentalTernaries": true,
+  "printWidth": 110,
+  "singleQuote": true,
+  "trailingComma": "all",
+  "overrides": [
+    {
+      "files": ["src/lib/**", "vitest.config.ts", "ls.vitest.config.ts"],
+      "options": {
+        "singleQuote": false,
+        "printWidth": 80,
+        "experimentalTernaries": false
+      }
+    }
+  ]
+}
