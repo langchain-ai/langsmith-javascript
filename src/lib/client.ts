@@ -98,7 +98,6 @@ import {
   PromptCache,
   promptCacheSingleton,
 } from "./utils/prompt_cache/index.js";
-import { constructUrl } from "./utils/url.js";
 import * as fsUtils from "./utils/fs.js";
 import {
   _shouldStreamForGlobalFetchImplementation,
@@ -5097,11 +5096,7 @@ export class Client implements LangSmithTracingClientInterface {
       example.attachments = Object.entries(attachment_urls).reduce(
         (acc, [key, value]) => {
           acc[key.slice("attachment.".length)] = {
-<<<<<<< ours
-            presigned_url: constructUrl(this.apiUrl, value.presigned_url),
-=======
             presigned_url: new URL(value.presigned_url, this.apiUrl).href,
->>>>>>> theirs
             mime_type: value.mime_type,
           };
           return acc;
@@ -5199,11 +5194,7 @@ export class Client implements LangSmithTracingClientInterface {
           example.attachments = Object.entries(attachment_urls).reduce(
             (acc, [key, value]) => {
               acc[key.slice("attachment.".length)] = {
-<<<<<<< ours
-                presigned_url: constructUrl(this.apiUrl, value.presigned_url),
-=======
                 presigned_url: new URL(value.presigned_url, this.apiUrl).href,
->>>>>>> theirs
                 mime_type: value.mime_type || undefined,
               };
               return acc;
