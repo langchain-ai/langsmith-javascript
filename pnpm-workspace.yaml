@@ -1,6 +1,6 @@
 onlyBuiltDependencies:
   - '@swc/core'
-minimumReleaseAge: 1440
+minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - langsmith
   - ai
