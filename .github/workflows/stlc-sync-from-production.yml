@@ -69,7 +69,7 @@ jobs:
         if: steps.diff.outputs.behind == 'true'
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: git push origin production/main:refs/heads/stlc/from-prod --force
+        run: git push origin production/main:refs/heads/stlc/from-prod
 
       - name: Open or update the back-sync PR on staging
         if: steps.diff.outputs.behind == 'true'

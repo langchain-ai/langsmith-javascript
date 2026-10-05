@@ -1,0 +1,76 @@
+name: Publish NPM
+on:
+  workflow_call:
+    inputs:
+      tag:
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable GitHub release tag to retry
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: publish-npm
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'langchain-ai/langsmith-javascript' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate the existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a stable vX.Y.Z release tag" >&2
+            exit 1
+          fi
+          gh release view "$RELEASE_TAG" --json isDraft,isPrerelease \
+            --jq 'select(.isDraft == false and .isPrerelease == false)' | grep -q .
+
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.tag }}
+          persist-credentials: false
+
+      - name: Protect dependency downloads
+        uses: socketdev/action@ba6de6cc0565af1f42295590380973573297e31f
+        with:
+          mode: firewall-free
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+        with:
+          version: '10.30.1'
+
+      - name: Check the package version matches the release
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          node -e 'if (process.env.RELEASE_TAG !== "v" + require("./package.json").version) throw new Error("Release and package versions differ")'
+
+      - name: Install and build
+        run: |
+          pnpm install --frozen-lockfile
+          ./scripts/build
+
+      - name: Publish through npm trusted publishing
+        working-directory: dist
+        run: npm publish --access public

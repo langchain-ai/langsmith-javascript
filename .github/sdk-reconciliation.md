@@ -47,7 +47,7 @@ Keep staging promotion and publishing workflows separate from old-repo release w
 
 1. First publication must use release-please to select a version above the published source SDK version: 0.10.7 (staging is currently 0.10.4).
 2. Reconcile the manifest, package.json and src/version.ts together through the release process. Do not copy skipped source version bumps manually.
-3. Confirm the intended stable/prerelease channel and finish the production publishing pipeline under LIN-505/LIN-506 before publishing. Staging retains its current prerelease configuration.
+3. Confirm the intended stable/prerelease channel and finish the production publishing pipeline under LIN-505/LIN-506 before publishing. The readiness follow-up switches release-please to stable releases; see release-readiness.md.
 
 ## Validation
 
@@ -58,3 +58,9 @@ Keep staging promotion and publishing workflows separate from old-repo release w
 5. Dependency audit reports four unrelated advisories (two high, two moderate), with none for fast-uri, ip-address or undici. The source security patches are reconciled; this PR does not claim a clean audit for the entire development tree.
 
 Logs are retained with the local reconciliation checkout. Live integrations, other export fixtures and CI remain required before release.
+
+## October 5 pipeline follow-up
+
+Align npm overrides and Yarn resolutions with the existing pnpm policy for fast-uri, ip-address and undici. Preserve all nine lockfiles, fixture dist paths, TypeScript 5.8.3, pnpm 10.30.1, SWC and tsc-multi. The publisher builds dist with the same toolchain and uses Node 24 for npm trusted publishing.
+
+The Linux/macOS/Windows language matrices, package checks, evals and four integration environments stay in place. See [release readiness](release-readiness.md) for preparation limits, registry trust, temporary release-as versions and the required merge strategy.
