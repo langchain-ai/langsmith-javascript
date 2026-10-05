@@ -475,7 +475,7 @@ describe("LangChain context variables", () => {
     "set and get context variables from traceable nested in runnable with tracingEnabled=%s",
     async (tracingEnabled) => {
       process.env.LANGSMITH_TRACING = tracingEnabled;
-      const { client } = mockClient();
+      const { client, langChainTracer } = mockClient();
 
       const nested = traceable(
         async () => {
@@ -492,7 +492,7 @@ describe("LangChain context variables", () => {
         expect(getContextVariable("foo")).toEqual("qux");
         return nested();
       });
-      await main.invoke({});
+      await main.invoke({}, { callbacks: [langChainTracer] });
       await awaitAllCallbacks();
     },
   );
