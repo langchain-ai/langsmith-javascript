@@ -3,14 +3,13 @@ name: 'stlc: promote to production'
 on:
   push:
     branches: [main]
-  workflow_dispatch: {}
 
 permissions:
   contents: read
 
 jobs:
   promote:
-    if: github.repository == 'langchain-ai/langsmith-javascript-staging' && github.ref == 'refs/heads/main'
+    if: github.repository == 'langchain-ai/langsmith-javascript-staging'
     runs-on: self-hosted-ubuntu-small-amd64
     env:
       PRODUCTION_REPO: langchain-ai/langsmith-javascript
@@ -48,9 +47,10 @@ jobs:
       - name: Check if production is already in sync
         id: diff
         run: |
-          git merge-base origin/main production/main >/dev/null
-          if git diff --quiet origin/main production/main; then
-            echo "Production already has the staging file tree. Nothing to promote."
+          STAGING_SHA=$(git rev-parse origin/main)
+          PRODUCTION_SHA=$(git rev-parse production/main)
+          if [ "$STAGING_SHA" = "$PRODUCTION_SHA" ]; then
+            echo "Production is already at $STAGING_SHA. Nothing to release."
             echo "synced=true" >> "$GITHUB_OUTPUT"
           else
             echo "synced=false" >> "$GITHUB_OUTPUT"
