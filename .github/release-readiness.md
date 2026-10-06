@@ -24,7 +24,6 @@ The release doctor checks GitHub authentication, OIDC availability and registry 
 ## History and rollback
 
 The history join preserves the staging tree and makes production `main` an ancestor of this branch.
-Promotion and reverse sync use fast-forward pushes. Divergent bot branches fail for review instead of being overwritten.
 Before the switch, leave these drafts unmerged or revert their file changes. Preserve the joined ancestry after merging.
 
 ## Staging CI blocker

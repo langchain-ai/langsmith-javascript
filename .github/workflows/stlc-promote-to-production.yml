@@ -59,7 +59,7 @@ jobs:
       - name: Push staging main to the release branch on production
         if: steps.diff.outputs.synced == 'false'
         run: |
-          git push production origin/main:refs/heads/stainless/release
+          git push production origin/main:refs/heads/stainless/release --force
 
       - name: Open or update the release PR on production
         if: steps.diff.outputs.synced == 'false'
