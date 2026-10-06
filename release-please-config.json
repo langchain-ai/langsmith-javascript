@@ -61,5 +61,6 @@
   "release-type": "node",
   "extra-files": ["src/version.ts", "README.md"],
   "versioning": "prerelease",
-  "prerelease-type": "rc.1"
+  "prerelease-type": "rc",
+  "release-as": "0.10.9-rc.1"
 }
