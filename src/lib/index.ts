@@ -16,6 +16,13 @@ export type {
 
 export { RunTree, type RunTreeConfig, type WriteReplica } from "./run_trees.js";
 
+export {
+  address,
+  type Address,
+  type Environment,
+  EnvAddressError,
+} from "./address.js";
+
 export { overrideFetchImplementation } from "./singletons/fetch.js";
 
 export { getDefaultProjectName } from "./utils/project.js";
