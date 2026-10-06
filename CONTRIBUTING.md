@@ -24,7 +24,7 @@ Add an example under `examples/`, for example `examples/my_example.ts`:
 ```ts
 #!/usr/bin/env -S pnpm tsn -T
 
-import { Client } from "langsmith";
+import { Client } from 'langsmith';
 
 const client = new Client();
 ```
