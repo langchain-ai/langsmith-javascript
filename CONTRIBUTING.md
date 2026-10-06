@@ -1,3 +1,7 @@
+# Contributing
+
+This is the development and generation repository for the LangSmith JavaScript SDK. Changes are promoted to the production repository for releases.
+
 ## Taking over an external contributor's PR
 
 Do not authorize GitHub Actions on external contributors' PRs.
@@ -33,10 +37,6 @@ Open a maintainer-owned replacement PR so CI can run there.
 
 Review and cherry-pick any later contributor commits explicitly.
 Do not automatically sync unreviewed updates.
-
-# Contributing
-
-This is the development and generation repository for the LangSmith JavaScript SDK. Changes are promoted to the production repository for releases.
 
 ## Set up the environment
 
@@ -74,22 +74,6 @@ pnpm tsn -T examples/my_example.ts
 
 Examples call the configured LangSmith API, so set the endpoint and credentials for the environment you want to use.
 
-## Run checks
-
-Run tests, lint, and formatting with:
-
-```sh
-pnpm test
-pnpm lint
-pnpm fix
-```
-
-## Open a pull request
-
-Open development changes against `langsmith-javascript-staging`. Include focused tests and update relevant examples or docs. Use conventional commit messages so release-please can prepare the changelog and version.
-
-Production releases are promoted and published from `langsmith-javascript`. Do not change package versions or publish directly from staging.
-
 ## Use a local build
 
 Link this checkout globally:
@@ -109,3 +93,19 @@ To install directly from this repository, use:
 ```sh
 pnpm add git+ssh://git@github.com/langchain-ai/langsmith-javascript-staging.git
 ```
+
+## Run checks
+
+Run tests, lint, and formatting with:
+
+```sh
+pnpm test
+pnpm lint
+pnpm fix
+```
+
+## Open a pull request
+
+Open development changes against `langsmith-javascript-staging`. Include focused tests and update relevant examples or docs. Use conventional commit messages so release-please can prepare the changelog and version.
+
+Production releases are promoted and published from `langsmith-javascript`. Do not change package versions or publish directly from staging.
