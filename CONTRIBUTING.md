@@ -52,10 +52,10 @@ Then link it in the project where you want to try the SDK:
 pnpm link --global langsmith
 ```
 
-To install directly from this repository, use:
+To install directly from the public production repository, use:
 
 ```sh
-pnpm add git+ssh://git@github.com/langchain-ai/langsmith-javascript-staging.git
+pnpm add git+ssh://git@github.com/langchain-ai/langsmith-javascript.git
 ```
 
 ## Run checks
