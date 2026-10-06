@@ -22,7 +22,6 @@ Open a maintainer-owned replacement PR so CI can run there.
    Use explicit commit SHAs, never a moving branch head.
    `-x` records the source commit; cherry-picking preserves the contributor's authorship.
    Resolve conflicts and review the resulting diff before continuing, or run `git cherry-pick --abort`.
-
 3. Review the final diff against the target branch and run the relevant local checks.
    Push to this repository's `origin`, then open a replacement PR against the original target branch.
    Link the original PR, credit the contributor and explain changes made during the takeover.
@@ -35,90 +34,78 @@ Open a maintainer-owned replacement PR so CI can run there.
 Review and cherry-pick any later contributor commits explicitly.
 Do not automatically sync unreviewed updates.
 
-## Setting up the environment
+# Contributing
 
-This repository uses [`pnpm`](https://pnpm.io/).
-Other package managers may work but are not officially supported for development.
+This is the development and generation repository for the LangSmith JavaScript SDK. Changes are promoted to the production repository for releases.
 
-To set up the repository, run:
+## Set up the environment
+
+This repository uses [pnpm](https://pnpm.io/). Other package managers are not officially supported. Install dependencies and build the SDK with:
 
 ```sh
-$ pnpm install
-$ pnpm build
+pnpm install
+pnpm build
 ```
 
-This will install all the required dependencies and build output files to `dist/`.
+## Make changes
 
-## Modifying/Adding code
+Most of the SDK is generated from the LangSmith API definition by Stainless. Do not edit generated files directly. CI rejects changes to files marked `File generated from our OpenAPI spec by Stainless.`
 
-Most of the SDK is generated code. Modifications to code will be persisted between generations, but may
-result in merge conflicts between manual patches and changes from the generator. The generator will never
-modify the contents of the `src/lib/` and `examples/` directories.
+Handwritten code belongs in `src/lib/` or `examples/`; generation does not overwrite those directories. Changes to generated API behavior should be made in the source API definition or Stainless configuration, with help from an SDK maintainer.
 
-## Adding and running examples
+## Add or run an example
 
-All files in the `examples/` directory are not modified by the generator and can be freely edited or added to.
+Add an example under `examples/`, for example `examples/my_example.ts`:
 
 ```ts
-// add an example to examples/<your-example>.ts
+#!/usr/bin/env -S pnpm tsn -T
 
-#!/usr/bin/env -S npm run tsn -T
-…
+import { Client } from "langsmith";
+
+const client = new Client();
 ```
 
+Run it with:
+
 ```sh
-$ chmod +x examples/<your-example>.ts
-# run the example against your api
-$ pnpm tsn -T examples/<your-example>.ts
+chmod +x examples/my_example.ts
+pnpm tsn -T examples/my_example.ts
 ```
 
-## Using the repository from source
+Examples call the configured LangSmith API, so set the endpoint and credentials for the environment you want to use.
 
-If you’d like to use the repository from source, you can either install from git or link to a cloned repository:
+## Run checks
 
-To install via git:
+Run tests, lint, and formatting with:
 
 ```sh
-$ npm install git+ssh://git@github.com:langchain-ai/langsmith-javascript.git
+pnpm test
+pnpm lint
+pnpm fix
 ```
 
-Alternatively, to link a local copy of the repo:
+## Open a pull request
+
+Open development changes against `langsmith-javascript-staging`. Include focused tests and update relevant examples or docs. Use conventional commit messages so release-please can prepare the changelog and version.
+
+Production releases are promoted and published from `langsmith-javascript`. Do not change package versions or publish directly from staging.
+
+## Use a local build
+
+Link this checkout globally:
 
 ```sh
-# Clone
-$ git clone https://www.github.com/langchain-ai/langsmith-javascript
-$ cd langsmith-javascript
-
-# With yarn
-$ yarn link
-$ cd ../my-package
-$ yarn link langsmith
-
-# With pnpm
-$ pnpm link --global
-$ cd ../my-package
-$ pnpm link --global langsmith
+pnpm link --global
 ```
 
-## Running tests
+Then link it in the project where you want to try the SDK:
 
 ```sh
-$ pnpm run test
+pnpm link --global langsmith
 ```
 
-## Linting and formatting
-
-This repository uses [prettier](https://www.npmjs.com/package/prettier) and
-[eslint](https://www.npmjs.com/package/eslint) to format the code in the repository.
-
-To lint:
+To install directly from this repository, use:
 
 ```sh
-$ pnpm lint
-```
-
-To format and fix all lint issues automatically:
-
-```sh
-$ pnpm fix
+pnpm add git+ssh://git@github.com/langchain-ai/langsmith-javascript-staging.git
 ```
