@@ -13,13 +13,3 @@ dist-deno
 .env
 _build
 .attw.json
-
-.env.*
-*.pem
-*.key
-*.crt
-credentials.json
-.DS_Store
-node_modules/
-__pycache__/
-.venv/

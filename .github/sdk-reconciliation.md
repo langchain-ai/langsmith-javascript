@@ -47,7 +47,7 @@ Keep staging promotion and publishing workflows separate from old-repo release w
 
 1. First publication must use release-please to select a version above the published source SDK version: 0.10.7 (staging is currently 0.10.4).
 2. Reconcile the manifest, package.json and src/version.ts together through the release process. Do not copy skipped source version bumps manually.
-3. Confirm the intended stable/prerelease channel and finish the production publishing pipeline under LIN-505/LIN-506 before publishing. The readiness follow-up switches release-please to stable releases; see release-readiness.md.
+3. Confirm the intended stable/prerelease channel and finish the production publishing pipeline under LIN-505/LIN-506 before publishing. The readiness follow-up prepares stable releases; see release-readiness.md.
 
 ## Validation
 
@@ -59,8 +59,8 @@ Keep staging promotion and publishing workflows separate from old-repo release w
 
 Logs are retained with the local reconciliation checkout. Live integrations, other export fixtures and CI remain required before release.
 
-## October 5 pipeline follow-up
+## October 6 readiness follow-up
 
-Align npm overrides and Yarn resolutions with the existing pnpm policy for fast-uri, ip-address and undici. Preserve all nine lockfiles, fixture dist paths, TypeScript 5.8.3, pnpm 10.30.1, SWC and tsc-multi. The publisher builds dist with the same toolchain and uses Node 24 for npm trusted publishing.
+Align npm overrides and Yarn resolutions with the existing pnpm policy for fast-uri, ip-address and undici. Keep all lockfiles, fixture paths, compiler versions and the STLC formatting/lint policy unchanged.
 
-The Linux/macOS/Windows language matrices, package checks, evals and four integration environments stay in place. See [release readiness](release-readiness.md) for preparation limits, registry trust, temporary release-as versions and the required merge strategy.
+The readiness diff contains no SDK source, test, or `.gitignore` changes. See [release readiness](release-readiness.md) for publisher identity, the gateway blocker and the required merge strategy.
