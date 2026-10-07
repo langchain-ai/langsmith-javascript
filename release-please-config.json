@@ -62,5 +62,6 @@
   "extra-files": ["src/version.ts", "README.md"],
   "versioning": "prerelease",
   "prerelease-type": "rc",
-  "release-as": "0.10.9-rc.1"
+  "release-as": "0.10.9-rc.1",
+  "bootstrap-sha": "4670f4454d9911a06f04b7b98ed426d380beeece"
 }
