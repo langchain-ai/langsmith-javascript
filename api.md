@@ -22,6 +22,23 @@ Methods:
 
 - <code title="post /v1/fleet/threads/{thread_id}/sandbox-activation">client.fleet.threads.<a href="./src/resources/fleet/threads.ts">activateSandbox</a>(threadID) -> ThreadActivateSandboxResponse</code>
 
+# Sessions
+
+Types:
+
+- <code><a href="./src/resources/sessions.ts">CustomChartsSection</a></code>
+- <code><a href="./src/resources/sessions.ts">CustomChartsSectionRequest</a></code>
+- <code><a href="./src/resources/sessions.ts">RunStatsGroupBy</a></code>
+- <code><a href="./src/resources/sessions.ts">SessionSortableColumns</a></code>
+- <code><a href="./src/resources/sessions.ts">TimedeltaInput</a></code>
+- <code><a href="./src/resources/sessions.ts">TracerSession</a></code>
+- <code><a href="./src/resources/sessions.ts">TracerSessionWithoutVirtualFields</a></code>
+- <code><a href="./src/resources/sessions.ts">SessionResolveResponse</a></code>
+
+Methods:
+
+- <code title="get /api/v1/sessions/resolutions">client.sessions.<a href="./src/resources/sessions.ts">resolve</a>({ ...params }) -> SessionResolveResponse</code>
+
 # Datasets
 
 Types:
