@@ -39,11 +39,8 @@ import {
   isPromiseMethod,
 } from "./utils/asserts.js";
 import { __version__ } from "./index.js";
-import {
-  checkAddress,
-  firstNamed,
-  rejectConflicting,
-} from "./utils/agent_addressing.js";
+import { ensureAgent } from "./address.js";
+import { firstNamed, rejectConflicting } from "./utils/addressing.js";
 import { getOTELTrace, getOTELContext } from "./singletons/otel.js";
 import { getUuidFromOtelSpanId } from "./experimental/otel/utils.js";
 import { OTELTracer } from "./experimental/otel/types.js";
@@ -763,7 +760,7 @@ export function traceable<Func extends (...args: any[]) => any>(
     ...runTreeConfig
   } = config ?? {};
 
-  runTreeConfig.address = checkAddress(runTreeConfig.address);
+  runTreeConfig.address = ensureAgent(runTreeConfig.address);
   rejectConflicting(runTreeConfig.project_name, runTreeConfig.address);
 
   const processInputsFn = processInputs ?? ((x) => x);
@@ -827,8 +824,8 @@ export function traceable<Func extends (...args: any[]) => any>(
     }
     // Runtime config outranks decorator config, whichever mode each names.
     [ensuredConfig.project_name, ensuredConfig.address] = firstNamed(
-      [runtimeConfig?.project_name, checkAddress(runtimeConfig?.address)],
-      [runTreeConfig.project_name, runTreeConfig.address],
+      [runtimeConfig?.project_name, ensureAgent(runtimeConfig?.address)],
+      [runTreeConfig.project_name, ensureAgent(runTreeConfig.address)],
     );
 
     let runEndedPromiseResolver: () => void;
