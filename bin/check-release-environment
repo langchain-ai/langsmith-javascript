@@ -1,22 +1,18 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-errors=()
-
-if [ -z "${RELEASE_PLEASE_TOKEN}" ]; then
-  errors+=("The RELEASE_PLEASE_TOKEN secret has not been set. Create a fine-grained GitHub PAT and add it as a repository secret.")
-fi
-
-lenErrors=${#errors[@]}
-
-if [[ lenErrors -gt 0 ]]; then
-  echo -e "Found the following errors in the release environment:\n"
-
-  for error in "${errors[@]}"; do
-    echo -e "- $error\n"
-  done
-
-  exit 1
-fi
-
-echo "The environment is ready to push releases!"
-
+: "${GH_TOKEN:?GitHub workflow token is required}"
+: "${GH_REPO:?GitHub repository is required}"
+: "${ACTIONS_ID_TOKEN_REQUEST_URL:?Workflow needs id-token: write}"
+: "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:?Workflow needs id-token: write}"
+gh api "repos/$GH_REPO" --silent
+npm_version=$(npm --version)
+node - "$npm_version" <<'JS'
+const [major, minor, patch] = process.argv[2].split('.').map(Number);
+if (major < 11 || (major === 11 && (minor < 5 || (minor === 5 && patch < 1)))) {
+  throw new Error('npm trusted publishing requires npm >=11.5.1');
+}
+JS
+npm ping --registry=https://registry.npmjs.org
+echo "GitHub authentication, OIDC availability and registry reachability checked."
+echo "Trusted-publisher registration and registry write permission still require separate verification."
