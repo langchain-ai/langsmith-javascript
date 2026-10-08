@@ -29,7 +29,7 @@ jobs:
           fi
           if [ "$SAME_REPO" = "true" ]; then
             case "$HEAD" in
-              stainless/release|release-please--branches--main) exit 0 ;;
+              stainless/release|release-please--branches--main|release-please--branches--main--components--*) exit 0 ;;
             esac
           fi
           echo "::error::PRs to main must come from stainless/release. Open the change against langsmith-javascript-staging instead, or add the skip-pr-source-check label for an urgent production fix."
