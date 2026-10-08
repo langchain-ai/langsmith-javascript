@@ -5,7 +5,6 @@
   "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
   "include-v-in-tag": true,
   "include-component-in-tag": false,
-  "versioning": "prerelease",
   "prerelease": true,
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": false,
@@ -60,5 +59,9 @@
     }
   ],
   "release-type": "node",
-  "extra-files": ["src/version.ts", "README.md"]
+  "extra-files": ["src/version.ts", "README.md"],
+  "versioning": "prerelease",
+  "prerelease-type": "rc",
+  "release-as": "0.10.9-rc.1",
+  "bootstrap-sha": "4670f4454d9911a06f04b7b98ed426d380beeece"
 }

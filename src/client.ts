@@ -83,6 +83,18 @@ import {
   ProductFeedbackRetrieveResponse,
 } from './resources/product-feedback';
 import {
+  CustomChartsSection,
+  CustomChartsSectionRequest,
+  RunStatsGroupBy,
+  SessionResolveParams,
+  SessionResolveResponse,
+  SessionSortableColumns,
+  Sessions,
+  TimedeltaInput,
+  TracerSession,
+  TracerSessionWithoutVirtualFields,
+} from './resources/sessions';
+import {
   Trace,
   TraceAggregates,
   TraceListRunsParams,
@@ -941,6 +953,7 @@ export class Langsmith {
 
   productFeedback: API.ProductFeedback = new API.ProductFeedback(this);
   fleet: API.Fleet = new API.Fleet(this);
+  sessions: API.Sessions = new API.Sessions(this);
   datasets: API.Datasets = new API.Datasets(this);
   runs: API.Runs = new API.Runs(this);
   threads: API.Threads = new API.Threads(this);
@@ -955,6 +968,7 @@ export class Langsmith {
 
 Langsmith.ProductFeedback = ProductFeedback;
 Langsmith.Fleet = Fleet;
+Langsmith.Sessions = Sessions;
 Langsmith.Datasets = Datasets;
 Langsmith.Runs = Runs;
 Langsmith.Threads = Threads;
@@ -1031,6 +1045,19 @@ export declare namespace Langsmith {
   };
 
   export { Fleet as Fleet };
+
+  export {
+    Sessions as Sessions,
+    type CustomChartsSection as CustomChartsSection,
+    type CustomChartsSectionRequest as CustomChartsSectionRequest,
+    type RunStatsGroupBy as RunStatsGroupBy,
+    type SessionSortableColumns as SessionSortableColumns,
+    type TimedeltaInput as TimedeltaInput,
+    type TracerSession as TracerSession,
+    type TracerSessionWithoutVirtualFields as TracerSessionWithoutVirtualFields,
+    type SessionResolveResponse as SessionResolveResponse,
+    type SessionResolveParams as SessionResolveParams,
+  };
 
   export {
     Datasets as Datasets,
@@ -1166,6 +1193,4 @@ export declare namespace Langsmith {
     type SandboxListUsageCostsResponsesItemsCursorGetPagination as SandboxListUsageCostsResponsesItemsCursorGetPagination,
     type SandboxListUsageCostsParams as SandboxListUsageCostsParams,
   };
-
-  export type AgentAddress = API.AgentAddress;
 }

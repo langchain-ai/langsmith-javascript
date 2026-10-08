@@ -1,7 +1,7 @@
 // File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
 
 import { APIResource } from '../../core/resource';
-import * as Shared from '../shared';
+import * as SessionsAPI from '../sessions';
 import * as ShareAPI from './share';
 import { Share, ShareCreateParams, ShareCreateResponse, ShareDeleteParams } from './share';
 import { APIPromise } from '../../core/api-promise';
@@ -290,6 +290,13 @@ export interface Run {
   prompt_tokens?: number;
 
   /**
+   * `query_metadata` describes this query result, including `sem_filter_score` when
+   * a semantic filter is used. Returned automatically by run queries, or null when
+   * unavailable.
+   */
+  query_metadata?: unknown | null;
+
+  /**
    * `reference_dataset_id` is the dataset UUID for the reference example, if any.
    */
   reference_dataset_id?: string;
@@ -512,24 +519,11 @@ export interface RunIngest {
 
   /**
    * Beta. Addresses the run to an Agent environment in place of session_id or
-   * session_name. Cannot be combined with agent_id or agent_environment. Only
-   * workspaces enabled for Agent addressing accept it; others get a 403.
+   * session_name, as lrn:agents/{id}/environments/{environment}. The environment is
+   * case-insensitive. Only workspaces enabled for Agent addressing accept it; others
+   * get a 403.
    */
-  address?: Shared.AgentAddress;
-
-  /**
-   * Beta. The Agent environment the run belongs to, case-insensitive; requires
-   * agent_id. Only workspaces enabled for Agent addressing accept it; others get
-   * a 403.
-   */
-  agent_environment?: 'LOCAL' | 'DEVELOPMENT' | 'STAGING' | 'PRODUCTION';
-
-  /**
-   * Beta, superseded by address. Addresses the run to an Agent, with
-   * agent_environment, in place of session_id or session_name. Only workspaces
-   * enabled for Agent addressing accept it; others get a 403.
-   */
-  agent_id?: string;
+  address?: string;
 
   dotted_order?: string;
 
@@ -762,7 +756,7 @@ export interface RunStatsQueryParams {
   /**
    * Group by param for run stats.
    */
-  group_by?: RunStatsQueryParams.GroupBy | null;
+  group_by?: SessionsAPI.RunStatsGroupBy | null;
 
   groups?: Array<string | null> | null;
 
@@ -837,19 +831,6 @@ export interface RunStatsQueryParams {
   tree_filter?: string | null;
 
   use_experimental_search?: boolean;
-}
-
-export namespace RunStatsQueryParams {
-  /**
-   * Group by param for run stats.
-   */
-  export interface GroupBy {
-    attribute: 'name' | 'run_type' | 'tag' | 'metadata';
-
-    max_groups?: number;
-
-    path?: string | null;
-  }
 }
 
 export type RunType = 'TOOL' | 'CHAIN' | 'LLM' | 'RETRIEVER' | 'EMBEDDING' | 'PROMPT' | 'PARSER';

@@ -1,21 +1,29 @@
 name: Release Doctor
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
 
 jobs:
   release_doctor:
     name: release doctor
     runs-on: ubuntu-latest
-    if: github.repository == 'langchain-ai/langsmith-javascript' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release-please') || github.head_ref == 'next')
-
+    if: github.repository == 'langchain-ai/langsmith-javascript' && (github.event_name == 'workflow_dispatch' || startsWith(github.head_ref, 'release-please'))
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - name: Check release environment
-        run: |
-          bash ./bin/check-release-environment
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v6
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+      - name: Check release prerequisites without publishing
+        run: bash ./bin/check-release-environment
         env:
-          RELEASE_PLEASE_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
