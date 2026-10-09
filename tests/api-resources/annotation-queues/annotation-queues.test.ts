@@ -75,6 +75,7 @@ describe('resource annotationQueues', () => {
         {
           feedback_key: 'feedback_key',
           description: 'description',
+          feedback_config_id: '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
           is_assertion: true,
           is_required: true,
           regex_validator: 'string',
