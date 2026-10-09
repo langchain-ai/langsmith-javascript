@@ -30,7 +30,7 @@ export type Lrn = `lrn:agents/${string}/environments/${Environment}`;
 export type ApiAddress = {
   kind: "AGENT" | "EXPERIMENT" | "EVALUATOR";
   id?: string;
-  environment?: string;
+  environment?: Uppercase<Environment>;
 };
 
 /** (beta) A feature that holds traces in a tracing project. */
@@ -111,7 +111,7 @@ export class AgentAddress implements Address {
     return {
       kind: "AGENT",
       id: this.id,
-      environment: this.environment.toUpperCase(),
+      environment: this.environment.toUpperCase() as Uppercase<Environment>,
     };
   }
 
@@ -221,6 +221,27 @@ export function ensureAgent(value: unknown): AgentAddress | undefined {
   }
   throw new Error(
     "address must be an AgentAddress such as `new AgentAddress(id, environment)`, got " +
+      `${typeof value === "string" ? JSON.stringify(value) : typeof value}.`,
+  );
+}
+
+/**
+ * Return `value` if it is an `Address` of any kind, as a lookup takes it.
+ * For the calls that only resolve an address to its project, such as
+ * `getRunUrl`. Whatever receives traces takes `ensureAgent`.
+ */
+export function ensureAddress(value: unknown): Address | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  if (
+    typeof value === "object" &&
+    typeof (value as Address).toApiAddress === "function"
+  ) {
+    return value as Address;
+  }
+  throw new Error(
+    "address must be an AgentAddress, ExperimentAddress or EvaluatorAddress, got " +
       `${typeof value === "string" ? JSON.stringify(value) : typeof value}.`,
   );
 }
