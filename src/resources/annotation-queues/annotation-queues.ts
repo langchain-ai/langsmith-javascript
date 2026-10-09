@@ -563,7 +563,7 @@ export interface AnnotationQueueUpdateParams {
 
   description?: string | null;
 
-  enable_reservations?: boolean;
+  enable_reservations?: boolean | DatasetsAPI.Missing;
 
   metadata?: { [key: string]: unknown } | DatasetsAPI.Missing | null;
 
@@ -571,7 +571,7 @@ export interface AnnotationQueueUpdateParams {
 
   num_reviewers_per_item?: number | DatasetsAPI.Missing | null;
 
-  reservation_minutes?: number | null;
+  reservation_minutes?: number | DatasetsAPI.Missing | null;
 
   reviewer_access_mode?: 'any' | 'assigned' | null;
 
