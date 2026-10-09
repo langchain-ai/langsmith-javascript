@@ -59,6 +59,5 @@
     }
   ],
   "release-type": "node",
-  "extra-files": ["src/version.ts", "README.md"],
-  "release-as": "0.10.10"
+  "extra-files": ["src/version.ts", "README.md"]
 }
