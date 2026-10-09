@@ -1,6 +1,6 @@
 {
   "name": "langsmith",
-  "version": "0.10.10-rc.1",
+  "version": "0.10.10",
   "description": "Client library to connect to the LangSmith Observability and Evaluation Platform.",
   "author": "LangChain <>",
   "types": "dist/index.d.ts",
