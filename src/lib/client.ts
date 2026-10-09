@@ -1,4 +1,5 @@
 import * as uuid from "./utils/uuid/src/index.js";
+import { getOpenAPIBaseUrl } from "./utils/api_url.js";
 import type { OTELContext } from "./experimental/otel/types.js";
 import {
   LangSmithToOTELTranslator,
@@ -1763,11 +1764,7 @@ export class Client implements LangSmithTracingClientInterface {
   }
 
   private _getOpenAPIBaseUrl(): string {
-    const url = this.apiUrl.replace(/\/$/, "");
-    for (const suffix of ["/api/v1", "/api"]) {
-      if (url.endsWith(suffix)) return url.slice(0, -suffix.length);
-    }
-    return url;
+    return getOpenAPIBaseUrl(this.apiUrl);
   }
 
   /**

@@ -42,6 +42,18 @@ async function postprocess() {
     }
   }
 
+  // langsmith/vitest* are ESM-only at runtime (top-level await), but CJS and node10
+  // TypeScript projects still resolve their types, as langsmith-sdk shipped them:
+  // write a .d.ts next to every entrypoint .d.mts that has no .js twin.
+  for await (const file of walk(distDir)) {
+    const rel = path.relative(distDir, file);
+    if (!rel.endsWith('.d.mts') || /^(src|internal|bin|lib)\//.test(rel)) continue;
+    const base = file.slice(0, -'.d.mts'.length);
+    if (fs.existsSync(base + '.js')) continue;
+    const code = await fs.promises.readFile(file, 'utf8');
+    await fs.promises.writeFile(base + '.d.ts', code.replace(/^\/\/# sourceMappingURL=.*\n?/m, ''), 'utf8');
+  }
+
   const newExports = {
     '.': {
       require: {
@@ -80,6 +92,12 @@ async function postprocess() {
       newExports[subpath] = {
         default: subpath,
       };
+    }
+  }
+  // ESM-only entrypoints: types for `require`, no runtime target
+  for (const [subpath, target] of Object.entries(newExports)) {
+    if ('import' in target && !target.require && fs.existsSync(path.join(distDir, subpath + '.d.ts'))) {
+      target.require = { types: subpath + '.d.ts' };
     }
   }
   // entrypoints package.json points into lib/ (hand-written code) win over the generated file of the same name;
