@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.10](https://github.com/langchain-ai/langsmith-javascript/compare/v0.10.10-rc.1...v0.10.10) (2026-10-09)
+
+
+### Chores
+
+* switch release-please to the stable channel ([#27](https://github.com/langchain-ai/langsmith-javascript/issues/27)) ([2045b30](https://github.com/langchain-ai/langsmith-javascript/commit/2045b301e50ddd5f0061eafa73fa4d923928a12d))
+
 ## [0.10.10-rc.1](https://github.com/langchain-ai/langsmith-javascript/compare/v0.10.4...v0.10.10-rc.1) (2026-10-09)
 
 
