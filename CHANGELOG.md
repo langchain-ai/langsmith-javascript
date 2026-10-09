@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.11](https://github.com/langchain-ai/langsmith-javascript/compare/v0.10.10...v0.10.11) (2026-10-09)
+
+
+### Bug Fixes
+
+* **build:** ship CJS and node10 types for langsmith/vitest ([#35](https://github.com/langchain-ai/langsmith-javascript/issues/35)) ([5e450f2](https://github.com/langchain-ai/langsmith-javascript/commit/5e450f2a1194fc9986e3a9f3a84b613413235486))
+
+
+### Chores
+
+* drop the release-as pin now that 0.10.10 is out ([#34](https://github.com/langchain-ai/langsmith-javascript/issues/34)) ([af20623](https://github.com/langchain-ai/langsmith-javascript/commit/af206234d7c916e42019128ed0f76057ec9d7402))
+
 ## [0.10.10](https://github.com/langchain-ai/langsmith-javascript/compare/v0.10.10-rc.1...v0.10.10) (2026-10-09)
 
 
