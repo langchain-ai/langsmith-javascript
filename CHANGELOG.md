@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.10.14 (unreleased)
+
+### Bug Fixes
+
+* Preserve `NullableHeaders` in published declarations so ESM and CJS consumers can type-check with `skipLibCheck: false` ([langsmith-sdk#3723](https://github.com/langchain-ai/langsmith-sdk/issues/3723)).
+
 ## [0.10.13](https://github.com/langchain-ai/langsmith-javascript/compare/v0.10.12...v0.10.13) (2026-10-13)
 
 

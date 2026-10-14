@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+root="$PWD"
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+pnpm build
+(cd dist && pnpm pack --pack-destination "$tmp")
+node -e 'require("node:fs").writeFileSync(process.argv[1], JSON.stringify({private: true}))' "$tmp/package.json"
+(cd "$tmp" && pnpm add --ignore-scripts "$tmp"/langsmith-*.tgz)
+node - "$tmp" "$root" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+const [tmp, root] = process.argv.slice(2);
+for (const extension of ['ts', 'mts']) {
+  const headers = fs.readFileSync(path.join(tmp, `node_modules/langsmith/internal/headers.d.${extension}`), 'utf8');
+  assert.match(headers, /export type NullableHeaders\b/);
+}
+fs.writeFileSync(path.join(tmp, 'tsconfig.json'), JSON.stringify({
+  compilerOptions: {
+    target: 'ES2022',
+    module: 'NodeNext',
+    moduleResolution: 'NodeNext',
+    skipLibCheck: false,
+    strict: true,
+    noEmit: true,
+    types: ['node'],
+    typeRoots: [path.join(root, 'node_modules/@types')],
+  },
+  include: ['consumer.mts', 'consumer.cts'],
+}));
+const consumer = 'import * as ls from "langsmith";\nimport { Client } from "langsmith/client";\nvoid ls;\nvoid Client;\n';
+for (const extension of ['mts', 'cts']) {
+  fs.writeFileSync(path.join(tmp, `consumer.${extension}`), consumer);
+}
+NODE
+"$root/node_modules/.bin/tsc" --project "$tmp/tsconfig.json" --noEmit --pretty false
