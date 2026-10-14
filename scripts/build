@@ -15,7 +15,6 @@ rm -rf dist; mkdir dist
 # Copy src to dist/src and build from dist/src into dist, so that
 # the source map for index.js.map will refer to ./src/index.ts etc
 cp -rp src README.md dist
-node scripts/utils/preserve-public-types.cjs
 # hand-written tests are not part of the package
 rm -rf dist/src/lib/tests
 for file in LICENSE CHANGELOG.md; do
