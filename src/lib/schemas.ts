@@ -290,9 +290,10 @@ export interface RunContext {
 }
 
 /**
- * Callback that masks a run's inputs, outputs or metadata. The client always
- * passes the run's context as the second argument; callbacks that declare only
- * the first parameter keep working unchanged.
+ * Callback that masks a run's inputs, outputs or metadata, or, as the
+ * `anonymizer`, also its error wrapped as `{ error }`. The client always passes
+ * the run's context as the second argument; callbacks that declare only the
+ * first parameter keep working unchanged.
  */
 export type HideCallback = (
   values: KVMap,

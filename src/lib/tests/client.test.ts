@@ -11,7 +11,7 @@ import {
   _checkBackendVersion,
 } from "../client.js";
 import { v4 as uuid } from "../utils/uuid/src/index.js";
-import type { KVMap, RunCreate } from "../schemas.js";
+import type { KVMap, RunContext, RunCreate } from "../schemas.js";
 import { mockClient } from "./utils/mock_client.js";
 import { getAssumedTreeFromCalls } from "./utils/tree.js";
 import {
@@ -2063,8 +2063,8 @@ describe("Client", () => {
     const dottedOrder = `20240101T000000000000Z${parentId}.20240101T000001000000Z${childId}`;
 
     const recordingCallbacks = () => {
-      const seen: { kind: string; context: any }[] = [];
-      const record = (kind: string) => (values: KVMap, context?: any) => {
+      const seen: { kind: string; context: RunContext }[] = [];
+      const record = (kind: string) => (values: KVMap, context: RunContext) => {
         seen.push({ kind, context });
         return values;
       };
@@ -2221,29 +2221,37 @@ describe("Client", () => {
     );
 
     it("should pass context to the anonymizer for inputs, outputs and errors", async () => {
-      const contexts: any[] = [];
+      const calls: { values: KVMap; context: RunContext }[] = [];
       const { client } = mockClient({
-        anonymizer: (values: KVMap, context?: any) => {
-          contexts.push(context);
+        anonymizer: (values: KVMap, context: RunContext) => {
+          calls.push({ values, context });
           return values;
         },
       });
       await client.createRun({ ...childRun(), error: "boom" });
-      expect(contexts.length).toBeGreaterThanOrEqual(4);
-      for (const context of contexts) {
+      expect(calls.map((call) => call.values)).toEqual(
+        expect.arrayContaining([
+          { in: "put" },
+          { out: "put" },
+          { error: "boom" },
+          expect.objectContaining({ random: 123 }),
+        ]),
+      );
+      for (const { context } of calls) {
         expect(context).toEqual(expectedContext);
       }
     });
 
     it("should pass context to hideMetadata before OTEL export", async () => {
       const { seen, config } = recordingCallbacks();
-      const { client } = mockClient(config);
-      (client as any).langSmithToOTELTranslator = { exportBatch: jest.fn() };
-      await (client as any)._processBatch([
-        { action: "create", item: childRun(), otelContext: {} },
-      ]);
-      const metadataCall = seen.find((s) => s.kind === "metadata");
-      expect(metadataCall?.context).toEqual(expectedContext);
+      const { client } = mockClient({ ...config, tracingMode: "otel" });
+      await client.createRun(childRun());
+      await client.awaitPendingTraceBatches();
+      const metadataCalls = seen.filter((s) => s.kind === "metadata");
+      expect(metadataCalls.length).toBeGreaterThan(0);
+      for (const { context } of metadataCalls) {
+        expect(context).toEqual(expectedContext);
+      }
     });
 
     it("should keep one-argument callbacks working", async () => {
@@ -2260,7 +2268,7 @@ describe("Client", () => {
     it("should let a callback trim only nested chain runs", async () => {
       const { client, callSpy } = mockClient({
         hideInputs: (inputs, context) =>
-          context.run_type === "chain" && context.parent_run_id != null
+          context.run_type === "chain" && context.parent_run_id !== undefined
             ? {}
             : inputs,
       });

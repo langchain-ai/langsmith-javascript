@@ -194,8 +194,7 @@ export interface ClientConfig {
    *
    * The `anonymizer`, `hideInputs`, `hideOutputs` and `hideMetadata` functions
    * receive a {@link RunContext} as a second argument identifying the run the
-   * payload belongs to. Fields the payload does not carry (e.g. `name` or
-   * `run_type` on an update) are `undefined`.
+   * payload belongs to.
    */
   anonymizer?: HideCallback;
   hideInputs?: boolean | HideCallback;
@@ -730,16 +729,18 @@ function toRunContext(
   };
 }
 
-function createsById(
+/** Finds the create an update belongs to, so its context can be filled in. */
+function createLookup(
   creates: RunCreate[] | undefined,
-): Record<string, RunCreate> {
-  const byId: Record<string, RunCreate> = {};
+): (update: RunUpdate) => RunCreate | undefined {
+  const byId = new Map<string, RunCreate>();
   for (const run of creates ?? []) {
     if (run.id !== undefined) {
-      byId[run.id] = run;
+      byId.set(run.id, run);
     }
   }
-  return byId;
+  return (update) =>
+    update.id === undefined ? undefined : byId.get(update.id);
 }
 
 /** Index creates by id (last wins); warns when one id goes to two projects. */
@@ -2709,13 +2710,12 @@ export class Client implements LangSmithTracingClientInterface {
         this.prepareRunCreateOrUpdateInputs(create),
       ) ?? [],
     );
-    const rawCreateById = createsById(runCreates);
+    const createFor = createLookup(runCreates);
     let preparedUpdateParams = await Promise.all(
       runUpdates?.map((update) =>
         this.prepareRunCreateOrUpdateInputs(update, {
           update: true,
-          create:
-            update.id === undefined ? undefined : rawCreateById[update.id],
+          create: createFor(update),
         }),
       ) ?? [],
     );
@@ -2850,14 +2850,13 @@ export class Client implements LangSmithTracingClientInterface {
       delete preparedCreate.attachments;
       preparedCreateParams.push(preparedCreate);
     }
-    const rawCreateById = createsById(runCreates);
+    const createFor = createLookup(runCreates);
     let preparedUpdateParams = [];
     for (const update of runUpdates ?? []) {
       preparedUpdateParams.push(
         await this.prepareRunCreateOrUpdateInputs(update, {
           update: true,
-          create:
-            update.id === undefined ? undefined : rawCreateById[update.id],
+          create: createFor(update),
         }),
       );
     }
