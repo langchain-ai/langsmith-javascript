@@ -715,18 +715,34 @@ export interface ListThreadsItem extends Thread {
   runs: Run[];
 }
 
-/** Index creates by id (last wins); warns when one id goes to two projects. */
-function toRunContext(run: RunCreate | RunUpdate): RunContext {
+/** Fields an update payload omits are taken from its create, when one is known. */
+function toRunContext(
+  run: RunCreate | RunUpdate,
+  create?: RunCreate,
+): RunContext {
   return {
-    id: run.id,
-    name: run.name,
-    run_type: run.run_type,
-    parent_run_id: run.parent_run_id,
-    trace_id: run.trace_id,
-    dotted_order: run.dotted_order,
+    id: run.id ?? create?.id,
+    name: run.name ?? create?.name,
+    run_type: run.run_type ?? create?.run_type,
+    parent_run_id: run.parent_run_id ?? create?.parent_run_id,
+    trace_id: run.trace_id ?? create?.trace_id,
+    dotted_order: run.dotted_order ?? create?.dotted_order,
   };
 }
 
+function createsById(
+  creates: RunCreate[] | undefined,
+): Record<string, RunCreate> {
+  const byId: Record<string, RunCreate> = {};
+  for (const run of creates ?? []) {
+    if (run.id !== undefined) {
+      byId[run.id] = run;
+    }
+  }
+  return byId;
+}
+
+/** Index creates by id (last wins); warns when one id goes to two projects. */
 function indexRunCreatesById(creates: RunCreate[]): Record<string, RunCreate> {
   const byId: Record<string, RunCreate> = {};
   for (const run of creates) {
@@ -1985,7 +2001,7 @@ export class Client implements LangSmithTracingClientInterface {
 
   private async prepareRunCreateOrUpdateInputs(
     run: RunUpdate,
-    options: { update: true },
+    options: { update: true; create?: RunCreate },
   ): Promise<RunUpdate>;
   private async prepareRunCreateOrUpdateInputs(
     run: RunCreate,
@@ -1993,11 +2009,11 @@ export class Client implements LangSmithTracingClientInterface {
   ): Promise<RunCreate>;
   private async prepareRunCreateOrUpdateInputs(
     run: RunCreate | RunUpdate,
-    options?: { update?: boolean },
+    options?: { update?: boolean; create?: RunCreate },
   ): Promise<RunCreate | RunUpdate> {
     const runParams = { ...run };
     applyToPayload(runParams, { update: options?.update ?? false });
-    const context = toRunContext(runParams);
+    const context = toRunContext(runParams, options?.create);
     if (runParams.inputs !== undefined) {
       runParams.inputs = await this.processInputs(runParams.inputs, context);
     }
@@ -2693,9 +2709,14 @@ export class Client implements LangSmithTracingClientInterface {
         this.prepareRunCreateOrUpdateInputs(create),
       ) ?? [],
     );
+    const rawCreateById = createsById(runCreates);
     let preparedUpdateParams = await Promise.all(
       runUpdates?.map((update) =>
-        this.prepareRunCreateOrUpdateInputs(update, { update: true }),
+        this.prepareRunCreateOrUpdateInputs(update, {
+          update: true,
+          create:
+            update.id === undefined ? undefined : rawCreateById[update.id],
+        }),
       ) ?? [],
     );
 
@@ -2829,10 +2850,15 @@ export class Client implements LangSmithTracingClientInterface {
       delete preparedCreate.attachments;
       preparedCreateParams.push(preparedCreate);
     }
+    const rawCreateById = createsById(runCreates);
     let preparedUpdateParams = [];
     for (const update of runUpdates ?? []) {
       preparedUpdateParams.push(
-        await this.prepareRunCreateOrUpdateInputs(update, { update: true }),
+        await this.prepareRunCreateOrUpdateInputs(update, {
+          update: true,
+          create:
+            update.id === undefined ? undefined : rawCreateById[update.id],
+        }),
       );
     }
 

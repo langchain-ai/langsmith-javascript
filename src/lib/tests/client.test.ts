@@ -2193,6 +2193,33 @@ describe("Client", () => {
       },
     );
 
+    it.each(["batchIngestRuns", "multipartIngestRuns"] as const)(
+      "should fill context an update lacks from its create in the same %s batch",
+      async (method) => {
+        const { seen, config } = recordingCallbacks();
+        const { client } = mockClient(config);
+        jest.spyOn(client as any, "_ensureServerInfo").mockResolvedValue({
+          version: "foo",
+          batch_ingest_config: {},
+          instance_flags: {},
+        });
+        const { outputs: _outputs, ...create } = childRun();
+        await client[method]({
+          runCreates: [create],
+          runUpdates: [
+            {
+              id: childId,
+              outputs: { out: "put" },
+              trace_id: traceId,
+              dotted_order: dottedOrder,
+            },
+          ],
+        });
+        const outputsCall = seen.find((s) => s.kind === "outputs");
+        expect(outputsCall?.context).toEqual(expectedContext);
+      },
+    );
+
     it("should pass context to the anonymizer for inputs, outputs and errors", async () => {
       const contexts: any[] = [];
       const { client } = mockClient({

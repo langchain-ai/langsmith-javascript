@@ -268,8 +268,17 @@ export interface RunUpdate {
  * Identifies the run a payload belongs to when the client applies
  * `hideInputs`, `hideOutputs`, `hideMetadata` or `anonymizer`.
  *
- * Every field is optional because update (patch) payloads only carry the
- * fields the caller set; `id` is always populated.
+ * A field is `undefined` when neither the payload being masked nor, for a
+ * batched update, its create in the same batch carries it; treat it as
+ * unknown rather than absent. `RunTree` patches carry every field, and
+ * `updateRun` always sets `id`. A sparse `updateRun` call (e.g. outputs only)
+ * yields only `id`, so a callback that masks by `run_type` should decide what
+ * to do when it is unknown:
+ *
+ * ```ts
+ * hideOutputs: (outputs, { run_type, parent_run_id }) =>
+ *   run_type === "chain" && parent_run_id !== undefined ? trim(outputs) : outputs
+ * ```
  */
 export interface RunContext {
   id?: string;
