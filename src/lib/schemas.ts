@@ -264,6 +264,32 @@ export interface RunUpdate {
   attachments?: Attachments;
 }
 
+/**
+ * Identifies the run a payload belongs to when the client applies
+ * `hideInputs`, `hideOutputs`, `hideMetadata` or `anonymizer`.
+ *
+ * Every field is optional because update (patch) payloads only carry the
+ * fields the caller set; `id` is always populated.
+ */
+export interface RunContext {
+  id?: string;
+  name?: string;
+  run_type?: string;
+  parent_run_id?: string;
+  trace_id?: string;
+  dotted_order?: string;
+}
+
+/**
+ * Callback that masks a run's inputs, outputs or metadata. The client always
+ * passes the run's context as the second argument; callbacks that declare only
+ * the first parameter keep working unchanged.
+ */
+export type HideCallback = (
+  values: KVMap,
+  context: RunContext,
+) => KVMap | Promise<KVMap>;
+
 export interface ExampleCreate {
   id?: string;
   inputs: KVMap;

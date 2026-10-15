@@ -2056,6 +2056,209 @@ describe("Client", () => {
     });
   });
 
+  describe("hide callbacks receive run context", () => {
+    const traceId = uuid();
+    const parentId = uuid();
+    const childId = uuid();
+    const dottedOrder = `20240101T000000000000Z${parentId}.20240101T000001000000Z${childId}`;
+
+    const recordingCallbacks = () => {
+      const seen: { kind: string; context: any }[] = [];
+      const record = (kind: string) => (values: KVMap, context?: any) => {
+        seen.push({ kind, context });
+        return values;
+      };
+      return {
+        seen,
+        config: {
+          hideInputs: record("inputs"),
+          hideOutputs: record("outputs"),
+          hideMetadata: record("metadata"),
+        },
+      };
+    };
+
+    const childRun = () => ({
+      id: childId,
+      name: "child_node",
+      run_type: "chain",
+      parent_run_id: parentId,
+      trace_id: traceId,
+      dotted_order: dottedOrder,
+      inputs: { in: "put" },
+      outputs: { out: "put" },
+      extra: { metadata: { random: 123 } },
+    });
+
+    const postedBodies = (callSpy: any): KVMap[] =>
+      callSpy.mock.calls
+        .filter((call: any[]) => call[call.length - 1]?.method === "POST")
+        .map((call: any[]) => {
+          const { body } = call[call.length - 1];
+          return JSON.parse(
+            typeof body === "string" ? body : new TextDecoder().decode(body),
+          );
+        });
+
+    const expectedContext = {
+      id: childId,
+      name: "child_node",
+      run_type: "chain",
+      parent_run_id: parentId,
+      trace_id: traceId,
+      dotted_order: dottedOrder,
+    };
+
+    it("should pass context on createRun", async () => {
+      const { seen, config } = recordingCallbacks();
+      const { client } = mockClient(config);
+      await client.createRun(childRun());
+      expect([...new Set(seen.map((s) => s.kind))].sort()).toEqual([
+        "inputs",
+        "metadata",
+        "outputs",
+      ]);
+      for (const { context } of seen) {
+        expect(context).toEqual(expectedContext);
+      }
+    });
+
+    it("should pass the fields an update payload carries", async () => {
+      const { seen, config } = recordingCallbacks();
+      const { client } = mockClient(config);
+      await client.updateRun(childId, {
+        outputs: { out: "put" },
+        run_type: "chain",
+        parent_run_id: parentId,
+        trace_id: traceId,
+        dotted_order: dottedOrder,
+      });
+      expect(seen).toHaveLength(1);
+      expect(seen[0].context).toEqual({
+        id: childId,
+        name: undefined,
+        run_type: "chain",
+        parent_run_id: parentId,
+        trace_id: traceId,
+        dotted_order: dottedOrder,
+      });
+    });
+
+    it("should pass the run id on a sparse update payload", async () => {
+      const { seen, config } = recordingCallbacks();
+      const { client } = mockClient(config);
+      await client.updateRun(childId, { outputs: { out: "put" } });
+      expect(seen[0].context).toEqual({
+        id: childId,
+        name: undefined,
+        run_type: undefined,
+        parent_run_id: undefined,
+        trace_id: undefined,
+        dotted_order: undefined,
+      });
+    });
+
+    it.each(["batchIngestRuns", "multipartIngestRuns"] as const)(
+      "should pass context on %s",
+      async (method) => {
+        const { seen, config } = recordingCallbacks();
+        const { client } = mockClient(config);
+        jest.spyOn(client as any, "_ensureServerInfo").mockResolvedValue({
+          version: "foo",
+          batch_ingest_config: {},
+          instance_flags: {},
+        });
+        const { outputs: _outputs, ...create } = childRun();
+        await client[method]({
+          runCreates: [create],
+          runUpdates: [
+            {
+              id: childId,
+              outputs: { out: "put" },
+              run_type: "chain",
+              parent_run_id: parentId,
+              trace_id: traceId,
+              dotted_order: dottedOrder,
+            },
+          ],
+        });
+        const outputsCall = seen.find((s) => s.kind === "outputs");
+        expect(outputsCall?.context).toMatchObject({
+          id: childId,
+          run_type: "chain",
+          parent_run_id: parentId,
+        });
+        const inputsCall = seen.find((s) => s.kind === "inputs");
+        expect(inputsCall?.context).toEqual(expectedContext);
+      },
+    );
+
+    it("should pass context to the anonymizer for inputs, outputs and errors", async () => {
+      const contexts: any[] = [];
+      const { client } = mockClient({
+        anonymizer: (values: KVMap, context?: any) => {
+          contexts.push(context);
+          return values;
+        },
+      });
+      await client.createRun({ ...childRun(), error: "boom" });
+      expect(contexts.length).toBeGreaterThanOrEqual(4);
+      for (const context of contexts) {
+        expect(context).toEqual(expectedContext);
+      }
+    });
+
+    it("should pass context to hideMetadata before OTEL export", async () => {
+      const { seen, config } = recordingCallbacks();
+      const { client } = mockClient(config);
+      (client as any).langSmithToOTELTranslator = { exportBatch: jest.fn() };
+      await (client as any)._processBatch([
+        { action: "create", item: childRun(), otelContext: {} },
+      ]);
+      const metadataCall = seen.find((s) => s.kind === "metadata");
+      expect(metadataCall?.context).toEqual(expectedContext);
+    });
+
+    it("should keep one-argument callbacks working", async () => {
+      const { client, callSpy } = mockClient({
+        hideInputs: () => ({ hidden: "inputs" }),
+        hideOutputs: async () => ({ hidden: "outputs" }),
+      });
+      await client.createRun(childRun());
+      const [body] = postedBodies(callSpy);
+      expect(body.inputs).toEqual({ hidden: "inputs" });
+      expect(body.outputs).toEqual({ hidden: "outputs" });
+    });
+
+    it("should let a callback trim only nested chain runs", async () => {
+      const { client, callSpy } = mockClient({
+        hideInputs: (inputs, context) =>
+          context.run_type === "chain" && context.parent_run_id != null
+            ? {}
+            : inputs,
+      });
+      await client.createRun(childRun());
+      await client.createRun({
+        ...childRun(),
+        id: parentId,
+        parent_run_id: undefined,
+      });
+      const bodies = postedBodies(callSpy);
+      expect(bodies.find((b: any) => b.id === childId)?.inputs).toEqual({});
+      expect(bodies.find((b: any) => b.id === parentId)?.inputs).toEqual({
+        in: "put",
+      });
+    });
+
+    it("should leave boolean hideInputs unchanged", async () => {
+      const { client, callSpy } = mockClient({ hideInputs: true });
+      await client.createRun(childRun());
+      const [body] = postedBodies(callSpy);
+      expect(body.inputs).toEqual({});
+      expect(body.outputs).toEqual({ out: "put" });
+    });
+  });
+
   describe("listRuns normalizes naive timestamps", () => {
     it("should append Z to naive timestamps returned by the API", async () => {
       const client = new Client({ apiKey: "test-api-key" });

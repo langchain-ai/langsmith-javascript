@@ -12,6 +12,8 @@ export type {
   Feedback,
   FeedbackConfigSchema,
   RetrieverOutput,
+  RunContext,
+  HideCallback,
 } from "./schemas.js";
 
 export { RunTree, type RunTreeConfig, type WriteReplica } from "./run_trees.js";
