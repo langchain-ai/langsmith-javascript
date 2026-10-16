@@ -265,10 +265,19 @@ describe("evaluation runner internals", () => {
           maxConcurrency,
           uploadRuns: () => decisions++ % 2 === 0,
           evaluators: [
-            ({ outputs }) => ({ key: "occurrence", score: outputs.occurrence }),
+            ({ outputs }: { outputs: Record<string, any> }) => ({
+              key: "occurrence",
+              score: outputs.occurrence,
+            }),
           ],
           summaryEvaluators: [
-            ({ runs, examples: allExamples }) => {
+            ({
+              runs,
+              examples: allExamples,
+            }: {
+              runs: Run[];
+              examples: Example[];
+            }) => {
               expect(allExamples).toHaveLength(4);
               return { key: "count", score: runs.length };
             },
@@ -347,13 +356,14 @@ describe("evaluation runner internals", () => {
             inputs: { value: "ok" },
             outputs: {},
             created_at: new Date().toISOString(),
+            modified_at: new Date().toISOString(),
             runs: [],
           },
         ],
         uploadRuns,
         evaluators: [() => ({ key: "quality", score: 1 })],
         summaryEvaluators: [
-          ({ runs }) => ({ key: "count", score: runs.length }),
+          ({ runs }: { runs: Run[] }) => ({ key: "count", score: runs.length }),
         ],
         client,
       });
