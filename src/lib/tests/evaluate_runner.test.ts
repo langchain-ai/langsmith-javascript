@@ -1,4 +1,5 @@
 import { jest } from "@jest/globals";
+import { traceable } from "../traceable.js";
 import type { Run as V2Run } from "../../resources/runs/runs.js";
 import type { Client } from "../client.js";
 import {
@@ -203,6 +204,194 @@ describe("evaluation runner internals", () => {
     await expect(
       collect(_mapWithConcurrency(source(), queue, async (value) => value)),
     ).rejects.toThrow("source boom");
+  });
+
+  test.each([0, 3])(
+    "uploadRuns selects each repetition once with concurrency %s",
+    async (maxConcurrency) => {
+      const now = new Date().toISOString();
+      const examples = [1, 2].map((index) => ({
+        id: `00000000-0000-0000-0000-${String(index).padStart(12, "0")}`,
+        inputs: { index },
+        outputs: {},
+        dataset_id: "00000000-0000-0000-0000-000000000000",
+        created_at: now,
+        modified_at: now,
+        runs: [],
+      }));
+      const uploadedRuns: any[] = [];
+      const uploadedFeedback: any[] = [];
+      const summaryFeedback: any[] = [];
+      const client = {
+        createProject: async () => ({
+          id: "00000000-0000-0000-0000-000000000004",
+          name: "sampled",
+        }),
+        updateProject: async () => ({}),
+        createRun: async (run: any) => {
+          uploadedRuns.push(run);
+        },
+        updateRun: async () => ({}),
+        logEvaluationFeedback: async (args: any) => {
+          uploadedFeedback.push(args);
+          return [args.evaluatorResponse];
+        },
+        _selectEvalResults: (value: any) =>
+          "results" in value ? value.results : [value],
+        createFeedback: async (...args: any[]) => {
+          summaryFeedback.push(args);
+        },
+        awaitPendingTraceBatches: async () => undefined,
+        getDatasetUrl: async () => "http://test.com",
+      } as any;
+      let decisions = 0;
+      let invocations = 0;
+      let releaseFirst!: () => void;
+      const thirdStarted = new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      const completionOrder: number[] = [];
+      const results = await evaluate(
+        async function sampledTarget() {
+          const occurrence = invocations++;
+          if (maxConcurrency > 0 && occurrence === 0) await thirdStarted;
+          if (occurrence === 2) releaseFirst();
+          completionOrder.push(occurrence);
+          return { occurrence };
+        },
+        {
+          data: examples,
+          numRepetitions: 2,
+          maxConcurrency,
+          uploadRuns: () => decisions++ % 2 === 0,
+          evaluators: [
+            ({ outputs }) => ({ key: "occurrence", score: outputs.occurrence }),
+          ],
+          summaryEvaluators: [
+            ({ runs, examples: allExamples }) => {
+              expect(allExamples).toHaveLength(4);
+              return { key: "count", score: runs.length };
+            },
+          ],
+          client,
+        },
+      );
+      const rows = results.results;
+      expect(decisions).toBe(4);
+      expect(rows).toHaveLength(4);
+      expect(rows.map((row) => row.run.outputs?.occurrence).sort()).toEqual([
+        0, 1, 2, 3,
+      ]);
+      expect(
+        rows.every((row) => row.evaluationResults.results.length === 1),
+      ).toBe(true);
+      expect(
+        uploadedFeedback.map((args) => args.run.outputs.occurrence).sort(),
+      ).toEqual([0, 2]);
+      const targetUploads = uploadedRuns.filter(
+        (run) => run.name === "sampledTarget",
+      );
+      expect(targetUploads).toHaveLength(2);
+      expect(new Set(targetUploads.map((run) => run.id))).toEqual(
+        new Set(uploadedFeedback.map((args) => args.run.id)),
+      );
+      expect(results.summaryResults.results).toEqual([
+        { key: "count", score: 4 },
+      ]);
+      expect(summaryFeedback).toHaveLength(1);
+      if (maxConcurrency > 0) expect(completionOrder[0]).not.toBe(0);
+    },
+  );
+
+  test.each([false, () => false])(
+    "uploadRuns=%s retains local rows and summaries when no runs upload",
+    async (uploadRuns) => {
+      const calls: string[] = [];
+      const client = {
+        createProject: async () => {
+          calls.push("project");
+          return { id: "project", name: "local" };
+        },
+        updateProject: async () => {
+          calls.push("updateProject");
+        },
+        createRun: async () => {
+          calls.push("run");
+        },
+        updateRun: async () => undefined,
+        logEvaluationFeedback: async () => {
+          calls.push("rowFeedback");
+          return [];
+        },
+        _selectEvalResults: (value: any) =>
+          "results" in value ? value.results : [value],
+        createFeedback: async () => {
+          calls.push("summaryFeedback");
+        },
+        awaitPendingTraceBatches: async () => undefined,
+        getDatasetUrl: async () => "http://test.com",
+      } as any;
+      const child = traceable(
+        async (input: { value: string }) => ({ output: input.value }),
+        { client },
+      );
+      const target = traceable(
+        async (input: { value: string }) => child(input),
+        { client, tracingEnabled: true },
+      );
+      const results = await evaluate(target, {
+        data: [
+          {
+            id: "example",
+            dataset_id: "dataset",
+            inputs: { value: "ok" },
+            outputs: {},
+            created_at: new Date().toISOString(),
+            runs: [],
+          },
+        ],
+        uploadRuns,
+        evaluators: [() => ({ key: "quality", score: 1 })],
+        summaryEvaluators: [
+          ({ runs }) => ({ key: "count", score: runs.length }),
+        ],
+        client,
+      });
+      const rows = results.results;
+      expect(rows[0].run.outputs).toEqual({ output: "ok" });
+      expect(rows[0].evaluationResults.results[0]).toMatchObject({
+        key: "quality",
+        score: 1,
+      });
+      expect(results.summaryResults.results).toEqual([
+        { key: "count", score: 1 },
+      ]);
+      if (uploadRuns === false) expect(calls).toEqual([]);
+      else {
+        expect(calls).toContain("project");
+        expect(calls).toContain("summaryFeedback");
+        expect(calls).not.toContain("rowFeedback");
+        expect(calls).not.toContain("run");
+      }
+    },
+  );
+
+  test("uploadRuns rejects selection for existing and comparative targets before API calls", async () => {
+    const client = {} as any;
+    await expect(
+      evaluate(fromArray<Run>([]) as any, {
+        data: [],
+        uploadRuns: () => true,
+        client,
+      }),
+    ).rejects.toThrow("new target");
+    await expect(
+      evaluate(["one", "two"], {
+        data: [],
+        uploadRuns: false,
+        client,
+      } as any),
+    ).rejects.toThrow("new target");
   });
 
   test("evaluate supplies the experiment ID when logging run feedback", async () => {
