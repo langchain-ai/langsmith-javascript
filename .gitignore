@@ -13,3 +13,11 @@ dist-deno
 .env
 _build
 .attw.json
+
+# Local credentials and runtime files
+.env.*
+*.pem
+*.key
+*.crt
+credentials.json
+.DS_Store
