@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.11.1](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.0...v0.11.1) (2026-10-16)
+
+
+### Features
+
+* **code-eval-v2:** allow trajectory on code_evaluator_input storage ([373193d](https://github.com/langchain-ai/langsmith-javascript/commit/373193d1c9848574495a85dbc17b2244e45d2411))
+* **evaluators:** workspace_secrets_keys on code evaluator CRUD ([2f6c792](https://github.com/langchain-ai/langsmith-javascript/commit/2f6c792f4ab5a5758b1c2a6f37250ac6fd68f85b))
+* **sdk:** expose prompt webhooks in the SDKs and the langsmith CLI ([d170f31](https://github.com/langchain-ai/langsmith-javascript/commit/d170f31bdc6abd6493b95a4d1e751d09f1e2256f))
+* **sdk:** expose prompt webhooks in the SDKs and the langsmith CLI ([ae865f6](https://github.com/langchain-ai/langsmith-javascript/commit/ae865f6ba211b149985dded367ae113f67e53e94))
+
+
+### Documentation
+
+* point SDK agents at the monorepo JavaScript source ([9028f69](https://github.com/langchain-ai/langsmith-javascript/commit/9028f692768b466527e80f53ac55dbc7b26f8d47))
+
 ## [0.11.0](https://github.com/langchain-ai/langsmith-javascript/compare/v0.10.13...v0.11.0) (2026-10-15)
 
 
