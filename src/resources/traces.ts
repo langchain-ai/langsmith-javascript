@@ -231,10 +231,28 @@ export interface TraceQueryParams extends ItemsCursorPostPaginationParams {
   ai_search?: string;
 
   /**
+   * Body param: `max_feedback_modified_at` is the exclusive upper bound (RFC3339) on
+   * feedback `modified_at`, applied to the feedback conditions in `trace_filter` or
+   * `tree_filter` (for example eq(feedback_key, "correctness")). Requires at least
+   * one feedback condition. Root runs must still fall within the `start_time`
+   * window.
+   */
+  max_feedback_modified_at?: string;
+
+  /**
    * Body param: `max_start_time` is the exclusive upper bound for the root-run start
    * time scan (RFC3339). Defaults to the request time when omitted.
    */
   max_start_time?: string;
+
+  /**
+   * Body param: `min_feedback_modified_at` is the inclusive lower bound (RFC3339) on
+   * feedback `modified_at`, applied to the feedback conditions in `trace_filter` or
+   * `tree_filter` (for example eq(feedback_key, "correctness")). Requires at least
+   * one feedback condition. Root runs must still fall within the `start_time`
+   * window.
+   */
+  min_feedback_modified_at?: string;
 
   /**
    * Body param: `min_start_time` is the inclusive lower bound for the root-run start
