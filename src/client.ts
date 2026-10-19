@@ -168,10 +168,12 @@ import {
 } from './resources/runs/runs';
 import {
   DownloadURLResponse,
+  ProxyConfig,
   SandboxListResponse,
   SandboxListUsageCostsParams,
   SandboxListUsageCostsResponse,
   SandboxListUsageCostsResponsesItemsCursorGetPagination,
+  SandboxMountConfig,
   SandboxResponse,
   SandboxStatusResponse,
   Sandboxes,
@@ -1204,7 +1206,9 @@ export declare namespace Langsmith {
   export {
     Sandboxes as Sandboxes,
     type DownloadURLResponse as DownloadURLResponse,
+    type ProxyConfig as ProxyConfig,
     type SandboxListResponse as SandboxListResponse,
+    type SandboxMountConfig as SandboxMountConfig,
     type SandboxResponse as SandboxResponse,
     type SandboxStatusResponse as SandboxStatusResponse,
     type ServiceURLResponse as ServiceURLResponse,

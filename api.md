@@ -306,7 +306,9 @@ Methods:
 Types:
 
 - <code><a href="./src/resources/sandboxes/sandboxes.ts">DownloadURLResponse</a></code>
+- <code><a href="./src/resources/sandboxes/sandboxes.ts">ProxyConfig</a></code>
 - <code><a href="./src/resources/sandboxes/sandboxes.ts">SandboxListResponse</a></code>
+- <code><a href="./src/resources/sandboxes/sandboxes.ts">SandboxMountConfig</a></code>
 - <code><a href="./src/resources/sandboxes/sandboxes.ts">SandboxResponse</a></code>
 - <code><a href="./src/resources/sandboxes/sandboxes.ts">SandboxStatusResponse</a></code>
 - <code><a href="./src/resources/sandboxes/sandboxes.ts">ServiceURLResponse</a></code>

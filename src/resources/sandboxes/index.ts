@@ -24,7 +24,9 @@ export {
 export {
   Sandboxes,
   type DownloadURLResponse,
+  type ProxyConfig,
   type SandboxListResponse,
+  type SandboxMountConfig,
   type SandboxResponse,
   type SandboxStatusResponse,
   type ServiceURLResponse,
