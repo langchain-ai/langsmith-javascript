@@ -1227,6 +1227,13 @@ export interface SnapshotResponse {
 
   image_digest?: string;
 
+  /**
+   * The settings this snapshot carries, in include terms: sandboxes created from it
+   * start with each one their create request leaves unset. Env var values are never
+   * returned.
+   */
+  included?: Array<'mounts' | 'proxy_config' | 'env_vars' | 'resources' | 'lifecycle' | 'labels'>;
+
   labels?: { [key: string]: string };
 
   /**
@@ -1236,7 +1243,21 @@ export interface SnapshotResponse {
    */
   memory_snapshot_size_bytes?: number;
 
+  /**
+   * The mount_config sandboxes created from this snapshot start with when their
+   * create request has none, with secret values redacted. Present only on snapshots
+   * captured with include "mounts" or "all" from a sandbox that had mounts.
+   */
+  mount_config?: SandboxMountConfig;
+
   name?: string;
+
+  /**
+   * The proxy_config sandboxes created from this snapshot start with when their
+   * create request has none, with secret values redacted. Present only on snapshots
+   * captured with include "proxy_config" or "all".
+   */
+  proxy_config?: ProxyConfig;
 
   registry_id?: string;
 

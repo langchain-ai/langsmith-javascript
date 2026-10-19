@@ -110,9 +110,11 @@ describe('resource boxes', () => {
     const response = await client.sandboxes.boxes.createSnapshot('name', {
       name: 'name',
       checkpoint: 'checkpoint',
+      confirm_allow_snapshot_secret_values: true,
       description: 'description',
       docker_image: 'docker_image',
       fs_capacity_bytes: 0,
+      include: ['all'],
       include_memory: true,
       labels: { foo: 'string' },
       run_config: {

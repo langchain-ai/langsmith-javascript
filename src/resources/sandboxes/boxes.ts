@@ -442,6 +442,14 @@ export interface BoxCreateSnapshotParams {
   checkpoint?: string;
 
   /**
+   * Must be true when the included settings hold literal secret values (opaque
+   * values rather than workspace secret references, and any env var value),
+   * acknowledging that the snapshot stores them and every sandbox created from it
+   * can use them.
+   */
+  confirm_allow_snapshot_secret_values?: boolean;
+
+  /**
    * Description says what this snapshot's image can do, so a caller can hand it to
    * an agent as a capability summary. At most 1024 characters.
    */
@@ -456,6 +464,19 @@ export interface BoxCreateSnapshotParams {
    * required for Docker image export unless the sandbox has a capacity
    */
   fs_capacity_bytes?: number;
+
+  /**
+   * Sandbox settings to carry into the snapshot. Sandboxes created from it start
+   * with each carried setting their create request leaves unset: "mounts" (the
+   * mount_config, with its auth), "proxy_config", "env_vars", "resources" (CPU and
+   * memory), "lifecycle" (idle_ttl_seconds, delete_after_stop_seconds,
+   * preserve_memory_on_stop), and "labels" (merged under this request's labels;
+   * reserved com.langchain.\* labels are left out). "all" names every one of these.
+   * VM memory is captured with include_memory, not here. Warning: mounts,
+   * proxy_config and env_vars carry the sandbox's credentials, and every sandbox
+   * created from the snapshot can use them.
+   */
+  include?: Array<'all' | 'mounts' | 'proxy_config' | 'env_vars' | 'resources' | 'lifecycle' | 'labels'>;
 
   /**
    * IncludeMemory, when true, captures a full VM memory snapshot alongside the
