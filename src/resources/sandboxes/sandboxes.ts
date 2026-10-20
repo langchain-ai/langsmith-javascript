@@ -1315,6 +1315,20 @@ export interface SandboxListUsageCostsResponse {
   resource_id: string;
 
   resource_type: 'SANDBOX' | 'SNAPSHOT';
+
+  /**
+   * Recorded compute usage in Standard Units, as a decimal string, separate from
+   * LCU. Null means complete Standard compute usage is unavailable; "0" means known
+   * zero usage.
+   */
+  compute_standard_units?: string | null;
+
+  /**
+   * Allocated storage usage in Standard Units, as a decimal string, separate from
+   * LSU. Null means complete Standard storage usage is unavailable; "0" means known
+   * zero usage.
+   */
+  storage_standard_units?: string | null;
 }
 
 export interface SandboxListUsageCostsParams extends ItemsCursorGetPaginationParams {
