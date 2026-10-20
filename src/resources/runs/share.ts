@@ -16,6 +16,10 @@ export class Share extends APIResource {
    * ```ts
    * const share = await client.runs.share.create(
    *   '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
+   *   {
+   *     session_id: '018e4c7e-a9fb-7ef0-a5b6-6ea3a82e9327',
+   *     trace_id: '018e4c7e-a9fb-7ef0-a5b6-6ea3a82e9327',
+   *   },
    * );
    * ```
    */
@@ -33,6 +37,7 @@ export class Share extends APIResource {
    * ```ts
    * await client.runs.share.delete(
    *   '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
+   *   { session_id: '018e4c7e-a9fb-7ef0-a5b6-6ea3a82e9327' },
    * );
    * ```
    */
@@ -53,19 +58,19 @@ export interface ShareCreateParams {
   /**
    * session_id is the tracing project UUID containing the trace.
    */
-  session_id?: string;
+  session_id: string;
 
   /**
    * trace_id is the root trace UUID to share.
    */
-  trace_id?: string;
+  trace_id: string;
 }
 
 export interface ShareDeleteParams {
   /**
    * session_id is the tracing project UUID containing the trace.
    */
-  session_id?: string;
+  session_id: string;
 }
 
 export declare namespace Share {
