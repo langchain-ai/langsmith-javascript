@@ -34,11 +34,11 @@ Files whose first line carries `File generated from our OpenAPI spec by Stainles
 
 Files that are not listed in `javascript.files` are hand-written. `langdev sdks gen` does not touch them. Hand-written client code lives in `src/lib/`.
 
-Entry points such as `langsmith/traceable` or `langsmith/wrappers/openai` are one-line shims at `src/<entry>.ts` pointing into `src/lib/`. Add a shim and a `package.json` `exports` entry when adding a new public entry point. Copybara excludes the whole `package.json`, so that `exports` change also has to be made on `langsmith-javascript` with the `skip-pr-source-check` label, and the same change has to land here before the next export.
+Entry points such as `langsmith/traceable` or `langsmith/wrappers/openai` are one-line shims at `src/<entry>.ts` pointing into `src/lib/`. Add a shim and a `package.json` `exports` entry when adding a new public entry point. The export copies `package.json` and keeps the published version line. `check sdk` fails if that line changes.
 
 ## Releasing
 
-Releases are cut by release-please from conventional commits on `langsmith-javascript` main, after Copybara pushes the export there. Do not hand-edit `package.json`, `src/version.ts`, `README.md`, `CHANGELOG.md`, or `.release-please-manifest.json` to bump the version. The export leaves those files on `langsmith-javascript`. Do not push tags.
+Releases are cut by release-please from conventional commits on `langsmith-javascript` main, after Copybara pushes the export there. `README.md` edits are exported. Do not bump the version in `package.json`, `src/version.ts`, `CHANGELOG.md`, or `.release-please-manifest.json`. Dependency edits in `package.json` are exported. The version line is left as published on `langsmith-javascript`. Do not push tags.
 
 ## Conventions
 
