@@ -2291,7 +2291,7 @@ test("create example errors", async () => {
   await expect(
     client.createExample(example, { foo: "bar" }, {}),
   ).rejects.toThrow(
-    "Cannot provide outputs or options when using ExampleCreate object",
+    "Cannot provide referenceOutputs or options when using ExampleCreate object",
   );
 
   await expect(client.createExample(invalidExample)).rejects.toThrow(
