@@ -6058,20 +6058,37 @@ export class Client implements LangSmithTracingClientInterface {
    * @param options - The options for creating a feedback config
    * @param options.feedbackKey - The unique key for this feedback config
    * @param options.feedbackConfig - The config specifying type, bounds, and categories
-   * @param options.isLowerScoreBetter - Whether a lower score is better
+   * @param options.isLowerScoreBetter - Whether a lower score is better. When
+   *   omitted, a key that already has configs keeps its direction, and a new
+   *   key defaults to higher is better.
+   * @param options.isEnforced - Create the key's enforced config, which sets
+   *   the rules for the whole workspace. Requires the
+   *   feedback-configs:manage-enforced permission, which workspace admins
+   *   have. Fails if the key already has an enforced config.
    * @returns The created FeedbackConfigSchema object
    */
   public async createFeedbackConfig(options: {
     feedbackKey: string;
     feedbackConfig: FeedbackConfig;
     isLowerScoreBetter?: boolean;
+    isEnforced?: boolean;
   }): Promise<FeedbackConfigSchema> {
-    const { feedbackKey, feedbackConfig, isLowerScoreBetter = false } = options;
-    const body = {
+    const {
+      feedbackKey,
+      feedbackConfig,
+      isLowerScoreBetter,
+      isEnforced = false,
+    } = options;
+    // The direction is shared by every config of the key, so only send it
+    // when the caller sets it; otherwise the key keeps its own.
+    const body: Record<string, unknown> = {
       feedback_key: feedbackKey,
       feedback_config: feedbackConfig,
-      is_lower_score_better: isLowerScoreBetter,
+      is_enforced: isEnforced,
     };
+    if (isLowerScoreBetter !== undefined) {
+      body.is_lower_score_better = isLowerScoreBetter;
+    }
 
     const response = await this.caller.call(async () => {
       const res = await this._fetch(`${this.apiUrl}/feedback-configs`, {

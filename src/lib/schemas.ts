@@ -698,6 +698,12 @@ export interface FeedbackConfigSchema {
 
   /** Whether a lower score is considered better for this feedback key. */
   is_lower_score_better?: boolean | null;
+
+  /**
+   * Whether this is its key's enforced configuration, which sets the rules
+   * for the whole workspace. A key has at most one.
+   */
+  is_enforced?: boolean;
 }
 
 export interface RunWithAnnotationQueueInfo extends Exclude<BaseRun, "id"> {
