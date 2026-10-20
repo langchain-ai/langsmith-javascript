@@ -372,7 +372,7 @@ export interface OnlineEvaluatorSpendGroup {
   total_trace_count?: number;
 }
 
-export type OnlineEvaluatorType = 'llm' | 'code';
+export type OnlineEvaluatorType = 'llm' | 'code' | 'decision_model';
 
 export interface OnlineLlmEvaluator {
   annotation_queue_id?: string;
@@ -617,8 +617,8 @@ export interface OnlineEvaluatorSpendParams {
   tag_value_id?: Array<string>;
 
   /**
-   * Filter grouped results by evaluator type: 'llm' or 'code'. Only valid with
-   * group_by.
+   * Filter grouped results by evaluator type: 'llm', 'code' or 'decision_model'.
+   * Only valid with group_by.
    */
   type?: string;
 }
