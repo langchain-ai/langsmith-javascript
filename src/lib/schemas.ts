@@ -264,6 +264,42 @@ export interface RunUpdate {
   attachments?: Attachments;
 }
 
+/**
+ * Identifies the run a payload belongs to when the client applies
+ * `hideInputs`, `hideOutputs`, `hideMetadata` or `anonymizer`.
+ *
+ * A field is `undefined` when neither the payload being masked nor, for a
+ * batched update, its create in the same batch carries it; treat it as
+ * unknown rather than absent. `RunTree` patches carry every field, and
+ * `updateRun` always sets `id`. A sparse `updateRun` call (e.g. outputs only)
+ * yields only `id`, so a callback that masks by `run_type` should decide what
+ * to do when it is unknown:
+ *
+ * ```ts
+ * hideOutputs: (outputs, { run_type, parent_run_id }) =>
+ *   run_type === "chain" && parent_run_id !== undefined ? trim(outputs) : outputs
+ * ```
+ */
+export interface RunContext {
+  id?: string;
+  name?: string;
+  run_type?: string;
+  parent_run_id?: string;
+  trace_id?: string;
+  dotted_order?: string;
+}
+
+/**
+ * Callback that masks a run's inputs, outputs or metadata, or, as the
+ * `anonymizer`, also its error wrapped as `{ error }`. The client always passes
+ * the run's context as the second argument; callbacks that declare only the
+ * first parameter keep working unchanged.
+ */
+export type HideCallback = (
+  values: KVMap,
+  context: RunContext,
+) => KVMap | Promise<KVMap>;
+
 export interface ExampleCreate {
   id?: string;
   inputs: KVMap;

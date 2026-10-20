@@ -60,6 +60,8 @@ import {
   Entry,
   DirectoryCommitResponse,
   HubRepoType,
+  RunContext,
+  HideCallback,
 } from "./schemas.js";
 import {
   convertLangChainMessageToExample,
@@ -189,11 +191,15 @@ export interface ClientConfig {
    *
    * If a `hideInputs`, `hideOutputs` or `hideMetadata` function is present,
    * the client will call it instead of the anonymizer as appropriate.
+   *
+   * The `anonymizer`, `hideInputs`, `hideOutputs` and `hideMetadata` functions
+   * receive a {@link RunContext} as a second argument identifying the run the
+   * payload belongs to.
    */
-  anonymizer?: (values: KVMap) => KVMap | Promise<KVMap>;
-  hideInputs?: boolean | ((inputs: KVMap) => KVMap | Promise<KVMap>);
-  hideOutputs?: boolean | ((outputs: KVMap) => KVMap | Promise<KVMap>);
-  hideMetadata?: boolean | ((metadata: KVMap) => KVMap | Promise<KVMap>);
+  anonymizer?: HideCallback;
+  hideInputs?: boolean | HideCallback;
+  hideOutputs?: boolean | HideCallback;
+  hideMetadata?: boolean | HideCallback;
   /**
    * Whether to omit runtime information from traced runs.
    * If true, runtime information (SDK version, platform, etc.) and
@@ -708,6 +714,35 @@ export interface ListThreadsItem extends Thread {
   runs: Run[];
 }
 
+/** Fields an update payload omits are taken from its create, when one is known. */
+function toRunContext(
+  run: RunCreate | RunUpdate,
+  create?: RunCreate,
+): RunContext {
+  return {
+    id: run.id ?? create?.id,
+    name: run.name ?? create?.name,
+    run_type: run.run_type ?? create?.run_type,
+    parent_run_id: run.parent_run_id ?? create?.parent_run_id,
+    trace_id: run.trace_id ?? create?.trace_id,
+    dotted_order: run.dotted_order ?? create?.dotted_order,
+  };
+}
+
+/** Finds the create an update belongs to, so its context can be filled in. */
+function createLookup(
+  creates: RunCreate[] | undefined,
+): (update: RunUpdate) => RunCreate | undefined {
+  const byId = new Map<string, RunCreate>();
+  for (const run of creates ?? []) {
+    if (run.id !== undefined) {
+      byId.set(run.id, run);
+    }
+  }
+  return (update) =>
+    update.id === undefined ? undefined : byId.get(update.id);
+}
+
 /** Index creates by id (last wins); warns when one id goes to two projects. */
 function indexRunCreatesById(creates: RunCreate[]): Record<string, RunCreate> {
   const byId: Record<string, RunCreate> = {};
@@ -1098,15 +1133,13 @@ export class Client implements LangSmithTracingClientInterface {
 
   private _tenantId: string | null = null;
 
-  private hideInputs?: boolean | ((inputs: KVMap) => KVMap | Promise<KVMap>);
+  private hideInputs?: boolean | HideCallback;
 
-  private hideOutputs?: boolean | ((outputs: KVMap) => KVMap | Promise<KVMap>);
+  private hideOutputs?: boolean | HideCallback;
 
-  private hideMetadata?:
-    | boolean
-    | ((metadata: KVMap) => KVMap | Promise<KVMap>);
+  private hideMetadata?: boolean | HideCallback;
 
-  private anonymizer?: (values: KVMap) => KVMap | Promise<KVMap>;
+  private anonymizer?: HideCallback;
 
   private omitTracedRuntimeInfo?: boolean;
 
@@ -1875,7 +1908,10 @@ export class Client implements LangSmithTracingClientInterface {
     return this.openAPIClient.public;
   }
 
-  private async processInputs(inputs: KVMap): Promise<KVMap> {
+  private async processInputs(
+    inputs: KVMap,
+    context: RunContext,
+  ): Promise<KVMap> {
     if (this.hideInputs === false) {
       return inputs;
     }
@@ -1883,12 +1919,15 @@ export class Client implements LangSmithTracingClientInterface {
       return {};
     }
     if (typeof this.hideInputs === "function") {
-      return this.hideInputs(inputs);
+      return this.hideInputs(inputs, context);
     }
     return inputs;
   }
 
-  private async processOutputs(outputs: KVMap): Promise<KVMap> {
+  private async processOutputs(
+    outputs: KVMap,
+    context: RunContext,
+  ): Promise<KVMap> {
     if (this.hideOutputs === false) {
       return outputs;
     }
@@ -1896,12 +1935,15 @@ export class Client implements LangSmithTracingClientInterface {
       return {};
     }
     if (typeof this.hideOutputs === "function") {
-      return this.hideOutputs(outputs);
+      return this.hideOutputs(outputs, context);
     }
     return outputs;
   }
 
-  private async processMetadata(metadata: KVMap): Promise<KVMap> {
+  private async processMetadata(
+    metadata: KVMap,
+    context: RunContext,
+  ): Promise<KVMap> {
     if (this.hideMetadata === false) {
       return metadata;
     }
@@ -1909,7 +1951,7 @@ export class Client implements LangSmithTracingClientInterface {
       return {};
     }
     if (typeof this.hideMetadata === "function") {
-      return this.hideMetadata(metadata);
+      return this.hideMetadata(metadata, context);
     }
     return metadata;
   }
@@ -1926,11 +1968,14 @@ export class Client implements LangSmithTracingClientInterface {
    *
    * TODO: Update anonymizer to always nest inputs/outputs/error for consistency
    */
-  private async processError(error: string): Promise<string> {
+  private async processError(
+    error: string,
+    context: RunContext,
+  ): Promise<string> {
     if (this.anonymizer == null) {
       return error;
     }
-    const result = await this.anonymizer({ error });
+    const result = await this.anonymizer({ error }, context);
     return typeof result?.error === "string" ? result.error : error;
   }
 
@@ -1957,7 +2002,7 @@ export class Client implements LangSmithTracingClientInterface {
 
   private async prepareRunCreateOrUpdateInputs(
     run: RunUpdate,
-    options: { update: true },
+    options: { update: true; create?: RunCreate },
   ): Promise<RunUpdate>;
   private async prepareRunCreateOrUpdateInputs(
     run: RunCreate,
@@ -1965,23 +2010,24 @@ export class Client implements LangSmithTracingClientInterface {
   ): Promise<RunCreate>;
   private async prepareRunCreateOrUpdateInputs(
     run: RunCreate | RunUpdate,
-    options?: { update?: boolean },
+    options?: { update?: boolean; create?: RunCreate },
   ): Promise<RunCreate | RunUpdate> {
     const runParams = { ...run };
     applyToPayload(runParams, { update: options?.update ?? false });
+    const context = toRunContext(runParams, options?.create);
     if (runParams.inputs !== undefined) {
-      runParams.inputs = await this.processInputs(runParams.inputs);
+      runParams.inputs = await this.processInputs(runParams.inputs, context);
     }
     if (runParams.outputs !== undefined) {
-      runParams.outputs = await this.processOutputs(runParams.outputs);
+      runParams.outputs = await this.processOutputs(runParams.outputs, context);
     }
     if (runParams.error !== undefined) {
-      runParams.error = await this.processError(runParams.error);
+      runParams.error = await this.processError(runParams.error, context);
     }
     if (runParams.extra != null && "metadata" in runParams.extra) {
       runParams.extra = {
         ...runParams.extra,
-        metadata: await this.processMetadata(runParams.extra.metadata),
+        metadata: await this.processMetadata(runParams.extra.metadata, context),
       };
     }
     if (runParams.events !== undefined) {
@@ -2380,7 +2426,10 @@ export class Client implements LangSmithTracingClientInterface {
       ...run,
       extra: {
         ...run.extra,
-        metadata: await this.processMetadata(run.extra.metadata),
+        metadata: await this.processMetadata(
+          run.extra.metadata,
+          toRunContext(run),
+        ),
       },
     };
   }
@@ -2661,9 +2710,13 @@ export class Client implements LangSmithTracingClientInterface {
         this.prepareRunCreateOrUpdateInputs(create),
       ) ?? [],
     );
+    const createFor = createLookup(runCreates);
     let preparedUpdateParams = await Promise.all(
       runUpdates?.map((update) =>
-        this.prepareRunCreateOrUpdateInputs(update, { update: true }),
+        this.prepareRunCreateOrUpdateInputs(update, {
+          update: true,
+          create: createFor(update),
+        }),
       ) ?? [],
     );
 
@@ -2797,10 +2850,14 @@ export class Client implements LangSmithTracingClientInterface {
       delete preparedCreate.attachments;
       preparedCreateParams.push(preparedCreate);
     }
+    const createFor = createLookup(runCreates);
     let preparedUpdateParams = [];
     for (const update of runUpdates ?? []) {
       preparedUpdateParams.push(
-        await this.prepareRunCreateOrUpdateInputs(update, { update: true }),
+        await this.prepareRunCreateOrUpdateInputs(update, {
+          update: true,
+          create: createFor(update),
+        }),
       );
     }
 
@@ -3154,20 +3211,21 @@ export class Client implements LangSmithTracingClientInterface {
     options?: { apiKey?: string; apiUrl?: string; workspaceId?: string },
   ): Promise<void> {
     assertUuid(runId);
+    const context = toRunContext({ ...run, id: runId });
     if (run.inputs) {
-      run.inputs = await this.processInputs(run.inputs);
+      run.inputs = await this.processInputs(run.inputs, context);
     }
 
     if (run.outputs) {
-      run.outputs = await this.processOutputs(run.outputs);
+      run.outputs = await this.processOutputs(run.outputs, context);
     }
     if (run.error) {
-      run.error = await this.processError(run.error);
+      run.error = await this.processError(run.error, context);
     }
     if (run.extra != null && "metadata" in run.extra) {
       run.extra = {
         ...run.extra,
-        metadata: await this.processMetadata(run.extra.metadata),
+        metadata: await this.processMetadata(run.extra.metadata, context),
       };
     }
 
