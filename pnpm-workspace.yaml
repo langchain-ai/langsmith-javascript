@@ -12,3 +12,4 @@ minimumReleaseAgeExclude:
   - '@ai-sdk/sandbox-vercel'
   - smol-toml
   - handlebars
+  - markdown-it@14.3.3
