@@ -1177,6 +1177,12 @@ export interface ServiceURLResponse {
 
   browser_url?: string;
 
+  /**
+   * EmbedOrigins echoes the origins that may embed a LangSmith login URL,
+   * normalized; omitted when there are none.
+   */
+  embed_origins?: Array<string>;
+
   expires_at?: string;
 
   service_url?: string;

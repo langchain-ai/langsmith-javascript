@@ -140,8 +140,10 @@ export class Boxes extends APIResource {
    * service_url (for use with the X-Langsmith-Sandbox-Service-Token header), the raw
    * token, and its expiry. Set access=restricted|workspace to instead enable durable
    * LangSmith login (no token; users authenticate with their normal LangSmith
-   * session), or access=off to disable it. LangSmith login and token access are
-   * mutually exclusive per service URL.
+   * session), or access=off to disable it. With LangSmith login, embed_origins names
+   * the pages that may show the URL in an iframe; a viewer signs in from inside the
+   * frame through a LangSmith popup. LangSmith login and token access are mutually
+   * exclusive per service URL.
    */
   generateServiceURL(
     name: string,
@@ -213,6 +215,12 @@ export interface BoxListServiceURLsResponse {
    * The LangSmith user who first shared this port, when known.
    */
   created_by?: string;
+
+  /**
+   * Origins that may embed a LangSmith login URL in an iframe; omitted when there
+   * are none.
+   */
+  embed_origins?: Array<string>;
 
   /**
    * When the share expires. Set only for "token"; a login grant does not expire.
@@ -578,6 +586,15 @@ export interface BoxGenerateServiceURLParams {
    * (409) while one exists.
    */
   access?: 'restricted' | 'workspace' | 'off';
+
+  /**
+   * EmbedOrigins are the pages allowed to show a LangSmith login service URL in an
+   * iframe, besides LangSmith itself: at most 5 origins such as
+   * https://app.example.com (http only for localhost). Valid only with access
+   * "restricted" or "workspace". Each call sets the URL's whole list, so omitting
+   * the field removes any origins set before.
+   */
+  embed_origins?: Array<string>;
 
   expires_in_seconds?: number;
 
