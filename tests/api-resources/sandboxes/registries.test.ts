@@ -75,9 +75,11 @@ describe('resource registries', () => {
     await expect(
       client.sandboxes.registries.list(
         {
+          cursor: 'cursor',
           limit: 0,
           name_contains: 'name_contains',
           offset: 0,
+          page_size: 1,
         },
         { path: '/_stainless_unknown_path' },
       ),

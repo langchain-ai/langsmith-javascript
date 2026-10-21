@@ -29,7 +29,11 @@ export class Registries extends APIResource {
   }
 
   /**
-   * List sandbox registries for pulling private images.
+   * List sandbox registries for pulling private images. Page with page_size and
+   * cursor, replaying next_cursor until it is null. Results are ordered newest
+   * first, with stable ordering for equal creation times. Keep filters unchanged
+   * between pages. Requests without page_size or cursor retain the legacy default of
+   * 50 results. Cursor requests default to 20 results, with a maximum of 100.
    */
   list(
     query: RegistryListParams | null | undefined = {},
@@ -50,8 +54,19 @@ export class Registries extends APIResource {
 }
 
 export interface RegistryListResponse {
+  items?: Array<RegistryResponse>;
+
+  next_cursor?: string | null;
+
+  /**
+   * Deprecated: only applies to limit/offset requests. Use next_cursor when paging
+   * with a cursor.
+   */
   offset?: number;
 
+  /**
+   * Deprecated: use items.
+   */
   registries?: Array<RegistryResponse>;
 }
 
@@ -109,7 +124,12 @@ export interface RegistryUpdateParams {
 
 export interface RegistryListParams {
   /**
-   * Maximum number of registries to return
+   * Opaque cursor from a prior response's next_cursor
+   */
+  cursor?: string;
+
+  /**
+   * Deprecated: use page_size. Maximum number of registries to return
    */
   limit?: number;
 
@@ -119,9 +139,14 @@ export interface RegistryListParams {
   name_contains?: string;
 
   /**
-   * Number of registries to skip
+   * Deprecated: use cursor. Number of registries to skip
    */
   offset?: number;
+
+  /**
+   * Number of results per cursor page
+   */
+  page_size?: number;
 }
 
 export declare namespace Registries {
