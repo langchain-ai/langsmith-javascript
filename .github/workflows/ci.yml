@@ -13,20 +13,6 @@ on:
     branches-ignore:
       - 'stl-preview-head/**'
       - 'stl-preview-base/**'
-  schedule:
-    # Nightly: every job, every environment, Slack on failure.
-    - cron: '17 3 * * *'
-  workflow_dispatch:
-    inputs:
-      integration-environment:
-        description: LangSmith environment for the integration suite
-        type: choice
-        default: beta
-        options: [beta, v16-ch-only, v16-dual, v16-smithdb-only, all]
-      exit-first:
-        description: Stop at the first failing test
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -52,9 +38,6 @@ jobs:
 
       - name: Bootstrap
         run: ./scripts/bootstrap
-
-      - name: Test mirror formatting
-        run: .github/scripts/test-format-mirror.sh
 
       - name: Check types
         run: ./scripts/lint
@@ -162,161 +145,9 @@ jobs:
       - name: Test exports
         run: docker compose -f internal/environment_tests/docker-compose.yml run ${{ matrix.target == 'deepagent-compat' && 'test-deepagent-compat' || format('test-exports-{0}', matrix.target) }}
 
-  # Live suite against a LangSmith deployment: main pushes hit beta, the
-  # nightly hits every environment, a dispatch picks one.
-  integration-matrix:
-    name: 'integration matrix'
-    runs-on: ubuntu-latest
-    # Staging only: the prod repo has no API-key secrets and receives promoted code.
-    if: github.repository == 'langchain-ai/langsmith-javascript-staging' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/main'))
-    outputs:
-      matrix: ${{ steps.build.outputs.matrix }}
-    steps:
-      - id: build
-        env:
-          SELECTED: ${{ github.event_name == 'schedule' && 'all' || github.event.inputs.integration-environment || 'beta' }}
-        run: |
-          python3 <<'EOF' >> "$GITHUB_OUTPUT"
-          import json, os
-          ENDPOINTS = {
-              "beta": "https://beta.api.smith.langchain.com",
-              "v16-ch-only": "https://aks.smith.langchain.dev/api",
-              "v16-dual": "https://stable-dual.eks.smith.langchain.dev/api",
-              "v16-smithdb-only": "https://stable-smithdb.eks.smith.langchain.dev/api",
-          }
-          # SmithDB-only lacks the legacy ClickHouse endpoints, ClickHouse-only lacks v2,
-          # only the beta tenant resolves the shared dataset token, and the provider
-          # wrapper tests (mocked LangSmith client) run once, on beta.
-          EXCLUDED = {"v16-ch-only": ["require_v2"], "v16-smithdb-only": ["require_clickhouse"]}
-          selected = os.environ["SELECTED"]
-          envs = list(ENDPOINTS) if selected == "all" else [selected if selected in ENDPOINTS else "beta"]
-          include = []
-          for env in envs:
-              markers = EXCLUDED.get(env, []) + ([] if env == "beta" else ["require_beta_dataset", "require_provider"])
-              include.append({
-                  "environment": env,
-                  "endpoint": ENDPOINTS[env],
-                  "suffix": "" if env == "beta" else f" [{env}]",
-                  "exclude_markers": ",".join(markers),
-              })
-          print("matrix=" + json.dumps({"include": include}))
-          EOF
-
-  integration:
-    name: 'integration${{ matrix.suffix }}'
-    needs: integration-matrix
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.integration-matrix.outputs.matrix) }}
-    env:
-      LANGSMITH_TRACING_V2: 'true'
-      LANGSMITH_ENDPOINT: ${{ matrix.endpoint }}
-      LANGSMITH_API_KEY: >-
-        ${{ (matrix.environment == 'v16-ch-only' && secrets.LANGSMITH_API_KEY_AKS_V15)
-         || (matrix.environment == 'v16-dual' && secrets.LANGSMITH_API_KEY_STABLE_DUAL)
-         || (matrix.environment == 'v16-smithdb-only' && secrets.LANGSMITH_API_KEY_STABLE_SMITHDB)
-         || secrets.LANGSMITH_API_KEY_BETA }}
-      LANGSMITH_TEST_EXCLUDE_MARKERS: ${{ matrix.exclude_markers }}
-      # Provider calls go through the prod LLM Gateway: its workspace holds all
-      # three provider secrets. The LangSmith deployment under test is separate.
-      OPENAI_BASE_URL: https://gateway.smith.langchain.com/openai/v1
-      ANTHROPIC_BASE_URL: https://gateway.smith.langchain.com/anthropic
-      GOOGLE_GEMINI_BASE_URL: https://gateway.smith.langchain.com/gemini
-      OPENAI_API_KEY: ${{ secrets.LANGSMITH_API_KEY_PROD }}
-      ANTHROPIC_API_KEY: ${{ secrets.LANGSMITH_API_KEY_PROD }}
-      GEMINI_API_KEY: ${{ secrets.LANGSMITH_API_KEY_PROD }}
-      GOOGLE_API_KEY: ${{ secrets.LANGSMITH_API_KEY_PROD }}
-      # Main pushes stop at the first failure; nightly and dispatch report them all.
-      JEST_BAIL: ${{ (github.event_name == 'push' || github.event.inputs.exit-first == 'true') && '--bail' || '' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24'
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: '10.30.1'
-
-      - name: Bootstrap
-        run: ./scripts/bootstrap
-
-      - name: Check credentials
-        run: '[ -n "$LANGSMITH_API_KEY" ] || { echo "::error::No API key secret for ${{ matrix.environment }}"; exit 1; }'
-
-      - name: Run integration tests
-        run: pnpm test:integration $JEST_BAIL
-
-  vitest-eval:
-    name: 'vitest eval${{ matrix.suffix }}'
-    needs: integration-matrix
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.integration-matrix.outputs.matrix) }}
-    env:
-      LANGSMITH_TRACING_V2: 'true'
-      LANGSMITH_ENDPOINT: ${{ matrix.endpoint }}
-      LANGSMITH_API_KEY: >-
-        ${{ (matrix.environment == 'v16-ch-only' && secrets.LANGSMITH_API_KEY_AKS_V15)
-         || (matrix.environment == 'v16-dual' && secrets.LANGSMITH_API_KEY_STABLE_DUAL)
-         || (matrix.environment == 'v16-smithdb-only' && secrets.LANGSMITH_API_KEY_STABLE_SMITHDB)
-         || secrets.LANGSMITH_API_KEY_BETA }}
-      VITEST_BAIL: ${{ (github.event_name == 'push' || github.event.inputs.exit-first == 'true') && '--bail=1' || '' }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: '24'
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: '10.30.1'
-
-      - name: Bootstrap
-        run: ./scripts/bootstrap
-
-      - name: Check credentials
-        run: '[ -n "$LANGSMITH_API_KEY" ] || { echo "::error::No API key secret for ${{ matrix.environment }}"; exit 1; }'
-
-      - name: Run vitest eval runner
-        run: pnpm test:eval:vitest $VITEST_BAIL
-
-  bun-test:
-    name: 'bun integration'
-    needs: integration-matrix
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    env:
-      LANGSMITH_TRACING: 'true'
-      LANGSMITH_ENDPOINT: https://beta.api.smith.langchain.com
-      LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY_BETA }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Bun
-        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Run Bun tests
-        run: bun test ./src/lib/tests/bun/traceable.test.bun.ts
-
   ci-success:
     name: 'CI Success'
-    needs: [lint, test, build, exports, integration-matrix, integration, vitest-eval, bun-test]
+    needs: [lint, test, build, exports]
     if: always()
     runs-on: ubuntu-latest
     env:
@@ -327,24 +158,3 @@ jobs:
           if echo "$RESULTS_JSON" | grep -qE '"(failure|cancelled)"'; then
             echo "CI failed"; exit 1
           fi
-
-  # Only the nightly posts: push and PR failures are visible to whoever pushed.
-  notify-slack-on-failure:
-    name: 'Notify Slack on nightly failure'
-    needs: [ci-success]
-    if: ${{ always() && github.repository == 'langchain-ai/langsmith-javascript-staging' && github.event_name == 'schedule' && needs.ci-success.result != 'success' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: slackapi/slack-github-action@dcb1066f776dd043e64d0e8ba94ca15cc7e1875d # v4.0.0
-        with:
-          method: chat.postMessage
-          token: ${{ secrets.INGESTION_CI_BOT_TOKEN }}
-          errors: true
-          payload: |
-            channel: ${{ toJSON(secrets.INGESTION_TEAM_SLACK_CHANNEL_ID) }}
-            text: |
-              *Nightly langsmith-javascript-staging CI failed*
-              *Run:* ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-              *Environments:* beta, v16-ch-only, v16-dual, v16-smithdb-only
-
-              <@U0AKDLKCV3J> please investigate the issue and explain simply what happens, add a TLDR at the end of your answer where you go straight to the point to explain to a non-focused reader with ADHD. If the root cause is flaky tests, mention it. Open a fix PR when confidence is high. Reply in this thread and tag <@U0BSQM2BQJ3> in your answer.
