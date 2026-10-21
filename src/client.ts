@@ -39,6 +39,15 @@ import {
 import * as Uploads from './core/uploads';
 import * as API from './resources/index';
 import { APIPromise } from './core/api-promise';
+import {
+  Agent,
+  AgentCreateParams,
+  AgentListParams,
+  AgentRetrieveParams,
+  AgentUpdateParams,
+  Agents,
+  AgentsItemsCursorGetPagination,
+} from './resources/agents';
 import { Info, InfoListResponse } from './resources/info';
 import {
   Issue,
@@ -963,6 +972,7 @@ export class Langsmith {
   static toFile = Uploads.toFile;
 
   productFeedback: API.ProductFeedback = new API.ProductFeedback(this);
+  agents: API.Agents = new API.Agents(this);
   fleet: API.Fleet = new API.Fleet(this);
   sessions: API.Sessions = new API.Sessions(this);
   datasets: API.Datasets = new API.Datasets(this);
@@ -979,6 +989,7 @@ export class Langsmith {
 }
 
 Langsmith.ProductFeedback = ProductFeedback;
+Langsmith.Agents = Agents;
 Langsmith.Fleet = Fleet;
 Langsmith.Sessions = Sessions;
 Langsmith.Datasets = Datasets;
@@ -1055,6 +1066,16 @@ export declare namespace Langsmith {
     type ProductFeedbackCreateResponse as ProductFeedbackCreateResponse,
     type ProductFeedbackRetrieveResponse as ProductFeedbackRetrieveResponse,
     type ProductFeedbackCreateParams as ProductFeedbackCreateParams,
+  };
+
+  export {
+    Agents as Agents,
+    type Agent as Agent,
+    type AgentsItemsCursorGetPagination as AgentsItemsCursorGetPagination,
+    type AgentCreateParams as AgentCreateParams,
+    type AgentRetrieveParams as AgentRetrieveParams,
+    type AgentUpdateParams as AgentUpdateParams,
+    type AgentListParams as AgentListParams,
   };
 
   export { Fleet as Fleet };

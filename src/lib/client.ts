@@ -83,6 +83,7 @@ import { Runs as OpenAPIRuns } from "../resources/runs.js";
 import { Sandboxes } from "../resources/sandboxes/sandboxes.js";
 import { Datasets } from "../resources/datasets/datasets.js";
 import { AnnotationQueues } from "../resources/annotation-queues/annotation-queues.js";
+import { Agents } from "../resources/agents.js";
 import { Threads } from "../resources/threads.js";
 import { Traces } from "../resources/traces.js";
 import { Sessions } from "../resources/sessions.js";
@@ -1867,6 +1868,11 @@ export class Client implements LangSmithTracingClientInterface {
   public get sessions(): Sessions {
     this._checkStainlessVersion("0.18.0");
     return this.openAPIClient.sessions;
+  }
+
+  /** Manage workspace registry agents and their tracing destinations. */
+  public get agents(): Agents {
+    return this.openAPIClient.agents;
   }
 
   /** Access the public shared-run resource. */

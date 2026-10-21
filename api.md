@@ -10,6 +10,20 @@ Methods:
 - <code title="post /api/v1/platform/product-feedbacks">client.productFeedback.<a href="./src/resources/product-feedback.ts">create</a>({ ...params }) -> ProductFeedbackCreateResponse</code>
 - <code title="get /api/v1/platform/product-feedbacks/{id}">client.productFeedback.<a href="./src/resources/product-feedback.ts">retrieve</a>(id) -> ProductFeedbackRetrieveResponse</code>
 
+# Agents
+
+Types:
+
+- <code><a href="./src/resources/agents.ts">Agent</a></code>
+
+Methods:
+
+- <code title="post /api/v1/agents">client.agents.<a href="./src/resources/agents.ts">create</a>({ ...params }) -> Agent</code>
+- <code title="get /api/v1/agents/{agent_id}">client.agents.<a href="./src/resources/agents.ts">retrieve</a>(agentID, { ...params }) -> Agent</code>
+- <code title="patch /api/v1/agents/{agent_id}">client.agents.<a href="./src/resources/agents.ts">update</a>(agentID, { ...params }) -> Agent</code>
+- <code title="get /api/v1/agents">client.agents.<a href="./src/resources/agents.ts">list</a>({ ...params }) -> AgentsItemsCursorGetPagination</code>
+- <code title="delete /api/v1/agents/{agent_id}">client.agents.<a href="./src/resources/agents.ts">delete</a>(agentID) -> void</code>
+
 # Fleet
 
 ## Threads
