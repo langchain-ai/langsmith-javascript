@@ -15,8 +15,9 @@ export class Agents extends APIResource {
   /**
    * Creates an Agent with a caller-assigned ID. Returns 409 if the ID already
    * exists. Creates all four environments unless production_only is set for a FLEET
-   * agent. agent_type defaults to CUSTOM. Requires permission to create projects.
-   * The response does not include runtime bindings.
+   * agent. agent_type defaults to CUSTOM. The authenticated user becomes the owner
+   * when available. Requires permission to create projects. The response does not
+   * include runtime bindings.
    */
   create(body: AgentCreateParams, options?: RequestOptions): APIPromise<Agent> {
     return this._client.post('/api/v1/agents', { body, ...options });
@@ -36,11 +37,14 @@ export class Agents extends APIResource {
   }
 
   /**
-   * Updates an Agent's name, source_type, or agent_type. Omitted fields keep their
-   * values. Changing agent_type requires workspaces:manage in addition to project
-   * update access; repeating the current type is a no-op. Source type can change
-   * only for an EXTERNAL Agent without runtime bindings. The id is immutable and is
-   * rejected when present. Requires update permission on every environment project.
+   * Updates an Agent's name, source_type, agent_type, or owner_id. Omitted fields
+   * keep their values. Changing or clearing owner_id additionally requires
+   * workspaces:manage; assigning an owner also requires workspaces:read and active
+   * workspace membership. Fleet ownership cannot be changed through this endpoint.
+   * Changing agent_type requires workspaces:manage in addition to project update
+   * access; repeating the current type is a no-op. Source type can change only for
+   * an EXTERNAL Agent without runtime bindings. The id is immutable and is rejected
+   * when present. Requires update permission on every environment project.
    */
   update(agentID: string, body: AgentUpdateParams, options?: RequestOptions): APIPromise<Agent> {
     return this._client.patch(path`/api/v1/agents/${agentID}`, { body, ...options });
@@ -86,6 +90,13 @@ export interface Agent {
   name: string;
 
   source_type: 'LSD' | 'MDA' | 'EXTERNAL' | 'FLEET';
+
+  /**
+   * Owner is the owner's full name, falling back to email when available.
+   */
+  owner?: string;
+
+  owner_id?: string | null;
 
   tag_key_id?: string | null;
 
@@ -165,6 +176,11 @@ export interface AgentUpdateParams {
    * New display name. Omit to keep the current name.
    */
   name?: string;
+
+  /**
+   * Omit to leave the owner unchanged; null clears it.
+   */
+  owner_id?: string | null;
 
   /**
    * New runtime kind. Only EXTERNAL agents without runtime bindings can change kind.
