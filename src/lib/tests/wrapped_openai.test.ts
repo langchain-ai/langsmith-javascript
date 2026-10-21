@@ -89,6 +89,70 @@ test.each([200, 404])(
   },
 );
 
+test.each([
+  [
+    "response.incomplete",
+    {
+      status: "incomplete",
+      incomplete_details: { reason: "max_output_tokens" },
+    },
+  ],
+  [
+    "response.failed",
+    {
+      status: "failed",
+      error: { code: "server_error", message: "boom" },
+    },
+  ],
+])(
+  "responses.create stream ending on %s keeps the response",
+  async (type, fields) => {
+    const response = {
+      id: "resp_test",
+      object: "response",
+      model: "gpt-5-nano",
+      output: [],
+      usage: { input_tokens: 12, output_tokens: 7, total_tokens: 19 },
+      ...fields,
+    };
+    const sse = `event: ${type}\ndata: ${JSON.stringify({
+      type,
+      sequence_number: 1,
+      response,
+    })}\n\n`;
+    const openaiFetch = jest
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(sse, { headers: { "content-type": "text/event-stream" } }),
+      );
+    const { client, callSpy } = mockClient();
+    const openai = wrapOpenAI(
+      new OpenAI({
+        apiKey: "MOCK",
+        baseURL: "https://openai.example.test/v1",
+        fetch: openaiFetch,
+        maxRetries: 0,
+      }),
+      { client, tracingEnabled: true },
+    );
+
+    const stream = await openai.responses.create({
+      model: "gpt-5-nano",
+      input: "What is 2+2?",
+      stream: true,
+    });
+    for await (const _event of stream) {
+      // drain
+    }
+
+    const tree = await getAssumedTreeFromCalls(callSpy.mock.calls, client);
+    expect(tree.data["ChatOpenAI:0"].outputs).toMatchObject({
+      ...fields,
+      usage_metadata: response.usage,
+    });
+  },
+);
+
 // OpenAI shut down its legacy `/v1/completions` models on 2026-09-28; this
 // covers wrapping `completions.create` for OpenAI-compatible providers.
 function completionsFetch() {

@@ -214,14 +214,20 @@ const responsesAggregator = (events: any[]) => {
     return {};
   }
 
-  // Find the response.completed event which contains the final response
+  // A stream ends on one of these events. Each carries the final response,
+  // including the partial output, usage and error of an incomplete or failed one.
   for (const event of events) {
-    if (event.type === "response.completed" && event.response) {
+    if (
+      (event.type === "response.completed" ||
+        event.type === "response.incomplete" ||
+        event.type === "response.failed") &&
+      event.response
+    ) {
       return event.response;
     }
   }
 
-  // If no completed event found, return the last event
+  // If no terminal event found, return the last event
   return events[events.length - 1] || {};
 };
 
