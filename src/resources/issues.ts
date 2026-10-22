@@ -396,6 +396,14 @@ export namespace Issue {
 
     pr_number: number | null;
 
+    provider: 'github' | 'gitlab';
+
+    /**
+     * ProviderWebBaseURL is the GitLab instance a GitLab fix lives on; null for
+     * GitHub.
+     */
+    provider_web_base_url: string | null;
+
     repo_url: string;
 
     updated_at: string;
