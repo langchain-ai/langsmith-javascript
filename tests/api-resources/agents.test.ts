@@ -11,7 +11,7 @@ const client = new Langsmith({
 describe('resource agents', () => {
   // Mock server tests are disabled
   test.skip('create: only required params', async () => {
-    const responsePromise = client.agents.create({ id: 'id', source_type: 'LSD' });
+    const responsePromise = client.agents.create({ id: 'id' });
     const rawResponse = await responsePromise.asResponse();
     expect(rawResponse).toBeInstanceOf(Response);
     const response = await responsePromise;

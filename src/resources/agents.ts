@@ -15,12 +15,16 @@ export class Agents extends APIResource {
   /**
    * Creates an Agent with a caller-assigned ID. Returns 409 if the ID already
    * exists. Creates all four environments unless production_only is set for a FLEET
-   * agent. agent_type defaults to CUSTOM. The authenticated user becomes the owner
+   * agent. source_type defaults to EXTERNAL in this SDK. agent_type defaults to
+   * CUSTOM. The authenticated user becomes the owner
    * when available. Requires permission to create projects. The response does not
    * include runtime bindings.
    */
   create(body: AgentCreateParams, options?: RequestOptions): APIPromise<Agent> {
-    return this._client.post('/api/v1/agents', { body, ...options });
+    return this._client.post('/api/v1/agents', {
+      body: { ...body, source_type: body.source_type === undefined ? 'EXTERNAL' : body.source_type },
+      ...options,
+    });
   }
 
   /**
@@ -137,9 +141,10 @@ export interface AgentCreateParams {
   id: string;
 
   /**
-   * Agent runtime kind. Use EXTERNAL for an application hosted outside LangSmith.
+   * Agent runtime kind. Defaults to EXTERNAL for an application hosted outside
+   * LangSmith when omitted.
    */
-  source_type: 'LSD' | 'MDA' | 'EXTERNAL' | 'FLEET';
+  source_type?: 'LSD' | 'MDA' | 'EXTERNAL' | 'FLEET';
 
   /**
    * AgentType defaults to CUSTOM when omitted.
