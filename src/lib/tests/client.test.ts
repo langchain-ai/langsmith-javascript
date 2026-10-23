@@ -489,6 +489,7 @@ describe("Client", () => {
         apiKey: "test-api-key",
         fetchImplementation: mockFetch,
         tracingSamplingRate: 0.5,
+        autoBatchTracing: false,
       });
       const sessionId = "550e8400-e29b-41d4-a716-446655440001";
       // A child run whose own id would be filtered out on its own.

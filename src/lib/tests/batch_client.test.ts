@@ -59,8 +59,12 @@ const parseMockRequestBody = async (
     } catch {
       parsedValue = value;
     }
+    if (method === "feedback") {
+      (reconstructedBody.feedback ??= []).push(parsedValue);
+      continue;
+    }
     if (!(method in reconstructedBody)) {
-      throw new Error(`${method} must be "post" or "patch"`);
+      throw new Error(`${method} must be "post", "patch" or "feedback"`);
     }
     if (!type) {
       reconstructedBody[method as keyof typeof reconstructedBody].push(
@@ -198,6 +202,140 @@ describe.each(ENDPOINT_TYPES)(
         ],
         patch: [],
       });
+    });
+
+    it("should send feedback with a trace ID alongside the trace", async () => {
+      const calls: [string, RequestInit][] = [];
+      const mockFetch = jest.fn((url: any, init: any) => {
+        calls.push([String(url), init]);
+        return Promise.resolve(
+          new Response("{}", {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      });
+      const client = createClient(
+        {
+          apiKey: "test-api-key",
+          autoBatchTracing: true,
+        },
+        mockFetch as any,
+      );
+      jest.spyOn(client as any, "_ensureServerInfo").mockResolvedValue({
+        version: "foo",
+        batch_ingest_config: { ...extraBatchIngestConfig },
+        instance_flags: { ...extraInstanceFlags },
+      });
+
+      const runId = uuidv4();
+      const sessionId = uuidv4();
+      const { dottedOrder } = convertToDottedOrderFormat(
+        new Date().getTime() / 1000,
+        runId,
+      );
+      await client.createRun({
+        id: runId,
+        project_name: "__test_batch",
+        name: "test_run",
+        run_type: "llm",
+        inputs: { text: "hello world" },
+        trace_id: runId,
+        dotted_order: dottedOrder,
+      });
+      const startTime = Date.UTC(2026, 0, 2, 3, 4, 5);
+      const feedbacks = await Promise.all(
+        ["correctness", "helpfulness", "latency"].map((key) =>
+          client.createFeedback({
+            runId,
+            traceId: runId,
+            sessionId,
+            key,
+            score: 1,
+            startTime,
+          }),
+        ),
+      );
+      await client.awaitPendingTraceBatches();
+
+      const feedbackIds = feedbacks.map((feedback) => feedback.id);
+      if (endpointType === "multipart") {
+        expect(calls.map(([url]) => url)).toEqual([expectedTraceURL]);
+        const body = await parseMockRequestBody(calls[0][1].body as any);
+        expect(body.post).toEqual([expect.objectContaining({ id: runId })]);
+        expect(body.feedback).toEqual(
+          feedbackIds.map((id) =>
+            expect.objectContaining({
+              id,
+              run_id: runId,
+              trace_id: runId,
+              session_id: sessionId,
+              score: 1,
+              start_time: "2026-01-02T03:04:05.000Z",
+            }),
+          ),
+        );
+      } else {
+        const feedbackCalls = calls.filter(([url]) =>
+          url.endsWith("/feedback"),
+        );
+        expect(
+          feedbackCalls.map(([, init]) => JSON.parse(init.body as string).id),
+        ).toEqual(feedbackIds);
+      }
+    });
+
+    it("should send feedback that multipart can't carry directly", async () => {
+      const calls: [string, RequestInit][] = [];
+      const mockFetch = jest.fn((url: any, init: any) => {
+        calls.push([String(url), init]);
+        return Promise.resolve(
+          new Response("{}", {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+        );
+      });
+      const client = createClient(
+        {
+          apiKey: "test-api-key",
+          autoBatchTracing: true,
+        },
+        mockFetch as any,
+      );
+      jest.spyOn(client as any, "_ensureServerInfo").mockResolvedValue({
+        version: "foo",
+        batch_ingest_config: { ...extraBatchIngestConfig },
+        instance_flags: { ...extraInstanceFlags },
+      });
+
+      const runId = uuidv4();
+      await client.createFeedback({
+        runId,
+        traceId: runId,
+        sessionId: uuidv4(),
+        key: "correctness",
+        score: 1,
+        extendTraceRetention: false,
+      });
+      const projectId = uuidv4();
+      await client.createFeedback({
+        projectId,
+        traceId: runId,
+        key: "correctness",
+        score: 1,
+      });
+
+      expect(calls.map(([url]) => url)).toEqual([
+        "https://api.smith.langchain.com/feedback",
+        "https://api.smith.langchain.com/feedback",
+      ]);
+      expect(JSON.parse(calls[0][1].body as string)).toEqual(
+        expect.objectContaining({ extend_trace_retention: false }),
+      );
+      expect(JSON.parse(calls[1][1].body as string)).toEqual(
+        expect.objectContaining({ run_id: null, session_id: projectId }),
+      );
     });
 
     it("should hide inputs and outputs", async () => {

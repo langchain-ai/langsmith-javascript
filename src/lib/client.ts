@@ -514,6 +514,8 @@ interface FeedbackCreate {
   start_time?: number | string;
   comparative_experiment_id?: string;
   extend_trace_retention?: boolean;
+  /** Agent address as an LRN string. */
+  address?: string;
 }
 
 interface FeedbackUpdate {
@@ -586,7 +588,11 @@ export type CreateFeedbackOptions = {
   feedbackConfig?: FeedbackConfig;
   sourceRunId?: string;
   feedbackId?: string;
-  /** The trace the run belongs to. Omit for a root run. */
+  /**
+   * Highly recommended. The trace the run belongs to (equals `runId` for a root run).
+   * When set, the feedback is batched and sent in the background; call
+   * `awaitPendingTraceBatches()` to wait for delivery.
+   */
   traceId?: string;
   comparativeExperimentId?: string;
   /**
@@ -675,8 +681,8 @@ export type CreateProjectParams = {
 };
 
 type AutoBatchQueueItem = {
-  action: "create" | "update";
-  item: RunCreate | RunUpdate;
+  action: "create" | "update" | "feedback";
+  item: RunCreate | RunUpdate | FeedbackCreate;
   otelContext?: OTELContext;
   apiKey?: string;
   apiUrl?: string;
@@ -971,8 +977,8 @@ function mergeCallerHeaders(
 
 export class AutoBatchQueue {
   items: {
-    action: "create" | "update";
-    payload: RunCreate | RunUpdate;
+    action: AutoBatchQueueItem["action"];
+    payload: AutoBatchQueueItem["item"];
     otelContext?: OTELContext;
     itemPromiseResolve: () => void;
     itemPromise: Promise<void>;
@@ -2294,12 +2300,20 @@ export class Client implements LangSmithTracingClientInterface {
       0,
     );
 
+    const feedbacks = batch
+      .filter((item) => item.action === "feedback")
+      .map((item) => item.item) as FeedbackCreate[];
+    const runItems = batch.filter((item) => item.action !== "feedback");
+
     try {
       if (this.langSmithToOTELTranslator !== undefined) {
-        for (const item of batch) {
-          item.item = await this._maskRunMetadata(item.item);
+        for (const item of runItems) {
+          item.item = await this._maskRunMetadata(
+            item.item as RunCreate | RunUpdate,
+          );
         }
-        this._sendBatchToOTELTranslator(batch);
+        this._sendBatchToOTELTranslator(runItems);
+        await this._postFeedbacks(feedbacks, options);
       } else {
         const ingestParams = {
           runCreates: batch
@@ -2318,11 +2332,14 @@ export class Client implements LangSmithTracingClientInterface {
             !this._runCompressionDisabled &&
             serverInfo?.instance_flags?.gzip_body_enabled;
           try {
-            await this.multipartIngestRuns(ingestParams, {
-              ...options,
-              useGzip,
-              sizeBytes: batchSizeBytes,
-            });
+            await this.multipartIngestRuns(
+              { ...ingestParams, feedbacks },
+              {
+                ...options,
+                useGzip,
+                sizeBytes: batchSizeBytes,
+              },
+            );
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
           } catch (e: any) {
             if (isLangSmithNotFoundError(e)) {
@@ -2333,6 +2350,7 @@ export class Client implements LangSmithTracingClientInterface {
                 ...options,
                 sizeBytes: batchSizeBytes,
               });
+              await this._postFeedbacks(feedbacks, options);
             } else {
               throw e;
             }
@@ -2342,6 +2360,7 @@ export class Client implements LangSmithTracingClientInterface {
             ...options,
             sizeBytes: batchSizeBytes,
           });
+          await this._postFeedbacks(feedbacks, options);
         }
       }
     } catch (e) {
@@ -2410,12 +2429,14 @@ export class Client implements LangSmithTracingClientInterface {
   private async processRunOperation(item: AutoBatchQueueItem) {
     clearTimeout(this.autoBatchTimeout);
     this.autoBatchTimeout = undefined;
-    item.item = mergeRuntimeEnvIntoRun(
-      item.item as RunCreate,
-      this.cachedLSEnvVarsForMetadata,
-      this.omitTracedRuntimeInfo,
-      this.tracingSampleRate,
-    );
+    if (item.action !== "feedback") {
+      item.item = mergeRuntimeEnvIntoRun(
+        item.item as RunCreate,
+        this.cachedLSEnvVarsForMetadata,
+        this.omitTracedRuntimeInfo,
+        this.tracingSampleRate,
+      );
+    }
     const itemPromise = this.autoBatchQueue.push(item);
     if (this.manualFlushMode) {
       // Rely on manual flushing in serverless environments
@@ -2774,9 +2795,11 @@ export class Client implements LangSmithTracingClientInterface {
     {
       runCreates,
       runUpdates,
+      feedbacks,
     }: {
       runCreates?: RunCreate[];
       runUpdates?: RunUpdate[];
+      feedbacks?: FeedbackCreate[];
     },
     options?: {
       apiKey?: string;
@@ -2786,7 +2809,11 @@ export class Client implements LangSmithTracingClientInterface {
       sizeBytes?: number;
     },
   ) {
-    if (runCreates === undefined && runUpdates === undefined) {
+    if (
+      runCreates === undefined &&
+      runUpdates === undefined &&
+      !feedbacks?.length
+    ) {
       return;
     }
     // transform and convert to dicts
@@ -2851,7 +2878,8 @@ export class Client implements LangSmithTracingClientInterface {
     }
     if (
       preparedCreateParams.length === 0 &&
-      preparedUpdateParams.length === 0
+      preparedUpdateParams.length === 0 &&
+      !feedbacks?.length
     ) {
       return;
     }
@@ -2938,6 +2966,19 @@ export class Client implements LangSmithTracingClientInterface {
         // compute context
         accumulatedContext.push(`trace=${payload.trace_id},id=${payload.id}`);
       }
+    }
+    for (const feedback of feedbacks ?? []) {
+      const stringifiedFeedback = await this._serializeBody(
+        feedback,
+        `Serializing for multipart ingestion of feedback with id: ${feedback.id}`,
+      );
+      accumulatedParts.push({
+        name: `feedback.${feedback.id}`,
+        payload: new Blob([stringifiedFeedback], {
+          type: `application/json; length=${stringifiedFeedback.length}`,
+        }),
+      });
+      accumulatedContext.push(`trace=${feedback.trace_id},id=${feedback.id}`);
     }
     await this._sendMultipartRequest(
       accumulatedParts,
@@ -5706,22 +5747,86 @@ export class Client implements LangSmithTracingClientInterface {
     if (samplingId != null && !this._shouldSample(samplingId)) {
       return feedback as Feedback;
     }
-    const body = JSON.stringify(
-      address ? { ...feedback, address: addressToLrn(address) } : feedback,
-    );
-    const url = `${this.apiUrl}/feedback`;
+    const payload: FeedbackCreate = address
+      ? { ...feedback, address: addressToLrn(address) }
+      : feedback;
+    // Multipart feedback parts always extend trace retention, so feedback
+    // that opts out keeps the direct endpoint. Multipart also requires a
+    // run_id, so project-level feedback does too.
+    if (
+      runId &&
+      traceId &&
+      extendTraceRetention !== false &&
+      (await this._canBatchFeedback())
+    ) {
+      void this.processRunOperation({
+        action: "feedback",
+        item: {
+          ...payload,
+          // Multipart parses start_time as a timestamp string only.
+          start_time:
+            typeof startTime === "number"
+              ? new Date(startTime).toISOString()
+              : startTime,
+        },
+      }).catch(console.error);
+      return feedback as Feedback;
+    }
+    await this._postFeedback(payload);
+    return feedback as Feedback;
+  }
+
+  private async _canBatchFeedback(): Promise<boolean> {
+    if (
+      !this.autoBatchTracing ||
+      this.langSmithToOTELTranslator !== undefined ||
+      this._multipartDisabled
+    ) {
+      return false;
+    }
+    const serverInfo = await this._ensureServerInfo();
+    return serverInfo?.batch_ingest_config?.use_multipart_endpoint ?? true;
+  }
+
+  private async _postFeedback(
+    feedback: FeedbackCreate,
+    options?: { apiKey?: string; apiUrl?: string; workspaceId?: string },
+  ): Promise<void> {
+    const headers: Record<string, string> = {
+      ...this._mergedHeaders,
+      "Content-Type": "application/json",
+    };
+    if (options?.apiKey !== undefined) {
+      headers["x-api-key"] = options.apiKey;
+    }
+    if (options?.workspaceId !== undefined) {
+      headers["x-tenant-id"] = options.workspaceId;
+    }
+    const body = JSON.stringify(feedback);
     await this.caller.call(async () => {
-      const res = await this._fetch(url, {
-        method: "POST",
-        headers: { ...this._mergedHeaders, "Content-Type": "application/json" },
-        signal: AbortSignal.timeout(this.timeout_ms),
-        ...this.fetchOptions,
-        body,
-      });
+      const res = await this._fetch(
+        `${options?.apiUrl ?? this.apiUrl}/feedback`,
+        {
+          method: "POST",
+          headers,
+          signal: AbortSignal.timeout(this.timeout_ms),
+          ...this.fetchOptions,
+          body,
+        },
+      );
       await raiseForStatus(res, "create feedback", true);
       return res;
     });
-    return feedback as Feedback;
+  }
+
+  /** Sends batched feedback one request at a time when multipart is unavailable. */
+  private async _postFeedbacks(
+    feedbacks: FeedbackCreate[],
+    options?: { apiKey?: string; apiUrl?: string; workspaceId?: string },
+  ): Promise<void> {
+    await Promise.all(
+      feedbacks.map((feedback) => this._postFeedback(feedback, options)),
+    );
   }
 
   public async updateFeedback(
