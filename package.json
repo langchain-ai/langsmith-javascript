@@ -230,7 +230,9 @@
   "browser": {
     "./dist/lib/utils/fs.js": "./dist/lib/utils/fs.browser.js",
     "./dist/lib/utils/worker_threads.js": "./dist/lib/utils/worker_threads.browser.js",
+    "./dist/lib/utils/compression.js": "./dist/lib/utils/compression.browser.js",
     "./dist/lib/utils/fs.mjs": "./dist/lib/utils/fs.browser.mjs",
-    "./dist/lib/utils/worker_threads.mjs": "./dist/lib/utils/worker_threads.browser.mjs"
+    "./dist/lib/utils/worker_threads.mjs": "./dist/lib/utils/worker_threads.browser.mjs",
+    "./dist/lib/utils/compression.mjs": "./dist/lib/utils/compression.browser.mjs"
   }
 }
