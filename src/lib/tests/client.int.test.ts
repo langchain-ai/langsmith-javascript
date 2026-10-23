@@ -591,6 +591,80 @@ describe("createChatExample", () => {
   }, 180_000);
 });
 
+test("listExamples with excludeDefaultFields returns only selected fields", async () => {
+  const client = new Client({ autoBatchTracing: false });
+  const datasetName = `__test_exclude_default_fields_${uuidv4().slice(0, 8)}`;
+  await deleteDataset(client, datasetName);
+  const dataset = await client.createDataset(datasetName);
+  try {
+    const example = await client.createExample(
+      { input: "hello" },
+      { output: "hi" },
+      { datasetId: dataset.id, metadata: { key: "value" } },
+    );
+    const defaultFields = [
+      "id",
+      "created_at",
+      "modified_at",
+      "inputs",
+      "name",
+      "dataset_id",
+    ];
+    const list = (options: {
+      select?: string[];
+      excludeDefaultFields?: boolean;
+      includeAttachments?: boolean;
+    }) => toArray(client.listExamples({ datasetId: dataset.id, ...options }));
+
+    // Flag on: the row is exactly the selected fields plus id.
+    for (const select of [["id"], ["id", "inputs"], ["outputs"]]) {
+      const [row] = await list({ select, excludeDefaultFields: true });
+      expect(Object.keys(row).sort()).toEqual(
+        [...new Set(["id", ...select])].sort(),
+      );
+      expect(row.id).toBe(example.id);
+      if (select.includes("inputs")) {
+        expect(row.inputs).toEqual({ input: "hello" });
+      }
+      if (select.includes("outputs")) {
+        expect(row.outputs).toEqual({ output: "hi" });
+      }
+    }
+
+    // Flag on with includeAttachments: its fields are selected, inputs is not.
+    const [withAttachments] = await list({
+      includeAttachments: true,
+      excludeDefaultFields: true,
+    });
+    expect(withAttachments.id).toBe(example.id);
+    expect(withAttachments.outputs).toEqual({ output: "hi" });
+    expect(withAttachments.metadata).toMatchObject({ key: "value" });
+    expect(withAttachments).not.toHaveProperty("inputs");
+
+    // Flag on without select: the default fields still come back.
+    const [noSelect] = await list({ excludeDefaultFields: true });
+    for (const field of defaultFields) {
+      expect(noSelect).toHaveProperty(field);
+    }
+    expect(noSelect.inputs).toEqual({ input: "hello" });
+
+    // Flag off: every default field is present whatever select says.
+    for (const select of [undefined, ["id"], ["outputs"]]) {
+      const [row] = await list({ select, excludeDefaultFields: false });
+      for (const field of defaultFields) {
+        expect(row).toHaveProperty(field);
+      }
+      expect(row.id).toBe(example.id);
+      expect(row.inputs).toEqual({ input: "hello" });
+      if (select?.includes("outputs")) {
+        expect(row.outputs).toEqual({ output: "hi" });
+      }
+    }
+  } finally {
+    await client.deleteDataset({ datasetId: dataset.id });
+  }
+});
+
 requiresClickhouse.test(
   "Test getRunUrl with run",
   async () => {

@@ -11,7 +11,13 @@ import {
   _checkBackendVersion,
 } from "../client.js";
 import { v4 as uuid } from "../utils/uuid/src/index.js";
-import type { ExampleCreate, KVMap, RunCreate } from "../schemas.js";
+import type {
+  Example,
+  ExampleCreate,
+  KVMap,
+  RunCreate,
+  SparseExample,
+} from "../schemas.js";
 import { mockClient } from "./utils/mock_client.js";
 import { getAssumedTreeFromCalls } from "./utils/tree.js";
 import {
@@ -191,6 +197,90 @@ describe("Client", () => {
       });
     },
   );
+
+  // These check the query string the client builds, not what the server
+  // returns. Server behavior is covered by the integration test.
+  describe("listExamples select", () => {
+    const datasetId = "550e8400-e29b-41d4-a716-446655440001";
+    const exampleId = "550e8400-e29b-41d4-a716-446655440000";
+
+    async function requestParams<Sparse extends boolean = false>(options: {
+      select?: string[];
+      excludeDefaultFields?: Sparse;
+      includeAttachments?: boolean;
+    }) {
+      const mockFetch = jest
+        .fn<typeof fetch>()
+        .mockResolvedValue(Response.json([{ id: exampleId }]));
+      const client = new Client({
+        apiUrl: "https://smith.example.test/api/v1",
+        apiKey: "test-api-key",
+        fetchImplementation: mockFetch,
+      });
+      const examples: Array<Sparse extends true ? SparseExample : Example> = [];
+      for await (const example of client.listExamples({
+        datasetId,
+        limit: 1,
+        ...options,
+      })) {
+        examples.push(example);
+      }
+      const [url] = mockFetch.mock.calls[0];
+      return { params: new URL(String(url)).searchParams, examples };
+    }
+
+    // Flag on: both params go on the wire, and the row comes back as-is.
+    it("sends select and exclude_default_fields", async () => {
+      const { params, examples } = await requestParams({
+        select: ["id"],
+        excludeDefaultFields: true,
+      });
+      expect(params.getAll("select")).toEqual(["id"]);
+      expect(params.get("exclude_default_fields")).toBe("true");
+      expect(examples).toEqual([{ id: exampleId }]);
+    });
+
+    // Flag off or omitted: the request is identical to before this option existed.
+    it.each([{}, { excludeDefaultFields: false }])(
+      "sends neither for %p",
+      async (options) => {
+        const { params } = await requestParams(options);
+        expect(params.getAll("select")).toEqual([]);
+        expect(params.has("exclude_default_fields")).toBe(false);
+      },
+    );
+
+    // Type-level: flag on narrows rows to SparseExample, flag off keeps Example.
+    it("types rows by the flag", async () => {
+      const { examples: sparse } = await requestParams({
+        select: ["id"],
+        excludeDefaultFields: true,
+      });
+      const sparseRow: SparseExample = sparse[0];
+      expect(() => {
+        // @ts-expect-error inputs is optional on a sparse row
+        return sparseRow.inputs.question;
+      }).toThrow(TypeError);
+      const { examples: full } = await requestParams({});
+      const fullRow: Example = full[0];
+      expect(fullRow.id).toBe(exampleId);
+    });
+
+    // includeAttachments adds its fields to select rather than replacing it.
+    it("merges select with includeAttachments without duplicates", async () => {
+      const { params } = await requestParams({
+        select: ["id", "outputs"],
+        includeAttachments: true,
+      });
+      expect(params.getAll("select")).toEqual([
+        "id",
+        "outputs",
+        "attachment_urls",
+        "metadata",
+      ]);
+      expect(params.has("exclude_default_fields")).toBe(false);
+    });
+  });
 
   describe("resource tags on create", () => {
     const tagValueIds = [

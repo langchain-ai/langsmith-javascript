@@ -22,6 +22,7 @@ import {
   ExampleCreate,
   ExampleUpdate,
   ExampleUpdateWithoutId,
+  SparseExample,
   Feedback,
   FeedbackConfig,
   FeedbackIngestToken,
@@ -5209,7 +5210,7 @@ export class Client implements LangSmithTracingClientInterface {
     return example;
   }
 
-  public async *listExamples({
+  public async *listExamples<Sparse extends boolean = false>({
     datasetId,
     datasetName,
     exampleIds,
@@ -5221,6 +5222,8 @@ export class Client implements LangSmithTracingClientInterface {
     offset,
     filter,
     includeAttachments,
+    select,
+    excludeDefaultFields,
   }: {
     datasetId?: string;
     datasetName?: string;
@@ -5233,7 +5236,15 @@ export class Client implements LangSmithTracingClientInterface {
     offset?: number;
     filter?: string;
     includeAttachments?: boolean;
-  } = {}): AsyncIterable<Example> {
+    /** Fields to include in each example, such as "id" or "outputs". */
+    select?: string[];
+    /**
+     * Return only the fields in `select`, plus `id`. Other default fields
+     * (`created_at`, `modified_at`, `inputs`, `name`, `dataset_id`) are absent
+     * unless selected. Rows are typed as `SparseExample` when this is `true`.
+     */
+    excludeDefaultFields?: Sparse;
+  } = {}): AsyncIterable<Sparse extends true ? SparseExample : Example> {
     let datasetId_;
     if (datasetId !== undefined && datasetName !== undefined) {
       throw new Error("Must provide either datasetName or datasetId, not both");
@@ -5279,10 +5290,17 @@ export class Client implements LangSmithTracingClientInterface {
     if (filter !== undefined) {
       params.append("filter", filter);
     }
+    const selectFields = new Set(select ?? []);
     if (includeAttachments === true) {
-      ["attachment_urls", "outputs", "metadata"].forEach((field) =>
-        params.append("select", field),
-      );
+      for (const field of ["attachment_urls", "outputs", "metadata"]) {
+        selectFields.add(field);
+      }
+    }
+    for (const field of selectFields) {
+      params.append("select", field);
+    }
+    if (excludeDefaultFields === true) {
+      params.append("exclude_default_fields", "true");
     }
     let i = 0;
     for await (const rawExamples of this._getPaginated<RawExample>(
@@ -5304,7 +5322,7 @@ export class Client implements LangSmithTracingClientInterface {
             {} as Record<string, AttachmentInfo>,
           );
         }
-        yield example;
+        yield example as Sparse extends true ? SparseExample : Example;
         i++;
       }
       if (limit !== undefined && i >= limit) {

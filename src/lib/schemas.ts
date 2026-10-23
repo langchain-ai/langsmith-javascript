@@ -315,6 +315,12 @@ export interface Example extends BaseExample {
   split?: string | string[];
 }
 
+/**
+ * A row from `listExamples` with `excludeDefaultFields: true`. Only `id` is
+ * guaranteed; every other field is present only if it was selected.
+ */
+export type SparseExample = Pick<Example, "id"> & Partial<Omit<Example, "id">>;
+
 interface RawAttachmentInfo {
   presigned_url: string;
   s3_url: string;
