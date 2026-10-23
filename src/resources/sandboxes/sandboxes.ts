@@ -1131,6 +1131,12 @@ export interface SandboxResponse {
   updated_by?: string;
 
   vcpus?: number;
+
+  /**
+   * Volumes (beta) are the volumes attached to the sandbox, in slot order. Absent
+   * when the workspace does not have sandbox volumes enabled.
+   */
+  volumes?: Array<SandboxResponse.Volume>;
 }
 
 export namespace SandboxResponse {
@@ -1154,6 +1160,16 @@ export namespace SandboxResponse {
     user?: string;
 
     work_dir?: string;
+  }
+
+  export interface Volume {
+    mount_path?: string;
+
+    read_only?: boolean;
+
+    volume_id?: string;
+
+    volume_name?: string;
   }
 }
 

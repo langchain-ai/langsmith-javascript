@@ -314,6 +314,13 @@ export interface BoxCreateParams {
   tag_value_ids?: Array<string>;
 
   vcpus?: number;
+
+  /**
+   * Volumes (beta) attaches existing volumes at mount paths inside the sandbox. At
+   * most 4; requires sandbox volumes to be enabled for your workspace. Attaching a
+   * volume requires being its creator or holding sandboxes:exec.
+   */
+  volumes?: Array<BoxCreateParams.Volume>;
 }
 
 export namespace BoxCreateParams {
@@ -338,6 +345,23 @@ export namespace BoxCreateParams {
     user?: string;
 
     work_dir?: string;
+  }
+
+  export interface Volume {
+    /**
+     * MountPath is the absolute directory inside the sandbox where the volume appears.
+     */
+    mount_path: string;
+
+    /**
+     * Volume is the volume's ID or name.
+     */
+    volume: string;
+
+    /**
+     * ReadOnly mounts the volume read-only; many sandboxes may do so at once.
+     */
+    read_only?: boolean;
   }
 }
 
