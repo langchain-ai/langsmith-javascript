@@ -474,6 +474,15 @@ export interface BoxCreateSnapshotParams {
   fs_capacity_bytes?: number;
 
   /**
+   * ImageConfig sets the command and ports the snapshot records, as a Docker image's
+   * ENTRYPOINT, CMD and EXPOSE do. By default a capture keeps those of the snapshot
+   * the sandbox was created from; each field given here replaces that one, and an
+   * empty list clears it. A function serving the snapshot runs this command and
+   * listens on its one exposed port.
+   */
+  image_config?: BoxCreateSnapshotParams.ImageConfig;
+
+  /**
    * Sandbox settings to carry into the snapshot. Sandboxes created from it start
    * with each carried setting their create request leaves unset: "mounts" (the
    * mount_config, with its auth), "proxy_config", "env_vars", "resources" (CPU and
@@ -513,6 +522,31 @@ export interface BoxCreateSnapshotParams {
 }
 
 export namespace BoxCreateSnapshotParams {
+  /**
+   * ImageConfig sets the command and ports the snapshot records, as a Docker image's
+   * ENTRYPOINT, CMD and EXPOSE do. By default a capture keeps those of the snapshot
+   * the sandbox was created from; each field given here replaces that one, and an
+   * empty list clears it. A function serving the snapshot runs this command and
+   * listens on its one exposed port.
+   */
+  export interface ImageConfig {
+    /**
+     * Cmd follows Entrypoint, as CMD: its arguments, or the whole command when
+     * Entrypoint is empty.
+     */
+    cmd?: Array<string>;
+
+    /**
+     * Entrypoint is the program the command starts with, as ENTRYPOINT.
+     */
+    entrypoint?: Array<string>;
+
+    /**
+     * ExposedPorts are the TCP ports the command listens on, as EXPOSE.
+     */
+    exposed_ports?: Array<number>;
+  }
+
   /**
    * RunConfig overrides the runtime configuration the snapshot carries: for a
    * docker_image export, the image's USER, WORKDIR and ENV; for a capture of the

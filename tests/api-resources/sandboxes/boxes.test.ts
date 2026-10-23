@@ -114,6 +114,11 @@ describe('resource boxes', () => {
       description: 'description',
       docker_image: 'docker_image',
       fs_capacity_bytes: 0,
+      image_config: {
+        cmd: ['string'],
+        entrypoint: ['string'],
+        exposed_ports: [0],
+      },
       include: ['all'],
       include_memory: true,
       labels: { foo: 'string' },
