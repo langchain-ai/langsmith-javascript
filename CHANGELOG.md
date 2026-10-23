@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.11.1](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.0...v0.11.1) (2026-10-23)
+
+
+### Features
+
+* add agent owner API support ([114ccc9](https://github.com/langchain-ai/langsmith-javascript/commit/114ccc9a71df437bffe57be7d946bc8f54715b0b))
+* **agents:** add agent registry CRUD to SDKs and CLI ([6dcf245](https://github.com/langchain-ai/langsmith-javascript/commit/6dcf245b865ffe1e9aed5c92f71309df11b56b47))
+* **cli:** expose runs share and get-url to the CLI ([a49befa](https://github.com/langchain-ai/langsmith-javascript/commit/a49befae0d11bb6a686c4167b51156c7efbee8b2))
+* **code-eval-v2:** allow trajectory on code_evaluator_input storage ([373193d](https://github.com/langchain-ai/langsmith-javascript/commit/373193d1c9848574495a85dbc17b2244e45d2411))
+* **engine:** scan and fix GitLab projects through a workspace service account ([2f19a24](https://github.com/langchain-ai/langsmith-javascript/commit/2f19a24a72c6e07d5d2f2a64a0a09fe497b27c27))
+* **evaluators:** add a decision evaluator type ([98795f0](https://github.com/langchain-ai/langsmith-javascript/commit/98795f0b354fd20a2e3e0f25057a2756530ad1b4))
+* **evaluators:** workspace_secrets_keys on code evaluator CRUD ([2f6c792](https://github.com/langchain-ai/langsmith-javascript/commit/2f6c792f4ab5a5758b1c2a6f37250ac6fd68f85b))
+* **js-sdk:** batch createFeedback through the multipart endpoint ([7ec472a](https://github.com/langchain-ai/langsmith-javascript/commit/7ec472a216b2d1070a408624c60ea9b750e20427))
+* **runs:** add feedback modified_at window to /v2/traces/query ([a214626](https://github.com/langchain-ai/langsmith-javascript/commit/a214626d2b2ee571e692e2dded4ae4c670d149a9))
+* **sandboxes:** carry sandbox settings into snapshots with include ([20de753](https://github.com/langchain-ai/langsmith-javascript/commit/20de7538a19cd48143e5b1f44d19b75ccb2beac4))
+* **sandboxes:** let LangSmith login service URLs be embedded by named origins ([b32d596](https://github.com/langchain-ai/langsmith-javascript/commit/b32d5963b1e5aa81706ed58658fe23d4a9fc748c))
+* **sdk-js:** create and list enforced feedback configs ([990cd41](https://github.com/langchain-ai/langsmith-javascript/commit/990cd41502fff5f72b62d513c7ab0894cbf6011a))
+* **sdk:** add select and excludeDefaultFields to listExamples in the JS SDK ([6e06ed6](https://github.com/langchain-ai/langsmith-javascript/commit/6e06ed671c3a04cae749edb1457ee4027505a130))
+* **sdk:** expose prompt webhooks in the SDKs and the langsmith CLI ([d170f31](https://github.com/langchain-ai/langsmith-javascript/commit/d170f31bdc6abd6493b95a4d1e751d09f1e2256f))
+* **sdk:** expose prompt webhooks in the SDKs and the langsmith CLI ([ae865f6](https://github.com/langchain-ai/langsmith-javascript/commit/ae865f6ba211b149985dded367ae113f67e53e94))
+
+
+### Bug Fixes
+
+* **deps:** remediate open Dependabot advisories ([73c7167](https://github.com/langchain-ai/langsmith-javascript/commit/73c71677b14874b4188142dc8b04decc9172c85d))
+* **sandboxes:** add cursor pagination to registry listing ([a0042b6](https://github.com/langchain-ai/langsmith-javascript/commit/a0042b6be05ae09ddbfef5c57bd8deaf7d9c26fb))
+* **sdk:** default JavaScript agent creation to EXTERNAL ([3e652c9](https://github.com/langchain-ai/langsmith-javascript/commit/3e652c986b86922caf3a8f2f80234a4febeba072))
+* **sdk:** keep wrap_openai Responses stream output when it ends incomplete or failed ([7faf71c](https://github.com/langchain-ai/langsmith-javascript/commit/7faf71ce6f719186529474c6a54f395420f21f81))
+* support Standard Units in sandbox cost breakdowns ([3a7b3b4](https://github.com/langchain-ai/langsmith-javascript/commit/3a7b3b4b9ba8347b99af69812374e07ca2f7a428))
+* update reference outputs ([bb02776](https://github.com/langchain-ai/langsmith-javascript/commit/bb0277648117ff5397625c6385c9473abd0d4846))
+
+
+### Chores
+
+* remove langsmith-sdk and staging repo leftovers, update SDK docs ([422242b](https://github.com/langchain-ai/langsmith-javascript/commit/422242bb9691aaa620af4447597b9145cf4bf387))
+* **sdks:** stop committing generated .stats.yml ([950fbd9](https://github.com/langchain-ai/langsmith-javascript/commit/950fbd91624f5b0bfdb4e0bb33ec635399092d5a))
+
+
+### Documentation
+
+* point SDK agents at the monorepo JavaScript source ([9028f69](https://github.com/langchain-ai/langsmith-javascript/commit/9028f692768b466527e80f53ac55dbc7b26f8d47))
+
+
+### Build System
+
+* bump JavaScript SDK dependencies for security fixes ([75a71a7](https://github.com/langchain-ai/langsmith-javascript/commit/75a71a78d527430bd36e297dbfe630c6e22a610d))
+* **sdks:** share sandbox mount and proxy config models ([7069372](https://github.com/langchain-ai/langsmith-javascript/commit/70693722064453667fb897bcdf5d9f0f7301ea89))
+
 ## [0.11.0](https://github.com/langchain-ai/langsmith-javascript/compare/v0.10.13...v0.11.0) (2026-10-15)
 
 
