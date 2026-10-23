@@ -10,9 +10,9 @@
     },
     "noEmit": false,
     "declaration": true,
-    "declarationMap": true,
+    "declarationMap": false,
     "outDir": "dist",
     "pretty": true,
-    "sourceMap": true
+    "sourceMap": false
   }
 }
