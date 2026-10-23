@@ -139,6 +139,12 @@ import {
   hasLargeString,
   SerializeWorker,
 } from "./utils/serialize_worker.js";
+import {
+  CompressionCodec,
+  compressChunks,
+  GZIP_LEVEL_SUPPORTED,
+  ZSTD_AVAILABLE,
+} from "./utils/compression.js";
 
 function assertPullPublicPromptAllowed(
   promptIdentifier: string,
@@ -215,6 +221,41 @@ export interface ClientConfig {
   maxIngestMemoryBytes?: number;
   blockOnRootRunFinalization?: boolean;
   traceBatchConcurrency?: number;
+  /**
+   * Compress each multipart batch before it waits in the upload queue, so a
+   * queued batch holds its compressed bytes instead of its runs and their
+   * serialized parts. Uploads then send that buffer unchanged, and its
+   * compressed size is what counts toward `maxIngestMemoryBytes`.
+   *
+   * - `true` or `"auto"`: zstd when this runtime has it (Node.js 22.15+ or
+   *   23.8+) and the server reports `zstd_compression_enabled`, otherwise gzip
+   *   when the server reports `gzip_body_enabled`.
+   * - `"zstd"` or `"gzip"`: only that encoding, when the runtime and server
+   *   support it.
+   * - An object, to also set the `level` (zstd: at most 22, default 3; gzip:
+   *   0 to 9, default 1) and, for zstd, `windowLog`: the base-2 log of the
+   *   match window, 10 to 27, defaulting to zstd's choice for the level. A
+   *   larger window lets later runs in a batch reference the message history
+   *   earlier runs already carried. Outside Node.js, gzip uses
+   *   `CompressionStream`, which ignores `level`.
+   *
+   * When no encoding applies, uploads use the existing path: gzip applied
+   * while sending, when the server reports `gzip_body_enabled`.
+   *
+   * Defaults to the `LANGSMITH_RUN_COMPRESSION` env var (`auto`, `zstd` or
+   * `gzip`), with `LANGSMITH_RUN_COMPRESSION_LEVEL` and
+   * `LANGSMITH_RUN_COMPRESSION_WINDOW_LOG` for an explicit encoding. Disabled
+   * when `LANGSMITH_DISABLE_RUN_COMPRESSION` is `"true"`.
+   */
+  runCompression?:
+    | boolean
+    | "auto"
+    | RunCompressionEncoding
+    | {
+        algorithm: RunCompressionEncoding;
+        level?: number;
+        windowLog?: number;
+      };
   fetchOptions?: RequestInit;
   /**
    * Whether to require manual .flush() calls before sending traces.
@@ -690,6 +731,47 @@ type AutoBatchQueueItem = {
   size?: number;
 };
 
+type BatchOperations = {
+  /** The batch's run creates and updates, as queued. */
+  runItems: AutoBatchQueueItem[];
+  runCreates: RunCreate[];
+  runUpdates: RunUpdate[];
+  feedbacks: FeedbackCreate[];
+};
+
+/** Separate a batch's operations by action, keeping batch order. */
+function splitBatchOperations(batch: AutoBatchQueueItem[]): BatchOperations {
+  const operations: BatchOperations = {
+    runItems: [],
+    runCreates: [],
+    runUpdates: [],
+    feedbacks: [],
+  };
+  for (const queued of batch) {
+    const { action, item } = queued;
+    switch (action) {
+      case "create":
+        operations.runItems.push(queued);
+        operations.runCreates.push(item as RunCreate);
+        break;
+      case "update":
+        operations.runItems.push(queued);
+        operations.runUpdates.push(item as RunUpdate);
+        break;
+      case "feedback":
+        operations.feedbacks.push(item as FeedbackCreate);
+        break;
+      default: {
+        // A new action fails to compile here; one that reaches runtime anyway
+        // fails loudly instead of being sent as the wrong operation.
+        const unknownAction: never = action;
+        throw new Error(`Unknown batch operation action: ${unknownAction}`);
+      }
+    }
+  }
+  return operations;
+}
+
 type MultipartPart = {
   name: string;
   payload: Blob;
@@ -821,6 +903,148 @@ function trimQuotes(str?: string): string | undefined {
     .replace(/^'(.*)'$/, "$1");
 }
 
+type RunCompressionEncoding = CompressionCodec["encoding"];
+
+/**
+ * The codecs `ClientConfig.runCompression` allows, most preferred first, or
+ * `undefined` when compressing before queueing is off.
+ */
+function resolveRunCompressionCodecs(
+  config: ClientConfig["runCompression"],
+): CompressionCodec[] | undefined {
+  const requested = config ?? parseRunCompressionEnv();
+  if (requested === undefined || requested === false) {
+    return undefined;
+  }
+  if (requested === true || requested === "auto") {
+    const codecs: CompressionCodec[] = [
+      { encoding: "gzip", level: DEFAULT_GZIP_COMPRESSION_LEVEL },
+    ];
+    if (ZSTD_AVAILABLE) {
+      codecs.unshift({
+        encoding: "zstd",
+        level: DEFAULT_ZSTD_COMPRESSION_LEVEL,
+      });
+    }
+    return codecs;
+  }
+  const { algorithm, level, windowLog } =
+    typeof requested === "string"
+      ? {
+          algorithm: requested,
+          level: parseIntegerEnv("RUN_COMPRESSION_LEVEL"),
+          windowLog: parseIntegerEnv("RUN_COMPRESSION_WINDOW_LOG"),
+        }
+      : requested;
+  switch (algorithm) {
+    case "zstd": {
+      const codec = validateZstdCodec(level, windowLog);
+      if (!ZSTD_AVAILABLE) {
+        warnOnce(
+          "zstd trace compression was requested, but this runtime has no " +
+            "zstd (Node.js 22.15+ or 23.8+ is required). Uploading traces " +
+            "without it.",
+        );
+        return undefined;
+      }
+      return [codec];
+    }
+    case "gzip": {
+      if (windowLog !== undefined) {
+        throw new Error("windowLog applies only to zstd trace compression.");
+      }
+      return [validateGzipCodec(level)];
+    }
+    default: {
+      const unknownAlgorithm: never = algorithm;
+      throw new Error(
+        `Unknown trace compression algorithm: ${JSON.stringify(
+          unknownAlgorithm,
+        )}.`,
+      );
+    }
+  }
+}
+
+/** `LANGSMITH_RUN_COMPRESSION`, as a `runCompression` value. */
+function parseRunCompressionEnv(): ClientConfig["runCompression"] {
+  const value = getLangSmithEnvironmentVariable("RUN_COMPRESSION")
+    ?.trim()
+    .toLowerCase();
+  switch (value) {
+    case undefined:
+    case "":
+    case "false":
+      return undefined;
+    case "true":
+    case "auto":
+      return "auto";
+    case "zstd":
+    case "gzip":
+      return value;
+    default:
+      throw new Error(
+        `LANGSMITH_RUN_COMPRESSION must be "auto", "zstd" or "gzip"; got ` +
+          `${JSON.stringify(value)}.`,
+      );
+  }
+}
+
+function validateZstdCodec(
+  level: number | undefined,
+  windowLog: number | undefined,
+): CompressionCodec {
+  const zstdLevel = level ?? DEFAULT_ZSTD_COMPRESSION_LEVEL;
+  if (!Number.isInteger(zstdLevel) || zstdLevel > MAX_ZSTD_COMPRESSION_LEVEL) {
+    throw new Error(
+      `zstd compression level must be an integer of at most ` +
+        `${MAX_ZSTD_COMPRESSION_LEVEL}; got ${zstdLevel}.`,
+    );
+  }
+  if (
+    windowLog !== undefined &&
+    (!Number.isInteger(windowLog) ||
+      windowLog < MIN_ZSTD_WINDOW_LOG ||
+      windowLog > MAX_ZSTD_WINDOW_LOG)
+  ) {
+    throw new Error(
+      `zstd windowLog must be an integer from ${MIN_ZSTD_WINDOW_LOG} to ` +
+        `${MAX_ZSTD_WINDOW_LOG}; got ${windowLog}.`,
+    );
+  }
+  return { encoding: "zstd", level: zstdLevel, windowLog };
+}
+
+function validateGzipCodec(level: number | undefined): CompressionCodec {
+  const gzipLevel = level ?? DEFAULT_GZIP_COMPRESSION_LEVEL;
+  if (!Number.isInteger(gzipLevel) || gzipLevel < 0 || gzipLevel > 9) {
+    throw new Error(
+      `gzip compression level must be an integer from 0 to 9; got ${gzipLevel}.`,
+    );
+  }
+  if (level !== undefined && !GZIP_LEVEL_SUPPORTED) {
+    warnOnce(
+      "A gzip trace compression level was set, but this runtime compresses " +
+        "with CompressionStream, which always uses the default level.",
+    );
+  }
+  return { encoding: "gzip", level: gzipLevel };
+}
+
+function parseIntegerEnv(name: string): number | undefined {
+  const value = getLangSmithEnvironmentVariable(name);
+  if (value === undefined || value.trim() === "") {
+    return undefined;
+  }
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed)) {
+    throw new Error(
+      `LANGSMITH_${name} must be an integer; got ${JSON.stringify(value)}.`,
+    );
+  }
+  return parsed;
+}
+
 const handle429 = async (response?: Response) => {
   if (response?.status === 429) {
     const retryAfter =
@@ -896,6 +1120,20 @@ const SERVER_INFO_REQUEST_TIMEOUT_MS = 10000;
 
 /** Maximum number of operations to batch in a single request. */
 const DEFAULT_BATCH_SIZE_LIMIT = 100;
+/** zstd's own default level: fast, with a much better ratio than level 1. */
+const DEFAULT_ZSTD_COMPRESSION_LEVEL = 3;
+const MAX_ZSTD_COMPRESSION_LEVEL = 22;
+/**
+ * gzip level 1. Higher levels cost several times the CPU for a few percent
+ * smaller output on trace JSON.
+ */
+const DEFAULT_GZIP_COMPRESSION_LEVEL = 1;
+/**
+ * Largest zstd window a decoder accepts without opting in to bigger ones
+ * (`ZSTD_WINDOWLOG_LIMIT_DEFAULT`).
+ */
+const MAX_ZSTD_WINDOW_LOG = 27;
+const MIN_ZSTD_WINDOW_LOG = 10;
 
 /**
  * Reject header names or values that could alter a request's framing.
@@ -1074,6 +1312,9 @@ export class AutoBatchQueue {
       poppedSizeBytes += item.size;
       this.sizeBytes -= item.size;
     }
+    // The done callback captures only the resolvers, so it does not keep the
+    // popped runs alive until their batch is sent.
+    const resolvers = popped.map((it) => it.itemPromiseResolve);
     return [
       popped.map((it) => ({
         action: it.action,
@@ -1084,7 +1325,7 @@ export class AutoBatchQueue {
         workspaceId: it.workspaceId,
         size: it.size,
       })),
-      () => popped.forEach((it) => it.itemPromiseResolve()),
+      () => resolvers.forEach((resolve) => resolve()),
     ];
   }
 }
@@ -1432,6 +1673,12 @@ export class Client implements LangSmithTracingClientInterface {
   private _runCompressionDisabled =
     getLangSmithEnvironmentVariable("DISABLE_RUN_COMPRESSION") === "true";
 
+  /**
+   * The codecs multipart batches may be compressed with before they are
+   * queued, most preferred first. Unset when that is off.
+   */
+  private _runCompressionCodecs?: CompressionCodec[];
+
   private failedTracesDir: string | undefined;
 
   private failedTracesMaxBytes: number = 100 * 1024 * 1024;
@@ -1533,6 +1780,9 @@ export class Client implements LangSmithTracingClientInterface {
     assertValidHeaders(config.headers);
     this._customHeaders = config.headers ?? {};
     this.manualFlushMode = config.manualFlushMode ?? this.manualFlushMode;
+    this._runCompressionCodecs = this._runCompressionDisabled
+      ? undefined
+      : resolveRunCompressionCodecs(config.runCompression);
     this._tracingMode = resolveTracingMode(config.tracingMode);
     if (this._tracingMode === "otel") {
       this.langSmithToOTELTranslator = new LangSmithToOTELTranslator();
@@ -2227,7 +2477,7 @@ export class Client implements LangSmithTracingClientInterface {
    */
   private static async _writeTraceToFallbackDir(
     directory: string,
-    body: ArrayBuffer | string,
+    body: ArrayBuffer | Uint8Array | string,
     replayHeaders: Record<string, string>,
     endpoint: string,
     maxBytes?: number,
@@ -2236,7 +2486,9 @@ export class Client implements LangSmithTracingClientInterface {
       const bodyBuffer =
         typeof body === "string"
           ? Buffer.from(body, "utf8")
-          : Buffer.from(body);
+          : ArrayBuffer.isView(body)
+            ? Buffer.from(body.buffer, body.byteOffset, body.byteLength)
+            : Buffer.from(body);
       const envelope = JSON.stringify({
         version: 1,
         endpoint,
@@ -2300,10 +2552,8 @@ export class Client implements LangSmithTracingClientInterface {
       0,
     );
 
-    const feedbacks = batch
-      .filter((item) => item.action === "feedback")
-      .map((item) => item.item) as FeedbackCreate[];
-    const runItems = batch.filter((item) => item.action !== "feedback");
+    const { runItems, runCreates, runUpdates, feedbacks } =
+      splitBatchOperations(batch);
 
     try {
       if (this.langSmithToOTELTranslator !== undefined) {
@@ -2315,18 +2565,22 @@ export class Client implements LangSmithTracingClientInterface {
         this._sendBatchToOTELTranslator(runItems);
         await this._postFeedbacks(feedbacks, options);
       } else {
-        const ingestParams = {
-          runCreates: batch
-            .filter((item) => item.action === "create")
-            .map((item) => item.item) as RunCreate[],
-          runUpdates: batch
-            .filter((item) => item.action === "update")
-            .map((item) => item.item) as RunUpdate[],
-        };
         const serverInfo = await this._ensureServerInfo();
         const useMultipart =
           !this._multipartDisabled &&
           (serverInfo?.batch_ingest_config?.use_multipart_endpoint ?? true);
+        const codec = useMultipart
+          ? this._runCompressionCodecFor(serverInfo)
+          : undefined;
+        if (codec !== undefined) {
+          await this._processPrecompressedBatch(
+            { runCreates, runUpdates, feedbacks },
+            codec,
+            options,
+          );
+          return;
+        }
+        const ingestParams = { runCreates, runUpdates };
         if (useMultipart) {
           const useGzip =
             !this._runCompressionDisabled &&
@@ -2365,6 +2619,66 @@ export class Client implements LangSmithTracingClientInterface {
       }
     } catch (e) {
       console.error("Error exporting batch:", e);
+    }
+  }
+
+  /**
+   * The first configured codec this server accepts, or `undefined` to use
+   * the existing upload path.
+   */
+  private _runCompressionCodecFor(
+    serverInfo: RecordStringAny | undefined,
+  ): CompressionCodec | undefined {
+    return this._runCompressionCodecs?.find((codec) => {
+      switch (codec.encoding) {
+        case "zstd":
+          return serverInfo?.instance_flags?.zstd_compression_enabled === true;
+        case "gzip":
+          return serverInfo?.instance_flags?.gzip_body_enabled === true;
+        default: {
+          const unknownCodec: never = codec;
+          throw new Error(
+            `Unknown compression encoding: ${JSON.stringify(unknownCodec)}`,
+          );
+        }
+      }
+    });
+  }
+
+  /**
+   * Send a batch as one compressed multipart request.
+   *
+   * The runs are serialized and compressed before the request joins the
+   * upload queue, and only the compressed body is kept while it waits. So,
+   * unlike the uncompressed path, a 404 from the multipart endpoint cannot
+   * resend this batch's runs to the batch endpoint: they are dropped, and
+   * later batches use the batch endpoint. The batch's feedback is small, so
+   * it is kept and posted one by one, as the uncompressed path does.
+   */
+  private async _processPrecompressedBatch(
+    {
+      runCreates,
+      runUpdates,
+      feedbacks,
+    }: Pick<BatchOperations, "runCreates" | "runUpdates" | "feedbacks">,
+    codec: CompressionCodec,
+    options?: { apiKey?: string; apiUrl?: string; workspaceId?: string },
+  ) {
+    try {
+      await this.multipartIngestRuns(
+        { runCreates, runUpdates, feedbacks },
+        { ...options, precompression: codec },
+      );
+    } catch (e: any) {
+      if (!isLangSmithNotFoundError(e)) {
+        throw e;
+      }
+      this._multipartDisabled = true;
+      console.warn(
+        "The multipart endpoint returned 404, so later batches use the batch " +
+          `endpoint. This ${codec.encoding}-compressed batch's runs were dropped.`,
+      );
+      await this._postFeedbacks(feedbacks, options);
     }
   }
 
@@ -2806,6 +3120,11 @@ export class Client implements LangSmithTracingClientInterface {
       apiUrl?: string;
       workspaceId?: string;
       useGzip?: boolean;
+      /**
+       * Compress the request with this codec before it joins the upload
+       * queue. The caller must know the server accepts the encoding.
+       */
+      precompression?: CompressionCodec;
       sizeBytes?: number;
     },
   ) {
@@ -3074,12 +3393,40 @@ export class Client implements LangSmithTracingClientInterface {
       apiUrl?: string;
       workspaceId?: string;
       useGzip?: boolean;
+      precompression?: CompressionCodec;
       sizeBytes?: number;
     },
   ) {
     // Create multipart form data boundary
     const boundary =
       "----LangSmithFormBoundary" + Math.random().toString(36).slice(2);
+
+    if (options?.precompression !== undefined) {
+      const codec = options.precompression;
+      const compressed = await this._compressMultipartBody(
+        parts,
+        boundary,
+        codec,
+      ).catch((e) => {
+        console.warn(
+          `${codec.encoding} compression failed; sending the batch without ` +
+            `compressing it first: ${e}`,
+        );
+        return undefined;
+      });
+      if (compressed !== undefined) {
+        // The compressed body is all the request needs from here on. Emptying
+        // the caller's list releases the serialized parts while it waits.
+        parts.length = 0;
+        await this._sendPrecompressedMultipartRequest(
+          compressed,
+          boundary,
+          context,
+          options,
+        );
+        return;
+      }
+    }
 
     const buildBuffered = () => this._createNodeFetchBody(parts, boundary);
     const buildStream = () => this._createMultipartStream(parts, boundary);
@@ -3192,6 +3539,118 @@ export class Client implements LangSmithTracingClientInterface {
             this.failedTracesMaxBytes,
           );
         }
+      }
+    }
+  }
+
+  /**
+   * Write the multipart body for `parts` through `codec`'s compressor, a part
+   * at a time, and return the compressed body with its uncompressed size.
+   */
+  private async _compressMultipartBody(
+    parts: MultipartPart[],
+    boundary: string,
+    codec: CompressionCodec,
+  ): Promise<{
+    body: Uint8Array;
+    encoding: CompressionCodec["encoding"];
+    uncompressedSize: number;
+  }> {
+    const encoder = new TextEncoder();
+    let uncompressedSize = 0;
+    async function* multipartChunks(): AsyncGenerator<Uint8Array> {
+      const chunks = function* (...strings: string[]) {
+        for (const str of strings) {
+          const bytes = encoder.encode(str);
+          uncompressedSize += bytes.byteLength;
+          yield bytes;
+        }
+      };
+      for (const part of parts) {
+        yield* chunks(
+          `--${boundary}\r\n`,
+          `Content-Disposition: form-data; name="${part.name}"\r\n`,
+          `Content-Type: ${part.payload.type}\r\n\r\n`,
+        );
+        const payload = new Uint8Array(await part.payload.arrayBuffer());
+        uncompressedSize += payload.byteLength;
+        yield payload;
+        yield* chunks("\r\n");
+      }
+      yield* chunks(`--${boundary}--\r\n`);
+    }
+    const body = await compressChunks(multipartChunks(), codec);
+    return { body, encoding: codec.encoding, uncompressedSize };
+  }
+
+  private async _sendPrecompressedMultipartRequest(
+    compressed: {
+      body: Uint8Array;
+      encoding: CompressionCodec["encoding"];
+      uncompressedSize: number;
+    },
+    boundary: string,
+    context: string,
+    options: { apiKey?: string; apiUrl?: string; workspaceId?: string },
+  ) {
+    const { body, encoding, uncompressedSize } = compressed;
+    const headers: Record<string, string> = {
+      ...this._mergedHeaders,
+      "Content-Type": `multipart/form-data; boundary=${boundary}`,
+      "Content-Encoding": encoding,
+    };
+    if (encoding === "zstd") {
+      // The size headers the Python SDK sends with its zstd uploads.
+      headers["X-Pre-Compressed-Size"] = String(uncompressedSize);
+      headers["X-Post-Compressed-Size"] = String(body.byteLength);
+    }
+    if (options.apiKey !== undefined) {
+      headers["x-api-key"] = options.apiKey;
+    }
+    if (options.workspaceId !== undefined) {
+      headers["x-tenant-id"] = options.workspaceId;
+    }
+    try {
+      // The queue holds this request's compressed bytes, so they are what
+      // counts toward maxIngestMemoryBytes.
+      await this.batchIngestCaller.callWithOptions(
+        { sizeBytes: body.byteLength },
+        async () => {
+          const response = await this._fetch(
+            `${options.apiUrl ?? this.apiUrl}/runs/multipart`,
+            {
+              method: "POST",
+              headers,
+              body: body as BodyInit,
+              signal: AbortSignal.timeout(this.timeout_ms),
+              ...this.fetchOptions,
+            } as RequestInit,
+          );
+          await raiseForStatus(
+            response,
+            `Failed to send multipart request`,
+            true,
+          );
+          return response;
+        },
+      );
+    } catch (e: any) {
+      // Re-throw 404 errors so the caller can stop using the multipart endpoint
+      if (isLangSmithNotFoundError(e)) {
+        throw e;
+      }
+      console.warn(`${e.message.trim()}\n\nContext: ${context}`);
+      if (this.failedTracesDir) {
+        await Client._writeTraceToFallbackDir(
+          this.failedTracesDir,
+          body,
+          {
+            "Content-Type": `multipart/form-data; boundary=${boundary}`,
+            "Content-Encoding": encoding,
+          },
+          "runs/multipart",
+          this.failedTracesMaxBytes,
+        );
       }
     }
   }
