@@ -38,6 +38,10 @@ node scripts/utils/make-dist-package-json.cjs > dist/package.json
 # compat. No way to get that from index.ts because it would cause compile errors
 # when building .mjs
 node scripts/utils/fix-index-exports.cjs
+# vendored code keeps its license next to the compiled output
+(cd dist/src && find . -iname 'license*' | while read -r f; do
+  mkdir -p "../$(dirname "$f")" && cp "$f" "../$f"
+done)
 rm -rf dist/src
 
 node scripts/utils/postprocess-files.cjs
