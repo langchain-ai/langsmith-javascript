@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.12.0](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.1...v0.12.0) (2026-10-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sandboxes:** add sandbox volumes
+
+### Features
+
+* **sandboxes:** add sandbox volumes ([ded5cc0](https://github.com/langchain-ai/langsmith-javascript/commit/ded5cc0f356e9387903919069db6a8fa15709f70))
+* **sandboxes:** create non-persistent sandboxes with `persistent: false` (private beta), never billed for storage ([3dbbe4e](https://github.com/langchain-ai/langsmith-javascript/commit/3dbbe4ebd0181cc61c1a902ea613a7f1307d0956))
+* **sandboxes:** relay sandbox egress through a customer's network ([5246a91](https://github.com/langchain-ai/langsmith-javascript/commit/5246a91cb4e5c7a4f18fc2102e6e0f1b71b91a82))
+* **sandboxes:** sandbox functions ([d5632f1](https://github.com/langchain-ai/langsmith-javascript/commit/d5632f1e07e0129bedfcbde9126ddcf2e465da65))
+
+
+### Bug Fixes
+
+* **sdk:** omit TypeScript sources and maps from JS package ([32915e8](https://github.com/langchain-ai/langsmith-javascript/commit/32915e8c7a4f63e092be247e7b03ff77ea66d0af))
+* **sdk:** ship vendored license files in JS package ([3bc9ab7](https://github.com/langchain-ai/langsmith-javascript/commit/3bc9ab7ebbd4ccb59e43a04f1cc4f72018b9666f))
+
 ## [0.11.1](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.0...v0.11.1) (2026-10-23)
 
 
