@@ -124,6 +124,76 @@ describe("serviceUrl token mode", () => {
   });
 });
 
+describe("serviceUrl embed origins", () => {
+  const embedBody = (token: string, expiresAt: string) => ({
+    ...TOKEN_BODY,
+    token,
+    expires_at: expiresAt,
+    embed_url: `https://box--8000.example.dev/_svc/embed#token=${token}`,
+    embed_origins: ["https://dash.example.com"],
+  });
+
+  it("sends them and exposes the embed URL and normalized origins", async () => {
+    const { client, mockFetch } = clientWithMock(
+      embedBody("tok", "2099-01-01T00:00:00Z"),
+    );
+    const svc = (await client.serviceUrl("sb", {
+      port: 8000,
+      embedOrigins: ["https://Dash.Example.com"],
+    })) as ServiceUrl;
+    expect(sentBody(mockFetch)).toEqual({
+      port: 8000,
+      embed_origins: ["https://Dash.Example.com"],
+    });
+    expect(await svc.embedUrl()).toBe(
+      "https://box--8000.example.dev/_svc/embed#token=tok",
+    );
+    expect(svc.embedOrigins).toEqual(["https://dash.example.com"]);
+  });
+
+  it("keeps them on refresh", async () => {
+    const { client, mockFetch } = clientWithMock();
+    (mockFetch as any)
+      .mockImplementationOnce(() =>
+        Promise.resolve(jsonResponse(embedBody("old", "2000-01-01T00:00:00Z"))),
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve(jsonResponse(embedBody("new", "2099-01-01T00:00:00Z"))),
+      );
+    const origins = ["https://dash.example.com"];
+    const svc = (await client.serviceUrl("sb", {
+      port: 8000,
+      embedOrigins: origins,
+    })) as ServiceUrl;
+    origins[0] = "https://evil.example.com"; // must not reach later tokens
+    expect(await svc.embedUrl()).toBe(
+      "https://box--8000.example.dev/_svc/embed#token=new",
+    );
+    expect(sentBody(mockFetch, 1)).toEqual({
+      port: 8000,
+      embed_origins: ["https://dash.example.com"],
+    });
+  });
+
+  it("returns them for a login URL", async () => {
+    const { client, mockFetch } = clientWithMock({
+      ...LOGIN_BODY,
+      embed_origins: ["https://dash.example.com"],
+    });
+    const result = (await client.serviceUrl("sb", {
+      port: 8000,
+      access: "workspace",
+      embedOrigins: ["https://dash.example.com"],
+    })) as ServiceLoginUrl;
+    expect(sentBody(mockFetch)).toEqual({
+      port: 8000,
+      access: "workspace",
+      embed_origins: ["https://dash.example.com"],
+    });
+    expect(result.embedOrigins).toEqual(["https://dash.example.com"]);
+  });
+});
+
 describe("serviceUrl LangSmith login mode", () => {
   it.each(["restricted", "workspace"] as const)(
     "returns a login URL for access=%s",

@@ -528,6 +528,13 @@ export class SandboxClient {
    *
    * A login grant is durable, so token mode is refused with 409 while one is
    * in place, and `expiresInSeconds` does not apply to the login modes.
+   *
+   * `embedOrigins` names the pages allowed to show the URL in an iframe,
+   * besides LangSmith itself: at most 5, each `https://host[:port]` (`http`
+   * only on localhost). In token mode they are signed into each token, so
+   * every refresh keeps them; load {@link ServiceUrl.embedUrl} in the frame.
+   * With `access` they are stored on the grant, and each call replaces the
+   * grant's list.
    */
   async serviceUrl(
     name: string,
@@ -535,10 +542,16 @@ export class SandboxClient {
       port: number;
       expiresInSeconds?: number;
       access?: ServiceAccess;
+      embedOrigins?: string[];
       signal?: AbortSignal;
     },
   ): Promise<ServiceUrl | ServiceLoginUrl> {
     const { port, expiresInSeconds, access, signal } = options;
+    // Every refresh re-sends these, so keep a copy: a caller changing its
+    // array later can't change later tokens.
+    const embedOrigins = options.embedOrigins
+      ? [...options.embedOrigins]
+      : undefined;
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       throw new LangSmithValidationError(
         `port must be between 1 and 65535 (got ${port})`,
@@ -572,13 +585,17 @@ export class SandboxClient {
     if (access !== undefined) {
       payload.access = access;
     }
+    if (embedOrigins !== undefined && embedOrigins.length > 0) {
+      payload.embed_origins = embedOrigins;
+    }
 
     const response = await this._postJson(url, payload, { signal });
     const data = await response.json();
     if (loginMode) {
       return new ServiceLoginUrl(data);
     }
-    // Refresh with the token parameters only. Carrying options.signal over
+    // Refresh with the token parameters only, embed origins included, since
+    // each token carries its own. Carrying options.signal over
     // would tie every later refresh to the first request's lifetime, so a
     // caller-supplied timeout signal would leave the URL unable to refresh.
     return new ServiceUrl(
@@ -587,6 +604,7 @@ export class SandboxClient {
         this.serviceUrl(name, {
           port,
           expiresInSeconds,
+          embedOrigins,
         }) as Promise<ServiceUrl>,
       this._traceSandbox(name),
     );

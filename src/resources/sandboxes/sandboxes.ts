@@ -1212,10 +1212,18 @@ export interface ServiceURLResponse {
   browser_url?: string;
 
   /**
-   * EmbedOrigins echoes the origins that may embed a LangSmith login URL,
-   * normalized; omitted when there are none.
+   * EmbedOrigins echoes the origins that may embed the URL, normalized; omitted when
+   * there are none.
    */
   embed_origins?: Array<string>;
+
+  /**
+   * EmbedURL opens the service in an iframe: the token rides the URL fragment, which
+   * no server, log or Referer header sees, and the page it loads trades it for the
+   * cookie. Append &redirect=/path to land elsewhere than /. Omitted in LangSmith
+   * login mode.
+   */
+  embed_url?: string;
 
   expires_at?: string;
 

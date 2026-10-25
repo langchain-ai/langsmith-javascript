@@ -15,6 +15,8 @@ export interface ServiceUrlData {
   token?: string;
   expires_at?: string;
   access?: string;
+  embed_url?: string;
+  embed_origins?: string[];
 }
 
 /**
@@ -27,6 +29,8 @@ export class ServiceUrl {
   private _serviceUrl: string;
   private _token: string;
   private _expiresAt: string;
+  private _embedUrl: string;
+  private _embedOrigins: string[];
   private readonly _refresher?: () => Promise<ServiceUrl>;
 
   constructor(
@@ -38,6 +42,8 @@ export class ServiceUrl {
     this._serviceUrl = data.service_url ?? "";
     this._token = data.token ?? "";
     this._expiresAt = data.expires_at ?? "";
+    this._embedUrl = data.embed_url ?? "";
+    this._embedOrigins = data.embed_origins ?? [];
     this._refresher = refresher;
   }
 
@@ -55,6 +61,8 @@ export class ServiceUrl {
     this._serviceUrl = fresh._serviceUrl;
     this._token = fresh._token;
     this._expiresAt = fresh._expiresAt;
+    this._embedUrl = fresh._embedUrl;
+    this._embedOrigins = fresh._embedOrigins;
   }
 
   /** The signed token, refreshed if near expiry. */
@@ -73,6 +81,21 @@ export class ServiceUrl {
   async browserUrl(): Promise<string> {
     await this._maybeRefresh();
     return this._browserUrl;
+  }
+
+  /**
+   * The URL to load in an iframe, refreshed if near expiry. The token rides
+   * the URL fragment, so no server sees it; append `&redirect=/path` to open a
+   * page other than `/`. Only pages on {@link embedOrigins} may frame it.
+   */
+  async embedUrl(): Promise<string> {
+    await this._maybeRefresh();
+    return this._embedUrl;
+  }
+
+  /** The origins allowed to frame the URL, as the server normalized them. */
+  get embedOrigins(): string[] {
+    return [...this._embedOrigins];
   }
 
   /** ISO 8601 expiry of the current token, refreshed if near expiry. */
@@ -104,9 +127,15 @@ export class ServiceLoginUrl {
   readonly url: string;
   /** Who may open it: "restricted" or "workspace". */
   readonly access: string;
+  /**
+   * The origins allowed to frame the URL, as the server normalized them. A
+   * viewer signs in from inside the frame through a LangSmith popup.
+   */
+  readonly embedOrigins: string[];
 
   constructor(data: ServiceUrlData) {
     this.url = data.browser_url || data.service_url || "";
     this.access = data.access ?? "";
+    this.embedOrigins = data.embed_origins ?? [];
   }
 }
