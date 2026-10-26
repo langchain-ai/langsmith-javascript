@@ -554,7 +554,7 @@ interface CreateRunParams {
   child_runs?: RunCreate[];
   parent_run_id?: string;
   project_name?: string;
-  /** (beta) Send the run to this address instead of a project. */
+  /** Send the run to this address instead of a project. */
   address?: AgentAddress;
   revision_id?: string;
   trace_id?: string;
@@ -630,7 +630,7 @@ export type CreateFeedbackParams = CreateFeedbackOptions &
     | {
         /** The run to provide feedback on. */
         runId: string;
-        /** (beta) The address the run was sent to, e.g. `runTree.address`. */
+        /** The address the run was sent to, e.g. `runTree.address`. */
         address: AgentAddress;
         sessionId?: never;
         projectId?: never;
@@ -1869,7 +1869,7 @@ export class Client implements LangSmithTracingClientInterface {
   }
 
   /**
-   * (beta) Access the sessions resource, which resolves an address to the
+   * Access the sessions resource, which resolves an address to the
    * project its traces go to: `client.sessions.resolve(address)`.
    */
   public get sessions(): Sessions {
@@ -3348,7 +3348,7 @@ export class Client implements LangSmithTracingClientInterface {
     run?: Run;
     projectOpts?: ProjectOptions;
     /**
-     * (beta) An address that names the run's project, such as the
+     * An address that names the run's project, such as the
      * `AgentAddress` the run was sent to or an `ExperimentAddress`, for a run
      * that names no project. It is resolved to its project with one request,
      * which needs LangSmith 0.18 or later. It must name the project the run is
@@ -5694,7 +5694,7 @@ export class Client implements LangSmithTracingClientInterface {
       runId?: string | null;
       sessionId?: string;
       projectId?: string;
-      /** (beta) Send the feedback to this agent instead of a project. */
+      /** Send the feedback to this agent instead of a project. */
       address?: AgentAddress;
     } = typeof runIdOrParams === "object" && runIdOrParams !== null
       ? runIdOrParams

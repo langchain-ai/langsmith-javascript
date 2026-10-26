@@ -1,11 +1,10 @@
 /**
- * (beta) Addresses that name where runs are sent instead of a project.
- * Enabled per workspace; a workspace without it rejects the runs.
+ * Addresses that name where runs are sent instead of a project.
  *
  * An `Address` names a tracing project held by a feature: an `AgentAddress`, an
  * `ExperimentAddress` or the workspace's `EvaluatorAddress`. Any of them can be resolved to
  * its project. Only an `AgentAddress` can receive traces, and ingestion rejects the
- * others at its entry points.
+ * others at its entry points. Self-hosted deployments need LangSmith v0.18 or later.
  *
  * @example
  * ```ts
@@ -17,7 +16,7 @@
  */
 import { getEnvironmentVariable } from "./utils/env.js";
 
-/** (beta) An agent environment. */
+/** An agent environment. */
 export type Environment = "local" | "development" | "staging" | "production";
 
 /**
@@ -26,14 +25,14 @@ export type Environment = "local" | "development" | "staging" | "production";
  */
 export type Lrn = `lrn:agents/${string}/environments/${Environment}`;
 
-/** (beta) The address of an agent's environment. */
+/** The address of an agent's environment. */
 export interface AgentAddress {
   kind: "AGENT";
   id: string;
   environment: Uppercase<Environment>;
 }
 
-/** (beta) Construct and validate an agent address; plain objects are also accepted. */
+/** Construct and validate an agent address; plain objects are also accepted. */
 export class AgentAddress {
   constructor(id: string, environment: Environment | (string & {})) {
     const address = ensureAgent({ kind: "AGENT", id, environment });
@@ -44,13 +43,13 @@ export class AgentAddress {
   }
 }
 
-/** (beta) The address of an experiment's tracing project. */
+/** The address of an experiment's tracing project. */
 export interface ExperimentAddress {
   kind: "EXPERIMENT";
   id: string;
 }
 
-/** (beta) Construct and validate an experiment address. */
+/** Construct and validate an experiment address. */
 export class ExperimentAddress {
   constructor(id: string) {
     const address = ensureAddress({ kind: "EXPERIMENT", id });
@@ -60,12 +59,12 @@ export class ExperimentAddress {
   }
 }
 
-/** (beta) The address of the workspace's shared evaluators project. */
+/** The address of the workspace's shared evaluators project. */
 export interface EvaluatorAddress {
   kind: "EVALUATOR";
 }
 
-/** (beta) Construct the workspace's evaluators address. */
+/** Construct the workspace's evaluators address. */
 export class EvaluatorAddress {
   constructor() {
     this.kind = "EVALUATOR";
@@ -73,10 +72,10 @@ export class EvaluatorAddress {
   }
 }
 
-/** (beta) A feature that holds traces in a tracing project. */
+/** A feature that holds traces in a tracing project. */
 export type Address = AgentAddress | ExperimentAddress | EvaluatorAddress;
 
-/** (beta) An address as the resolve endpoint takes it. */
+/** An address as the resolve endpoint takes it. */
 export type ApiAddress = Address;
 
 const UUID_PATTERN =
@@ -91,7 +90,7 @@ const LRN_PATTERN = /^lrn:agents\/([^/]+)\/environments\/([^/]+)$/;
 
 const ENV_NAMES = ["LANGSMITH_AGENT_ID", "LANGSMITH_AGENT_ENVIRONMENT"];
 
-/** (beta) The `LANGSMITH_AGENT_*` / project env vars name half an address, or both. */
+/** The `LANGSMITH_AGENT_*` / project env vars name half an address, or both. */
 export class EnvAddressError extends Error {
   constructor(message: string) {
     super(message);

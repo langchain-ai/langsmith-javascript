@@ -72,10 +72,9 @@ export type LangSmithOTLPTraceExporterConfig = ConstructorParameters<
   projectName?: string;
 
   /**
-   * (beta) The agent environment to export traces to, instead of a project.
+   * The agent environment to export traces to, instead of a project.
    * Defaults to the one `LANGSMITH_AGENT_ID` and `LANGSMITH_AGENT_ENVIRONMENT`
-   * name. Naming both a project and an address throws. Agent addressing is
-   * enabled per workspace.
+   * name. Naming both a project and an address throws.
    */
   address?: AgentAddress;
 

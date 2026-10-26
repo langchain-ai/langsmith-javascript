@@ -111,10 +111,6 @@ export function applyToPayload(
   if (!address) {
     return;
   }
-  warnOnce(
-    "Sending runs to an `address` is in beta and enabled per workspace; a " +
-      "workspace without it rejects the runs.",
-  );
   payload.address = addressToLrn(address);
   if (!namedProject) {
     delete payload.session_name;

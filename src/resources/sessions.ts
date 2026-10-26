@@ -6,7 +6,6 @@ import { RequestOptions } from '../internal/request-options';
 
 export class Sessions extends APIResource {
   /**
-   * **Beta:** This endpoint is in active development and may change without notice.
    * Returns the tracing project (session) an address names. An address is an AGENT
    * (`id` and `environment`), an EXPERIMENT (`id`), or an EVALUATOR (no `id`:
    * evaluator traces share one project per workspace). Send `kind` and `environment`
@@ -14,7 +13,7 @@ export class Sessions extends APIResource {
    * `id` is case-sensitive. An address that does not exist, or whose project you
    * cannot read, is a 404. Pass the returned `session_id` to any endpoint that takes
    * a project (session) ID. This is not supported on a BYOC data plane yet, and is a
-   * 501 there.
+   * 501 there. Self-hosted deployments need LangSmith v0.18 or later.
    */
   resolve(query: SessionResolveParams, options?: RequestOptions): APIPromise<SessionResolveResponse> {
     return this._client.get('/api/v1/sessions/resolutions', { query, ...options });
