@@ -399,8 +399,8 @@ export namespace Issue {
     provider: 'github' | 'gitlab';
 
     /**
-     * ProviderWebBaseURL is the GitLab instance a GitLab fix lives on; null for
-     * GitHub.
+     * ProviderWebBaseURL is the instance the fix was opened on; null on GitHub fixes
+     * from before it was recorded.
      */
     provider_web_base_url: string | null;
 
