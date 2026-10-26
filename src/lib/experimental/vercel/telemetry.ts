@@ -235,6 +235,7 @@ export function LangSmithTelemetry(
     rootRunTree: RunTree;
     stepRunTrees: Map<number, RunTree>;
     toolRunTrees: Map<string, RunTree>;
+    modelCallStartedAt?: number;
     experimental_harness?: ExperimentalHarnessState;
   }
 
@@ -476,6 +477,10 @@ export function LangSmithTelemetry(
       const stepRunTree = getOpenStepOrRoot(state);
       if (stepRunTree.run_type !== "llm") return;
 
+      // Overwritten on every attempt: the AI SDK re-anchors its own
+      // `timeToFirstOutputMs` clock for each retry.
+      state.modelCallStartedAt = Date.now();
+
       const prevParams = isRecord(stepRunTree.extra?.invocation_params)
         ? stepRunTree.extra.invocation_params
         : {};
@@ -644,6 +649,21 @@ export function LangSmithTelemetry(
         }
       }
     }
+
+    const timeToFirstOutputMs = event.performance?.timeToFirstOutputMs;
+    if (
+      typeof timeToFirstOutputMs === "number" &&
+      state.modelCallStartedAt != null &&
+      !stepRunTree.events?.some((e) => e.name === "new_token")
+    ) {
+      stepRunTree.addEvent({
+        name: "new_token",
+        time: new Date(
+          state.modelCallStartedAt + timeToFirstOutputMs,
+        ).toISOString(),
+      });
+    }
+    state.modelCallStartedAt = undefined;
 
     // Set usage metadata
     // @ts-expect-error SharedV4ProviderMetadata is not assignable to SharedV2ProviderMetadata
