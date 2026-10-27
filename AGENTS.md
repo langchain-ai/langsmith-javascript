@@ -30,7 +30,7 @@ Integration tests (`pnpm test:integration`) and vitest suites (`pnpm test:vitest
 
 ## Generated files
 
-Files whose first line carries `File generated from our OpenAPI spec by Stainless.` are generated. Do not edit them by hand. Change `smith-backend/static/openapi.json` or `smith-sdks/stainless/stainless.yml`, then from the langchainplus root run `./langdev sdks gen javascript` and commit `sdks/javascript` with `smith-sdks/stainless/patches/javascript.files` and `javascript.patch`. The `check sdk` job fails unless this directory is the generator output plus that patch.
+Files whose first line carries `File generated from our OpenAPI spec by Stainless.` are generated. Do not edit them by hand. Change `smith-backend/static/openapi.json` or `sdks/tooling/stainless/stainless.yml`, then from the langchainplus root run `./langdev sdks gen javascript` and commit `sdks/javascript` with `sdks/tooling/stainless/patches/javascript.files` and `javascript.patch`. The `check sdk` job fails unless this directory is the generator output plus that patch.
 
 Files that are not listed in `javascript.files` are hand-written. `langdev sdks gen` does not touch them. Hand-written client code lives in `src/lib/`.
 

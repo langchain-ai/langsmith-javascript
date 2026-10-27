@@ -13,7 +13,7 @@ pnpm build
 
 ## Make changes
 
-Most of the SDK is generated from the LangSmith API definition by Stainless. Do not edit generated files directly. From the langchainplus root, run `./langdev sdks gen javascript` after changing `smith-backend/static/openapi.json` or `smith-sdks/stainless/stainless.yml`, and commit this directory with `smith-sdks/stainless/patches/javascript.files` and `javascript.patch`.
+Most of the SDK is generated from the LangSmith API definition by Stainless. Do not edit generated files directly. From the langchainplus root, run `./langdev sdks gen javascript` after changing `smith-backend/static/openapi.json` or `sdks/tooling/stainless/stainless.yml`, and commit this directory with `sdks/tooling/stainless/patches/javascript.files` and `javascript.patch`.
 
 Handwritten code belongs in `src/lib/` or `examples/`. Files that are not listed in `javascript.files` are left alone by generation. Changes to generated API behavior should be made in the source API definition or Stainless configuration, with help from an SDK maintainer.
 
