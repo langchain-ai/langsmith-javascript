@@ -113,15 +113,6 @@ import {
   TracerSessionWithoutVirtualFields,
 } from './resources/sessions';
 import {
-  Trace,
-  TraceAggregates,
-  TraceListRunsParams,
-  TraceListRunsResponse,
-  TraceQueryParams,
-  Traces,
-  TracesItemsCursorPostPagination,
-} from './resources/traces';
-import {
   AnnotationQueueAnnotationQueuesParams,
   AnnotationQueueCreateRunStatusParams,
   AnnotationQueueCreateRunStatusResponse,
@@ -203,6 +194,15 @@ import {
   Threads,
   ThreadsItemsCursorPostPagination,
 } from './resources/threads/threads';
+import {
+  Trace,
+  TraceAggregates,
+  TraceListRunsParams,
+  TraceListRunsResponse,
+  TraceQueryParams,
+  Traces,
+  TracesItemsCursorPostPagination,
+} from './resources/traces/traces';
 import { type Fetch } from './internal/builtin-types';
 import { HeadersLike, NullableHeaders, buildHeaders } from './internal/headers';
 import { FinalRequestOptions, RequestOptions } from './internal/request-options';
@@ -1239,4 +1239,7 @@ export declare namespace Langsmith {
     type SandboxListUsageCostsResponsesItemsCursorGetPagination as SandboxListUsageCostsResponsesItemsCursorGetPagination,
     type SandboxListUsageCostsParams as SandboxListUsageCostsParams,
   };
+
+  export type QueryPatchEvent = API.QueryPatchEvent;
+  export type QueryPatchOperation = API.QueryPatchOperation;
 }

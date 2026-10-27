@@ -498,6 +498,24 @@ const run = page.items[0];
 console.log(run.id);
 ```
 
+## Streaming responses
+
+We provide support for streaming responses using Server Sent Events (SSE).
+
+```ts
+import Langsmith from 'langsmith';
+
+const client = new Langsmith();
+
+const stream = await client.runs.streaming.queryV2();
+for await (const queryPatchEvent of stream) {
+  console.log(queryPatchEvent.items);
+}
+```
+
+If you need to cancel a stream, you can `break` from the loop
+or call `stream.controller.abort()`.
+
 ### Request & Response types
 
 This library includes TypeScript definitions for all request params and response fields. You may import and use them like so:

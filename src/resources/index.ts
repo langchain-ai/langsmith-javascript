@@ -1,5 +1,6 @@
 // File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
 
+export * from './shared';
 export {
   Agents,
   type Agent,
@@ -165,4 +166,4 @@ export {
   type TraceListRunsParams,
   type TraceQueryParams,
   type TracesItemsCursorPostPagination,
-} from './traces';
+} from './traces/traces';

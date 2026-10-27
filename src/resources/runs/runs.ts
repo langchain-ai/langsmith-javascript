@@ -4,6 +4,8 @@ import { APIResource } from '../../core/resource';
 import * as SessionsAPI from '../sessions';
 import * as ShareAPI from './share';
 import { Share, ShareCreateParams, ShareCreateResponse, ShareDeleteParams } from './share';
+import * as StreamingAPI from './streaming';
+import { Streaming, StreamingQueryV2Params, StreamingQueryV2Response } from './streaming';
 import { APIPromise } from '../../core/api-promise';
 import {
   ItemsCursorPostPagination,
@@ -15,6 +17,7 @@ import { RequestOptions } from '../../internal/request-options';
 import { path } from '../../internal/utils/path';
 
 export class Runs extends APIResource {
+  streaming: StreamingAPI.Streaming = new StreamingAPI.Streaming(this._client);
   share: ShareAPI.Share = new ShareAPI.Share(this._client);
 
   /**
@@ -1089,6 +1092,7 @@ export interface RunRetrieveV2Params {
   Accept?: string;
 }
 
+Runs.Streaming = Streaming;
 Runs.Share = Share;
 
 export declare namespace Runs {
@@ -1107,6 +1111,12 @@ export declare namespace Runs {
     type RunGetURLParams as RunGetURLParams,
     type RunQueryV2Params as RunQueryV2Params,
     type RunRetrieveV2Params as RunRetrieveV2Params,
+  };
+
+  export {
+    Streaming as Streaming,
+    type StreamingQueryV2Response as StreamingQueryV2Response,
+    type StreamingQueryV2Params as StreamingQueryV2Params,
   };
 
   export {

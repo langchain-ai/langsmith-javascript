@@ -8,6 +8,7 @@ export {
   type ShareRetrieveParams,
   type ShareDeleteParams,
 } from './share';
+export { Streaming, type StreamingQueryResponse, type StreamingQueryParams } from './streaming';
 export {
   Threads,
   type Thread,

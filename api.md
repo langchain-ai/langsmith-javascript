@@ -1,3 +1,10 @@
+# Shared
+
+Types:
+
+- <code><a href="./src/resources/shared.ts">QueryPatchEvent</a></code>
+- <code><a href="./src/resources/shared.ts">QueryPatchOperation</a></code>
+
 # ProductFeedback
 
 Types:
@@ -102,6 +109,16 @@ Methods:
 - <code title="post /api/v2/runs/query">client.runs.<a href="./src/resources/runs/runs.ts">queryV2</a>({ ...params }) -> RunsItemsCursorPostPagination</code>
 - <code title="get /api/v2/runs/{run_id}">client.runs.<a href="./src/resources/runs/runs.ts">retrieveV2</a>(runID, { ...params }) -> Run</code>
 
+## Streaming
+
+Types:
+
+- <code><a href="./src/resources/runs/streaming.ts">StreamingQueryV2Response</a></code>
+
+Methods:
+
+- <code title="post /api/v2/runs/query">client.runs.streaming.<a href="./src/resources/runs/streaming.ts">queryV2</a>({ ...params }) -> StreamingQueryV2Response</code>
+
 ## Share
 
 Types:
@@ -129,6 +146,16 @@ Methods:
 - <code title="post /api/v2/threads/query">client.threads.<a href="./src/resources/threads/threads.ts">query</a>({ ...params }) -> ThreadsItemsCursorPostPagination</code>
 - <code title="get /api/v2/threads/{thread_id}/stats">client.threads.<a href="./src/resources/threads/threads.ts">stats</a>(threadID, { ...params }) -> ThreadStats</code>
 
+## Streaming
+
+Types:
+
+- <code><a href="./src/resources/threads/streaming.ts">StreamingQueryResponse</a></code>
+
+Methods:
+
+- <code title="post /api/v2/threads/query">client.threads.streaming.<a href="./src/resources/threads/streaming.ts">query</a>({ ...params }) -> StreamingQueryResponse</code>
+
 ## Share
 
 Types:
@@ -146,14 +173,24 @@ Methods:
 
 Types:
 
-- <code><a href="./src/resources/traces.ts">Trace</a></code>
-- <code><a href="./src/resources/traces.ts">TraceAggregates</a></code>
-- <code><a href="./src/resources/traces.ts">TraceListRunsResponse</a></code>
+- <code><a href="./src/resources/traces/traces.ts">Trace</a></code>
+- <code><a href="./src/resources/traces/traces.ts">TraceAggregates</a></code>
+- <code><a href="./src/resources/traces/traces.ts">TraceListRunsResponse</a></code>
 
 Methods:
 
-- <code title="get /api/v2/traces/{trace_id}/runs">client.traces.<a href="./src/resources/traces.ts">listRuns</a>(traceID, { ...params }) -> TraceListRunsResponse</code>
-- <code title="post /api/v2/traces/query">client.traces.<a href="./src/resources/traces.ts">query</a>({ ...params }) -> TracesItemsCursorPostPagination</code>
+- <code title="get /api/v2/traces/{trace_id}/runs">client.traces.<a href="./src/resources/traces/traces.ts">listRuns</a>(traceID, { ...params }) -> TraceListRunsResponse</code>
+- <code title="post /api/v2/traces/query">client.traces.<a href="./src/resources/traces/traces.ts">query</a>({ ...params }) -> TracesItemsCursorPostPagination</code>
+
+## Streaming
+
+Types:
+
+- <code><a href="./src/resources/traces/streaming.ts">StreamingQueryResponse</a></code>
+
+Methods:
+
+- <code title="post /api/v2/traces/query">client.traces.streaming.<a href="./src/resources/traces/streaming.ts">query</a>({ ...params }) -> StreamingQueryResponse</code>
 
 # OnlineEvaluators
 

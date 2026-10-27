@@ -18,3 +18,4 @@ export {
   type RunsItemsCursorPostPagination,
 } from './runs';
 export { Share, type ShareCreateResponse, type ShareCreateParams, type ShareDeleteParams } from './share';
+export { Streaming, type StreamingQueryV2Response, type StreamingQueryV2Params } from './streaming';

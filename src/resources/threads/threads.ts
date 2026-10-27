@@ -10,6 +10,8 @@ import {
   ShareRetrieveParams,
   ShareRetrieveResponse,
 } from './share';
+import * as StreamingAPI from './streaming';
+import { Streaming, StreamingQueryParams, StreamingQueryResponse } from './streaming';
 import { APIPromise } from '../../core/api-promise';
 import {
   ItemsCursorGetPagination,
@@ -23,6 +25,7 @@ import { RequestOptions } from '../../internal/request-options';
 import { path } from '../../internal/utils/path';
 
 export class Threads extends APIResource {
+  streaming: StreamingAPI.Streaming = new StreamingAPI.Streaming(this._client);
   share: ShareAPI.Share = new ShareAPI.Share(this._client);
 
   /**
@@ -1203,6 +1206,7 @@ export interface ThreadStatsParams {
   filter?: string;
 }
 
+Threads.Streaming = Streaming;
 Threads.Share = Share;
 
 export declare namespace Threads {
@@ -1217,6 +1221,12 @@ export declare namespace Threads {
     type ThreadListTracesParams as ThreadListTracesParams,
     type ThreadQueryParams as ThreadQueryParams,
     type ThreadStatsParams as ThreadStatsParams,
+  };
+
+  export {
+    Streaming as Streaming,
+    type StreamingQueryResponse as StreamingQueryResponse,
+    type StreamingQueryParams as StreamingQueryParams,
   };
 
   export {
