@@ -96,6 +96,11 @@ export interface Agent {
   source_type: 'LSD' | 'MDA' | 'EXTERNAL' | 'FLEET';
 
   /**
+   * AvatarURL is a short-lived URL for the agent avatar, when present.
+   */
+  avatar_url?: string | null;
+
+  /**
    * Owner is the owner's full name, falling back to email when available.
    */
   owner?: string;
