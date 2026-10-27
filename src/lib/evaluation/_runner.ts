@@ -1,13 +1,12 @@
 import { Client, RunTree, RunTreeConfig } from "../index.js";
 import {
   AttachmentInfo,
-  BaseRun,
   Example,
   KVMap,
   Run,
   TracerSession,
 } from "../schemas.js";
-import { isTraceableFunction, traceable } from "../traceable.js";
+import { isTraceableFunction, traceable, withRunTree } from "../traceable.js";
 import { getDefaultRevisionId, getGitInfo } from "../utils/_git.js";
 import { assertUuid } from "../utils/_uuid.js";
 import { atee } from "../utils/atee.js";
@@ -28,6 +27,11 @@ import {
   ComparativeEvaluator,
 } from "./evaluate_comparative.js";
 import { PQueue, PQueueType } from "../utils/p-queue.js";
+import { isAsyncIterable } from "../utils/asserts.js";
+import {
+  _LC_CHILD_RUN_END_PROMISES_KEY,
+  _LC_RUN_OUTPUT_PROCESSING_STARTED_KEY,
+} from "../singletons/constants.js";
 
 export type TargetConfigT = KVMap & {
   attachments?: Record<string, AttachmentInfo>;
@@ -120,6 +124,8 @@ export type EvaluatorT =
       attachments?: Record<string, any>;
     }) => Promise<EvaluationResult | EvaluationResult[] | EvaluationResults>);
 
+type UploadRuns = boolean | ((example: Example) => boolean);
+
 interface _ForwardResults {
   run: Run;
   example: Example;
@@ -127,6 +133,9 @@ interface _ForwardResults {
 }
 
 interface _ExperimentManagerArgs {
+  uploadRuns?: UploadRuns;
+  uploadDecisions?: Map<string, boolean>;
+  experimentName?: string;
   data?: DataT;
   experiment?: TracerSession | string;
   metadata?: KVMap;
@@ -183,6 +192,14 @@ type BaseEvaluateOptions = {
 };
 
 export interface EvaluateOptions extends BaseEvaluateOptions {
+  /**
+   * Whether to upload runs and row feedback. A predicate is called once per
+   * example occurrence, before the target runs. All results remain available
+   * locally and to summary evaluators. With a predicate, project summaries are
+   * uploaded even when no runs are selected. Set false for a local-only run.
+   * @default true
+   */
+  uploadRuns?: UploadRuns;
   /**
    * The maximum number of concurrent predictions to run.
    * If not provided, defaults to `maxConcurrency` when set.
@@ -322,6 +339,8 @@ export class _ExperimentManager {
   _description?: string;
   _includeAttachments?: boolean;
   _disableEvaluatorTracing?: boolean;
+  _uploadRuns: UploadRuns;
+  _uploadDecisions: Map<string, boolean>;
 
   get experimentName(): string {
     if (this._experimentName) {
@@ -406,7 +425,7 @@ export class _ExperimentManager {
   constructor(args: _ExperimentManagerArgs) {
     this.client = args.client ?? new Client();
     if (!args.experiment) {
-      this._experimentName = randomName();
+      this._experimentName = args.experimentName ?? randomName();
     } else if (typeof args.experiment === "string") {
       this._experimentName = `${args.experiment}-${uuidv4().slice(0, 8)}`;
     } else {
@@ -444,6 +463,8 @@ export class _ExperimentManager {
     this._evaluatorKeys = args.evaluatorKeys;
     this._includeAttachments = args.includeAttachments;
     this._disableEvaluatorTracing = args.disableEvaluatorTracing;
+    this._uploadRuns = args.uploadRuns ?? true;
+    this._uploadDecisions = args.uploadDecisions ?? new Map();
   }
 
   _getExperiment(): TracerSession {
@@ -539,8 +560,11 @@ export class _ExperimentManager {
   async start(): Promise<_ExperimentManager> {
     const examples = await this.getExamples();
     const firstExample = examples[0];
-    const project = await this._getProject(firstExample);
-    await this._printExperimentStart();
+    const project =
+      this._uploadRuns === false
+        ? undefined
+        : await this._getProject(firstExample);
+    if (project) await this._printExperimentStart();
     this._metadata["num_repetitions"] = this._numRepetitions;
     return new _ExperimentManager({
       examples,
@@ -556,6 +580,9 @@ export class _ExperimentManager {
       evaluatorKeys: this._evaluatorKeys,
       includeAttachments: this._includeAttachments,
       disableEvaluatorTracing: this._disableEvaluatorTracing,
+      uploadRuns: this._uploadRuns,
+      uploadDecisions: this._uploadDecisions,
+      experimentName: this.experimentName,
     });
   }
 
@@ -595,6 +622,9 @@ export class _ExperimentManager {
       evaluatorKeys: this._evaluatorKeys,
       includeAttachments: this._includeAttachments,
       disableEvaluatorTracing: this._disableEvaluatorTracing,
+      uploadRuns: this._uploadRuns,
+      uploadDecisions: this._uploadDecisions,
+      experimentName: this.experimentName,
     });
   }
 
@@ -633,6 +663,9 @@ export class _ExperimentManager {
       evaluatorKeys: this._evaluatorKeys,
       includeAttachments: this._includeAttachments,
       disableEvaluatorTracing: this._disableEvaluatorTracing,
+      uploadRuns: this._uploadRuns,
+      uploadDecisions: this._uploadDecisions,
+      experimentName: this.experimentName,
     });
   }
 
@@ -656,6 +689,9 @@ export class _ExperimentManager {
       evaluatorKeys: this._evaluatorKeys,
       includeAttachments: this._includeAttachments,
       disableEvaluatorTracing: this._disableEvaluatorTracing,
+      uploadRuns: this._uploadRuns,
+      uploadDecisions: this._uploadDecisions,
+      experimentName: this.experimentName,
     });
   }
 
@@ -754,18 +790,31 @@ export class _ExperimentManager {
       for await (const result of _mapWithConcurrency(
         examplesWithIndex,
         queue,
-        (item) =>
-          _forward(
+        async (item) => {
+          let upload = false;
+          try {
+            upload =
+              typeof this._uploadRuns === "function"
+                ? this._uploadRuns(item.example)
+                : this._uploadRuns;
+          } catch (error) {
+            console.warn(
+              `Upload selection failed for example ${item.example.id}; keeping the run local.`,
+              error,
+            );
+          }
+          const forwardResult = await _forward(
             target,
             item.example,
             this.experimentName,
             this._metadata,
             this.client,
             this._includeAttachments,
-          ).then((forwardResult) => ({
-            ...forwardResult,
-            exampleIndex: item.exampleIndex,
-          })),
+            upload,
+          );
+          this._uploadDecisions.set(forwardResult.run.id, upload);
+          return { ...forwardResult, exampleIndex: item.exampleIndex };
+        },
       )) {
         yield result;
       }
@@ -799,6 +848,8 @@ export class _ExperimentManager {
     },
   ): Promise<_ExperimentResultRowWithIndex> {
     const { run, example, evaluationResults, exampleIndex } = currentResults;
+    const upload =
+      this._uploadDecisions.get(run.id) ?? this._uploadRuns !== false;
     for (const evaluator of evaluators) {
       try {
         const options = {
@@ -810,7 +861,7 @@ export class _ExperimentManager {
               : new Date(example.created_at).toISOString(),
           },
           client: fields.client,
-          tracingEnabled: !this._disableEvaluatorTracing,
+          tracingEnabled: upload && !this._disableEvaluatorTracing,
         };
         const rawEvaluatorResponse = await evaluator.evaluateRun(
           run,
@@ -819,15 +870,18 @@ export class _ExperimentManager {
         );
         // With tracing off there is no evaluator run for the feedback to point
         // at, so drop the link rather than leaving it dangling.
-        const evaluatorResponse = this._disableEvaluatorTracing
-          ? _withoutSourceRunIds(rawEvaluatorResponse)
-          : rawEvaluatorResponse;
+        const evaluatorResponse =
+          !upload || this._disableEvaluatorTracing
+            ? _withoutSourceRunIds(rawEvaluatorResponse)
+            : rawEvaluatorResponse;
         evaluationResults.results.push(
-          ...(await fields.client.logEvaluationFeedback({
-            evaluatorResponse,
-            run,
-            projectId: this._getExperiment().id,
-          })),
+          ...(upload
+            ? await fields.client.logEvaluationFeedback({
+                evaluatorResponse,
+                run,
+                projectId: this._getExperiment().id,
+              })
+            : fields.client._selectEvalResults(evaluatorResponse)),
         );
       } catch (e) {
         console.error(
@@ -883,7 +937,8 @@ export class _ExperimentManager {
   async *_applySummaryEvaluators(
     summaryEvaluators: Array<SummaryEvaluatorT>,
   ): AsyncGenerator<(runsArray: Run[]) => AsyncGenerator<EvaluationResults>> {
-    const projectId = this._getExperiment().id;
+    const projectId =
+      this._uploadRuns === false ? undefined : this._getExperiment().id;
     const examples = await this.getExamples();
 
     const options = Array.from({ length: summaryEvaluators.length }).map(
@@ -898,7 +953,9 @@ export class _ExperimentManager {
       options,
       // Only override when disabling. Passing `true` here would force tracing
       // on for callers who have it switched off via the environment.
-      this._disableEvaluatorTracing ? false : undefined,
+      this._uploadRuns === false || this._disableEvaluatorTracing
+        ? false
+        : undefined,
     );
 
     yield async function* (
@@ -914,7 +971,9 @@ export class _ExperimentManager {
           const flattenedResults =
             this.client._selectEvalResults(summaryEvalResult);
           aggregateFeedback.push(...flattenedResults);
-          for (const result of flattenedResults) {
+          for (const result of this._uploadRuns === false
+            ? []
+            : flattenedResults) {
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { targetRunId, key, ...feedback } = result;
             const evaluatorInfo = feedback.evaluatorInfo;
@@ -997,6 +1056,7 @@ export class _ExperimentManager {
   }
 
   async _end(): Promise<void> {
+    if (this._uploadRuns === false) return;
     const experiment = this._experiment;
     if (!experiment) {
       throw new Error("Experiment not yet started.");
@@ -1075,6 +1135,12 @@ async function _evaluate(
     experiment?: TracerSession;
   },
 ): Promise<ExperimentResults | ComparisonEvaluationResults> {
+  const uploadRuns = (fields as EvaluateOptions).uploadRuns ?? true;
+  if (uploadRuns !== true && (Array.isArray(target) || !_isCallable(target))) {
+    throw new Error(
+      "uploadRuns is supported only when evaluating a new target.",
+    );
+  }
   // Add check for comparative evaluation
   if (Array.isArray(target)) {
     const comparativeOptions = fields as ComparativeEvaluateOptions;
@@ -1113,6 +1179,7 @@ async function _evaluate(
     evaluatorKeys: _collectEvaluatorKeys(standardFields.evaluators),
     includeAttachments: standardFields.includeAttachments,
     disableEvaluatorTracing: standardFields.disableEvaluatorTracing,
+    uploadRuns,
   }).start();
 
   const targetConcurrency =
@@ -1166,8 +1233,68 @@ async function _evaluate(
   // Start consuming the results.
   const results = new ExperimentResults(manager);
   await results.processData(manager);
-  await client.awaitPendingTraceBatches();
+  if (uploadRuns !== false) await client.awaitPendingTraceBatches();
   return results;
+}
+
+function _hasStartedOutputProcessing(run: RunTree): boolean {
+  return (
+    (run as RunTree & { [_LC_RUN_OUTPUT_PROCESSING_STARTED_KEY]?: boolean })[
+      _LC_RUN_OUTPUT_PROCESSING_STARTED_KEY
+    ] === true
+  );
+}
+
+// Wait for trace processing; keep unselected runs and children entirely in memory.
+function _captureEvaluationRun(
+  run: RunTree,
+  completions: Map<RunTree, Promise<void>>,
+  upload: boolean,
+): RunTree {
+  let resolveEnded!: () => void;
+  completions.set(
+    run,
+    new Promise<void>((resolve) => {
+      resolveEnded = resolve;
+    }),
+  );
+  // Wait for finished child bodies to finalize their outputs, but not for
+  // background children that are still executing user code.
+  Object.defineProperty(run, _LC_CHILD_RUN_END_PROMISES_KEY, {
+    get: () =>
+      [...completions]
+        .filter(
+          ([child]) =>
+            child.parent_run === run && _hasStartedOutputProcessing(child),
+        )
+        .map(([, completion]) => completion),
+    set: () => undefined,
+  });
+  const postRun = run.postRun.bind(run);
+  run.postRun = async (...args: Parameters<RunTree["postRun"]>) => {
+    const endedAtEntry = run.end_time !== undefined;
+    const children = run.child_runs;
+    try {
+      if (upload) await postRun(...args);
+    } finally {
+      run.child_runs = children;
+      if (endedAtEntry) resolveEnded();
+    }
+  };
+  const patchRun = run.patchRun.bind(run);
+  run.patchRun = async (...args: Parameters<RunTree["patchRun"]>) => {
+    const children = run.child_runs;
+    try {
+      if (upload) await patchRun(...args);
+    } finally {
+      run.child_runs = children;
+      resolveEnded();
+    }
+  };
+  const createChild = run.createChild.bind(run);
+  run.createChild = (config) =>
+    _captureEvaluationRun(createChild(config), completions, upload);
+  return run;
 }
 
 async function _forward(
@@ -1177,16 +1304,12 @@ async function _forward(
   metadata: KVMap,
   client: Client,
   includeAttachments?: boolean,
+  upload = true,
 ): Promise<Omit<_ForwardResults, "exampleIndex">> {
-  let run: BaseRun | undefined = undefined;
-
-  const _getRun = (r?: RunTree): void => {
-    run = r;
-  };
+  let run: RunTree | undefined = undefined;
 
   const defaultOptions = {
     reference_example_id: example.id,
-    on_start: _getRun,
     project_name: experimentName,
     metadata: {
       ...metadata,
@@ -1194,8 +1317,37 @@ async function _forward(
         ? new Date(example.modified_at).toISOString()
         : new Date(example.created_at).toISOString(),
     },
-    client,
+    client: upload
+      ? client
+      : new Proxy(client, {
+          get(target, property) {
+            if (property === "tracingMode") return "langsmith";
+            // LangChain reconstructs RunTrees and bypasses instance transport overrides.
+            if (property === "createRun" || property === "updateRun") {
+              return async () => undefined;
+            }
+            const value = Reflect.get(target, property, target);
+            return typeof value === "function" ? value.bind(target) : value;
+          },
+        }),
     tracingEnabled: true,
+  };
+
+  const completions = new Map<RunTree, Promise<void>>();
+  const targetContext = new RunTree({ ...defaultOptions, name: "evaluation" });
+  // Capture the real target without introducing an uploaded parent run.
+  targetContext.createChild = (config) => {
+    run = _captureEvaluationRun(
+      new RunTree({
+        ...config,
+        ...defaultOptions,
+        name: config.name,
+        metadata: { ...config.metadata, ...defaultOptions.metadata },
+      }),
+      completions,
+      upload,
+    );
+    return run;
   };
 
   const wrappedFn = isTraceableFunction(fn)
@@ -1229,14 +1381,33 @@ async function _forward(
       : traceable(fn, defaultOptions);
 
   try {
-    if (includeAttachments && !("invoke" in fn)) {
-      await wrappedFn(example.inputs, { attachments: example.attachments });
-    } else {
-      await wrappedFn(example.inputs);
+    const args: [KVMap, TargetConfigT?] =
+      includeAttachments && !("invoke" in fn)
+        ? [example.inputs, { attachments: example.attachments }]
+        : [example.inputs];
+    const output = await withRunTree(targetContext, () => wrappedFn(...args));
+    if (isAsyncIterable(output)) {
+      // Consume through the tracing wrapper so aggregation and redaction finish.
+      for await (const _chunk of output) {
+        // The wrapper records the chunks and finalizes the target run.
+      }
     }
   } catch (e) {
     console.error(`Error running target function: ${e}`);
     printErrorStackTrace(e);
+  }
+
+  if (run) {
+    await completions.get(run);
+    // Failed targets skip traceable's normal child wait. Finish only the
+    // descendants whose bodies have already reached output processing.
+    await Promise.all(
+      [...completions]
+        .filter(
+          ([child]) => child !== run && _hasStartedOutputProcessing(child),
+        )
+        .map(([, completion]) => completion),
+    );
   }
 
   if (!run) {

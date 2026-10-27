@@ -21,6 +21,7 @@ import {
 } from "./singletons/traceable.js";
 import {
   _LC_CHILD_RUN_END_PROMISES_KEY,
+  _LC_RUN_OUTPUT_PROCESSING_STARTED_KEY,
   _LC_CONTEXT_VARIABLES_KEY,
   _PROCESSING_FAILED_KEY,
   _processingFailed,
@@ -254,6 +255,11 @@ async function handleRunOutputs<Return>(params: {
     deferredInputs,
     skipChildPromiseDelay,
   } = params;
+  if (runTree) {
+    (
+      runTree as RunTree & { [_LC_RUN_OUTPUT_PROCESSING_STARTED_KEY]?: boolean }
+    )[_LC_RUN_OUTPUT_PROCESSING_STARTED_KEY] = true;
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let outputs: any;
 
@@ -1278,6 +1284,13 @@ export function traceable<Func extends (...args: any[]) => any>(
               }
             },
             async (error: unknown) => {
+              if (currentRunTree) {
+                (
+                  currentRunTree as RunTree & {
+                    [_LC_RUN_OUTPUT_PROCESSING_STARTED_KEY]?: boolean;
+                  }
+                )[_LC_RUN_OUTPUT_PROCESSING_STARTED_KEY] = true;
+              }
               // Don't wait for child runs on error - fail fast
               await currentRunTree?.end(undefined, String(error));
               await handleEnd({

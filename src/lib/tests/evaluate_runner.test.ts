@@ -1,4 +1,8 @@
 import { jest } from "@jest/globals";
+import { FakeChatModel } from "@langchain/core/utils/testing";
+import { RunnableLambda } from "@langchain/core/runnables";
+import { awaitAllCallbacks } from "@langchain/core/callbacks/promises";
+import { traceable } from "../traceable.js";
 import type { Run as V2Run } from "../../resources/runs/runs.js";
 import type { Client } from "../client.js";
 import {
@@ -203,6 +207,818 @@ describe("evaluation runner internals", () => {
     await expect(
       collect(_mapWithConcurrency(source(), queue, async (value) => value)),
     ).rejects.toThrow("source boom");
+  });
+
+  test.each([0, 3])(
+    "uploadRuns selects each repetition once with concurrency %s",
+    async (maxConcurrency) => {
+      const now = new Date().toISOString();
+      const examples = [1, 2].map((index) => ({
+        id: `00000000-0000-0000-0000-${String(index).padStart(12, "0")}`,
+        inputs: { index },
+        outputs: {},
+        dataset_id: "00000000-0000-0000-0000-000000000000",
+        created_at: now,
+        modified_at: now,
+        runs: [],
+      }));
+      const uploadedRuns: any[] = [];
+      const uploadedFeedback: any[] = [];
+      const summaryFeedback: any[] = [];
+      const client = {
+        createProject: async () => ({
+          id: "00000000-0000-0000-0000-000000000004",
+          name: "sampled",
+        }),
+        updateProject: async () => ({}),
+        createRun: async (run: any) => {
+          uploadedRuns.push(run);
+        },
+        updateRun: async () => ({}),
+        logEvaluationFeedback: async (args: any) => {
+          uploadedFeedback.push(args);
+          return [args.evaluatorResponse];
+        },
+        _selectEvalResults: (value: any) =>
+          "results" in value ? value.results : [value],
+        createFeedback: async (...args: any[]) => {
+          summaryFeedback.push(args);
+        },
+        awaitPendingTraceBatches: async () => undefined,
+        getDatasetUrl: async () => "http://test.com",
+      } as any;
+      let decisions = 0;
+      let invocations = 0;
+      let releaseFirst!: () => void;
+      const thirdStarted = new Promise<void>((resolve) => {
+        releaseFirst = resolve;
+      });
+      const completionOrder: number[] = [];
+      const results = await evaluate(
+        async function sampledTarget() {
+          const occurrence = invocations++;
+          if (maxConcurrency > 0 && occurrence === 0) await thirdStarted;
+          if (occurrence === 2) releaseFirst();
+          completionOrder.push(occurrence);
+          return { occurrence };
+        },
+        {
+          data: examples,
+          numRepetitions: 2,
+          maxConcurrency,
+          uploadRuns: () => decisions++ % 2 === 0,
+          evaluators: [
+            ({ outputs }: { outputs: Record<string, any> }) => ({
+              key: "occurrence",
+              score: outputs.occurrence,
+            }),
+          ],
+          summaryEvaluators: [
+            ({
+              runs,
+              examples: allExamples,
+            }: {
+              runs: Run[];
+              examples: Example[];
+            }) => {
+              expect(allExamples).toHaveLength(4);
+              return { key: "count", score: runs.length };
+            },
+          ],
+          client,
+        },
+      );
+      const rows = results.results;
+      expect(decisions).toBe(4);
+      expect(rows).toHaveLength(4);
+      expect(rows.map((row) => row.run.outputs?.occurrence).sort()).toEqual([
+        0, 1, 2, 3,
+      ]);
+      expect(
+        rows.every((row) => row.evaluationResults.results.length === 1),
+      ).toBe(true);
+      expect(
+        uploadedFeedback.map((args) => args.run.outputs.occurrence).sort(),
+      ).toEqual([0, 2]);
+      const targetUploads = uploadedRuns.filter(
+        (run) => run.name === "sampledTarget",
+      );
+      expect(targetUploads).toHaveLength(2);
+      expect(new Set(targetUploads.map((run) => run.id))).toEqual(
+        new Set(uploadedFeedback.map((args) => args.run.id)),
+      );
+      expect(results.summaryResults.results).toEqual([
+        { key: "count", score: 4 },
+      ]);
+      expect(summaryFeedback).toHaveLength(1);
+      if (maxConcurrency > 0) expect(completionOrder[0]).not.toBe(0);
+    },
+  );
+
+  test.each([
+    { name: "string", output: "ok", expected: { outputs: "ok" } },
+    { name: "array", output: ["ok"], expected: { outputs: ["ok"] } },
+    { name: "null", output: null, expected: { outputs: null } },
+    { name: "map", output: { value: "ok" }, expected: { value: "ok" } },
+    {
+      name: "class",
+      output: new (class {
+        value = "ok";
+      })(),
+      expected: { outputs: { value: "ok" } },
+    },
+    {
+      name: "processed",
+      output: { value: "ok" },
+      expected: { processed: "ok" },
+    },
+    { name: "date", output: new Date(0), expected: { outputs: new Date(0) } },
+  ])(
+    "upload selection preserves $name outputs for rows and summaries",
+    async ({ name, output, expected }) => {
+      const now = new Date().toISOString();
+      const client = {
+        createProject: async () => ({ id: "project", name: "sampled" }),
+        updateProject: async () => ({}),
+        createRun: jest.fn(async () => undefined),
+        updateRun: jest.fn(async () => undefined),
+        logEvaluationFeedback: async (args: any) => [args.evaluatorResponse],
+        _selectEvalResults: (value: any) =>
+          "results" in value ? value.results : [value],
+        createFeedback: async () => undefined,
+        awaitPendingTraceBatches: async () => undefined,
+        getDatasetUrl: async () => "http://test.com",
+      } as any;
+      const observed: unknown[] = [];
+      const target =
+        name === "processed"
+          ? traceable(async () => output, {
+              client,
+              processOutputs: (outputs: Record<string, any>) => ({
+                processed: outputs.value,
+              }),
+            })
+          : async () => output;
+      const results = await evaluate(target, {
+        data: [true, false].map((upload, index) => ({
+          id: `example-${index}`,
+          dataset_id: "dataset",
+          inputs: { upload },
+          outputs: {},
+          created_at: now,
+          modified_at: now,
+          runs: [],
+        })),
+        uploadRuns: (example: Example) => example.inputs.upload,
+        evaluators: [
+          ({ outputs }: { outputs: Record<string, any> }) => {
+            observed.push(outputs);
+            return { key: "shape", score: 1 };
+          },
+        ],
+        summaryEvaluators: [
+          ({ runs }: { runs: Run[] }) => {
+            expect(runs.map((run) => run.outputs)).toEqual([
+              expected,
+              expected,
+            ]);
+            return { key: "count", score: runs.length };
+          },
+        ],
+        client,
+      });
+      expect(observed).toEqual([expected, expected]);
+      expect(results.results.map((row) => row.run.outputs)).toEqual([
+        expected,
+        expected,
+      ]);
+      expect(client.createRun).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  describe("upload selection failure and completion boundaries", () => {
+    const makeClient = () => ({
+      createProject: async () => ({ id: "project", name: "selected" }),
+      updateProject: async () => ({}),
+      createRun: jest.fn(async (_run: any) => undefined),
+      updateRun: jest.fn(async (_id: string, _run: any) => undefined),
+      logEvaluationFeedback: jest.fn(async (args: any) => [
+        args.evaluatorResponse,
+      ]),
+      _selectEvalResults: (value: any) =>
+        "results" in value ? value.results : [value],
+      createFeedback: async () => undefined,
+      awaitPendingTraceBatches: async () => undefined,
+      getDatasetUrl: async () => "http://test.com",
+    });
+    const examples = (count = 1) =>
+      Array.from({ length: count }, (_, index) => ({
+        id: `example-${index}`,
+        dataset_id: "dataset",
+        inputs: { index },
+        outputs: {},
+        created_at: new Date().toISOString(),
+        modified_at: new Date().toISOString(),
+        runs: [],
+      }));
+    async function bounded<T>(promise: Promise<T>): Promise<T> {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await Promise.race([
+          promise,
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(
+              () => reject(new Error("evaluation did not complete")),
+              1000,
+            );
+          }),
+        ]);
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    test.each(
+      ["callable", "runnable"].flatMap((targetKind) =>
+        ["local", "unselected", "mixed"].map((selection) => ({
+          targetKind,
+          selection,
+        })),
+      ),
+    )(
+      "$targetKind LangChain calls respect $selection upload selection",
+      async ({ targetKind, selection }) => {
+        const client = makeClient();
+        const model = new FakeChatModel({});
+        const chain = RunnableLambda.from(
+          async ({ index }: { index: number }) => {
+            const message = await model.invoke(String(index));
+            return { index: Number(message.content) };
+          },
+        ).withConfig({ runName: "nestedChain" });
+        const target =
+          targetKind === "runnable"
+            ? chain
+            : async function target(inputs: { index: number }) {
+                return chain.invoke(inputs);
+              };
+        const results = await bounded(
+          evaluate(target, {
+            data: examples(2),
+            numRepetitions: 2,
+            maxConcurrency: 2,
+            disableEvaluatorTracing: true,
+            uploadRuns:
+              selection === "local"
+                ? false
+                : (example) =>
+                    selection === "mixed" && example.inputs.index === 0,
+            evaluators: [
+              ({ outputs }: { outputs: Record<string, any> }) => ({
+                key: "index",
+                score: outputs.index,
+              }),
+            ],
+            summaryEvaluators: [
+              ({ runs }: { runs: Run[] }) => ({
+                key: "count",
+                score: runs.length,
+              }),
+            ],
+            client: client as any,
+          }),
+        );
+        // LangChain callbacks can finish after invoke returns. Include those writes.
+        await bounded(awaitAllCallbacks());
+        expect(
+          results.results.map(({ run }) => run.outputs?.index).sort(),
+        ).toEqual([0, 0, 1, 1]);
+        expect(
+          results.results.every(
+            (row) => row.evaluationResults.results.length === 1,
+          ),
+        ).toBe(true);
+        expect(results.summaryResults.results).toEqual([
+          { key: "count", score: 4 },
+        ]);
+        const selectedIds = new Set(
+          results.results
+            .filter(
+              ({ run }) => selection === "mixed" && run.inputs.index === 0,
+            )
+            .map(({ run }) => run.id),
+        );
+        const uploads = client.createRun.mock.calls.map(([run]) => run);
+        if (selection === "mixed") {
+          expect(
+            uploads.filter((run) => run.name === "FakeChatModel"),
+          ).toHaveLength(2);
+          expect(new Set(uploads.map((run) => run.trace_id))).toEqual(
+            selectedIds,
+          );
+          const uploadedIds = new Set(uploads.map((run) => run.id));
+          expect(client.updateRun.mock.calls.length).toBeGreaterThan(0);
+          for (const [id] of client.updateRun.mock.calls)
+            expect(uploadedIds.has(id)).toBe(true);
+          expect(client.logEvaluationFeedback).toHaveBeenCalledTimes(2);
+        } else {
+          expect(uploads).toEqual([]);
+          expect(client.updateRun).not.toHaveBeenCalled();
+          expect(client.logEvaluationFeedback).not.toHaveBeenCalled();
+        }
+      },
+    );
+
+    test.each([0, 2])(
+      "predicate failure keeps every occurrence local with concurrency %s",
+      async (maxConcurrency) => {
+        const client = makeClient();
+        const warning = jest
+          .spyOn(console, "warn")
+          .mockImplementation(() => undefined);
+        const decisions = jest.fn((example: Example) => {
+          if (example.inputs.index === 1) throw new Error("selection failed");
+          return true;
+        });
+        const evaluated: number[] = [];
+        try {
+          const results = await bounded(
+            evaluate(
+              async function target({ index }: { index: number }) {
+                return { index };
+              },
+              {
+                data: examples(3),
+                numRepetitions: 2,
+                maxConcurrency,
+                uploadRuns: decisions,
+                evaluators: [
+                  ({ outputs }: { outputs: Record<string, any> }) => {
+                    evaluated.push(outputs.index);
+                    return { key: "index", score: outputs.index };
+                  },
+                ],
+                summaryEvaluators: [
+                  ({ runs }: { runs: Run[] }) => ({
+                    key: "count",
+                    score: runs.length,
+                  }),
+                ],
+                client: client as any,
+              },
+            ),
+          );
+          expect(decisions).toHaveBeenCalledTimes(6);
+          expect(
+            warning.mock.calls.filter(([message]) =>
+              String(message).startsWith("Upload selection failed"),
+            ),
+          ).toHaveLength(2);
+          expect(evaluated.sort()).toEqual([0, 0, 1, 1, 2, 2]);
+          expect(
+            results.results.map((row) => row.run.outputs?.index).sort(),
+          ).toEqual([0, 0, 1, 1, 2, 2]);
+          expect(results.summaryResults.results).toEqual([
+            { key: "count", score: 6 },
+          ]);
+          const uploaded = client.createRun.mock.calls
+            .map(([run]) => run)
+            .filter((run) => run.name === "target");
+          expect(uploaded.map((run) => run.inputs.index).sort()).toEqual([
+            0, 0, 2, 2,
+          ]);
+          expect(
+            client.logEvaluationFeedback.mock.calls
+              .map(([args]) => args.run.outputs.index)
+              .sort(),
+          ).toEqual([0, 0, 2, 2]);
+        } finally {
+          warning.mockRestore();
+        }
+      },
+    );
+
+    test.each([true, false, () => false])(
+      "uploadRuns=%s does not wait for unfinished background children",
+      async (uploadRuns) => {
+        const client = makeClient();
+        let release!: () => void;
+        const gate = new Promise<void>((resolve) => {
+          release = resolve;
+        });
+        const child = traceable(
+          async () => {
+            await gate;
+            return { child: "done" };
+          },
+          { client: client as any },
+        );
+        const target = traceable(
+          async () => {
+            void child();
+            return { target: "done" };
+          },
+          { client: client as any },
+        );
+        try {
+          const results = await bounded(
+            evaluate(target, {
+              data: examples(),
+              uploadRuns,
+              evaluators: [
+                ({ outputs }: { outputs: Record<string, any> }) => ({
+                  key: "done",
+                  score: outputs.target === "done" ? 1 : 0,
+                }),
+              ],
+              summaryEvaluators: [
+                ({ runs }: { runs: Run[] }) => ({
+                  key: "count",
+                  score: runs.length,
+                }),
+              ],
+              client: client as any,
+            }),
+          );
+          expect(results.results[0].run.outputs).toEqual({ target: "done" });
+          expect(results.results[0].evaluationResults.results[0].score).toBe(1);
+          expect(results.summaryResults.results).toEqual([
+            { key: "count", score: 1 },
+          ]);
+          if (uploadRuns !== true)
+            expect(client.createRun).not.toHaveBeenCalled();
+        } finally {
+          release();
+        }
+      },
+    );
+
+    test.each([
+      { name: "default", uploadRuns: undefined, targetFails: false },
+      { name: "uploaded", uploadRuns: true, targetFails: false },
+      { name: "local", uploadRuns: false, targetFails: false },
+      { name: "unselected", uploadRuns: () => false, targetFails: false },
+      { name: "uploaded error", uploadRuns: true, targetFails: true },
+      { name: "local error", uploadRuns: false, targetFails: true },
+    ])(
+      "$name waits for a returned child's slow output processing",
+      async ({ uploadRuns, targetFails }) => {
+        const client = makeClient();
+        const lateInitialPost = uploadRuns === true && !targetFails;
+        let releasePost!: () => void;
+        let releaseBody!: () => void;
+        const postGate = new Promise<void>((resolve) => {
+          releasePost = resolve;
+        });
+        const bodyGate = new Promise<void>((resolve) => {
+          releaseBody = resolve;
+        });
+        if (lateInitialPost)
+          client.createRun.mockImplementationOnce(async () => {
+            await postGate;
+          });
+        let targetRun: ReturnType<typeof getCurrentRunTree> | undefined;
+        let releaseOutputs!: () => void;
+        let processingStarted!: () => void;
+        let targetReturned!: () => void;
+        const outputGate = new Promise<void>((resolve) => {
+          releaseOutputs = resolve;
+        });
+        const processing = new Promise<void>((resolve) => {
+          processingStarted = resolve;
+        });
+        const returned = new Promise<void>((resolve) => {
+          targetReturned = resolve;
+        });
+        const child = traceable(async () => ({ child: "raw" }), {
+          client: client as any,
+          processOutputs: async () => {
+            processingStarted();
+            await outputGate;
+            return { child: "processed" };
+          },
+        });
+        const target = traceable(
+          async () => {
+            targetRun = getCurrentRunTree();
+            await child();
+            targetReturned();
+            if (lateInitialPost) await bodyGate;
+            if (targetFails) throw new Error("target failed after child");
+            return { target: "done" };
+          },
+          { client: client as any },
+        );
+        const observed: unknown[] = [];
+        const evaluator = jest.fn(({ run }: { run: Run }) => {
+          observed.push(
+            (run as unknown as { child_runs: Run[] }).child_runs.map(
+              (childRun) => childRun.outputs,
+            ),
+          );
+          return { key: "trajectory", score: 1 };
+        });
+        const evaluation = evaluate(target, {
+          data: examples(),
+          uploadRuns,
+          evaluators: [evaluator],
+          client: client as any,
+        });
+        try {
+          await bounded(processing);
+          await bounded(returned);
+          // Queue target completion alongside the initial upload's cleanup.
+          releaseBody();
+          releasePost();
+          // Give an incorrectly early evaluation a full turn to run.
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          expect(evaluator).not.toHaveBeenCalled();
+          if (!targetFails) expect(targetRun?.end_time).toBeUndefined();
+          releaseOutputs();
+          const results = await bounded(evaluation);
+          expect(observed).toEqual([[{ child: "processed" }]]);
+          const root = results.results[0].run as unknown as {
+            end_time: number;
+            child_runs: Run[];
+          };
+          if (targetFails)
+            expect(results.results[0].run.error).toContain(
+              "target failed after child",
+            );
+          else
+            expect(root.end_time).toBeGreaterThanOrEqual(
+              root.child_runs[0].end_time as number,
+            );
+        } finally {
+          releaseBody();
+          releasePost();
+          releaseOutputs();
+          await bounded(evaluation);
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+      },
+    );
+
+    test("stream errors await async redaction even when the initial upload finishes late", async () => {
+      const client = makeClient();
+      let releasePost!: () => void;
+      let releaseOutputs!: () => void;
+      let startedOutputs!: () => void;
+      const postGate = new Promise<void>((resolve) => {
+        releasePost = resolve;
+      });
+      const outputGate = new Promise<void>((resolve) => {
+        releaseOutputs = resolve;
+      });
+      const processing = new Promise<void>((resolve) => {
+        startedOutputs = resolve;
+      });
+      client.createRun.mockImplementation(async () => {
+        await postGate;
+      });
+      const target = traceable(
+        async function* () {
+          yield 1;
+          throw new Error("stream failed");
+        },
+        {
+          client: client as any,
+          processOutputs: async () => {
+            startedOutputs();
+            await outputGate;
+            return { processed: true };
+          },
+        },
+      );
+      const evaluated = jest.fn(() => ({ key: "done", score: 1 }));
+      const evaluation = evaluate(target, {
+        data: examples(),
+        uploadRuns: true,
+        evaluators: [evaluated],
+        client: client as any,
+      });
+      try {
+        await bounded(processing);
+        releasePost();
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(evaluated).not.toHaveBeenCalled();
+        releaseOutputs();
+        const results = await bounded(evaluation);
+        expect(results.results[0].run.outputs).toEqual({ processed: true });
+        expect(results.results[0].run.error).toContain("stream failed");
+      } finally {
+        releasePost();
+        releaseOutputs();
+      }
+    });
+
+    test.each([true, false])(
+      "uploadRuns=%s drains target streams and applies aggregation and async output processing",
+      async (uploadRuns) => {
+        const client = makeClient();
+        const generator = async function* ({ index }: { index: number }) {
+          yield index + 1;
+          if (index === 1) throw new Error("stream failed");
+          yield index + 2;
+        };
+        const target = traceable(generator, {
+          client: client as any,
+          aggregator: (chunks: number[]) => ({
+            total: chunks.reduce((total, value) => total + value, 0),
+          }),
+          processOutputs: async (outputs) => {
+            await Promise.resolve();
+            return {
+              processed: (outputs as unknown as { total: number }).total,
+            };
+          },
+        });
+        const results = await bounded(
+          evaluate(target, {
+            data: examples(3),
+            uploadRuns,
+            maxConcurrency: 2,
+            evaluators: [
+              ({ outputs }: { outputs: Record<string, any> }) => ({
+                key: "processed",
+                score: outputs.processed,
+              }),
+            ],
+            summaryEvaluators: [
+              ({ runs }: { runs: Run[] }) => ({
+                key: "count",
+                score: runs.length,
+              }),
+            ],
+            client: client as any,
+          }),
+        );
+        expect(results.results.map((row) => row.run.outputs)).toEqual([
+          { processed: 3 },
+          { processed: 2 },
+          { processed: 7 },
+        ]);
+        expect(results.results[1].run.error).toContain("stream failed");
+        expect(
+          results.results.map((row) => row.evaluationResults.results[0].score),
+        ).toEqual([3, 2, 7]);
+        expect(results.summaryResults.results).toEqual([
+          { key: "count", score: 3 },
+        ]);
+        if (!uploadRuns) expect(client.createRun).not.toHaveBeenCalled();
+        const plain = await bounded(
+          evaluate(generator, {
+            data: examples(),
+            uploadRuns,
+            client: client as any,
+          }),
+        );
+        expect(plain.results[0].run.outputs).toEqual({ outputs: [1, 2] });
+      },
+    );
+  });
+
+  test.each([false, () => false])(
+    "uploadRuns=%s retains local rows and summaries when no runs upload",
+    async (uploadRuns) => {
+      const calls: string[] = [];
+      const tracer = { startActiveSpan: jest.fn() };
+      const client = {
+        tracingMode: "otel",
+        createProject: async () => {
+          calls.push("project");
+          return { id: "project", name: "local" };
+        },
+        updateProject: async () => {
+          calls.push("updateProject");
+        },
+        createRun: async () => {
+          calls.push("run");
+        },
+        updateRun: async () => undefined,
+        logEvaluationFeedback: async () => {
+          calls.push("rowFeedback");
+          return [];
+        },
+        _selectEvalResults: (value: any) =>
+          "results" in value ? value.results : [value],
+        createFeedback: async () => {
+          calls.push("summaryFeedback");
+        },
+        awaitPendingTraceBatches: async () => undefined,
+        getDatasetUrl: async () => "http://test.com",
+      } as any;
+      const child = traceable(
+        async (input: { value: string }) => ({ output: input.value }),
+        {
+          client,
+          processOutputs: async (outputs) => ({ child: outputs.output }),
+        },
+      );
+      const target = traceable(
+        async (input: { value: string }) => child(input),
+        {
+          client,
+          tracingEnabled: true,
+          tracer: tracer as any,
+          processOutputs: async (outputs) => {
+            await new Promise<void>((resolve) => setTimeout(resolve, 5));
+            return { processed: outputs.output };
+          },
+        },
+      );
+      const results = await evaluate(target, {
+        data: [
+          {
+            id: "example",
+            dataset_id: "dataset",
+            inputs: { value: "ok" },
+            outputs: {},
+            created_at: new Date().toISOString(),
+            modified_at: new Date().toISOString(),
+            runs: [],
+          },
+        ],
+        uploadRuns,
+        evaluators: [() => ({ key: "quality", score: 1 })],
+        summaryEvaluators: [
+          ({ runs }: { runs: Run[] }) => ({ key: "count", score: runs.length }),
+        ],
+        client,
+      });
+      expect(tracer.startActiveSpan).not.toHaveBeenCalled();
+      const rows = results.results;
+      expect(rows[0].run.outputs).toEqual({ processed: "ok" });
+      const targetRun = rows[0].run as unknown as { child_runs: Run[] };
+      expect(targetRun.child_runs).toHaveLength(1);
+      expect(targetRun.child_runs[0].outputs).toEqual({ child: "ok" });
+      expect(targetRun.child_runs[0].end_time).toBeDefined();
+      expect(rows[0].evaluationResults.results[0]).toMatchObject({
+        key: "quality",
+        score: 1,
+      });
+      expect(results.summaryResults.results).toEqual([
+        { key: "count", score: 1 },
+      ]);
+      const failed = await evaluate(
+        traceable(
+          async (input: { value: string }) => {
+            await child(input);
+            throw new Error("target failed");
+          },
+          { client },
+        ),
+        {
+          data: [
+            {
+              id: "failure",
+              dataset_id: "dataset",
+              inputs: { value: "failed-child" },
+              outputs: {},
+              created_at: new Date().toISOString(),
+              modified_at: new Date().toISOString(),
+              runs: [],
+            },
+          ],
+          uploadRuns,
+          client,
+        },
+      );
+      expect(failed.results[0].run.error).toContain("target failed");
+      const failedRun = failed.results[0].run as unknown as {
+        child_runs: Run[];
+      };
+      expect(failedRun.child_runs[0].outputs).toEqual({
+        child: "failed-child",
+      });
+      expect(failedRun.child_runs[0].end_time).toBeDefined();
+      if (uploadRuns === false) expect(calls).toEqual([]);
+      else {
+        expect(calls).toContain("project");
+        expect(calls).toContain("summaryFeedback");
+        expect(calls).not.toContain("rowFeedback");
+        expect(calls).not.toContain("run");
+      }
+    },
+  );
+
+  test("uploadRuns rejects selection for existing and comparative targets before API calls", async () => {
+    const client = {} as any;
+    await expect(
+      evaluate(fromArray<Run>([]) as any, {
+        data: [],
+        uploadRuns: () => true,
+        client,
+      }),
+    ).rejects.toThrow("new target");
+    await expect(
+      evaluate(["one", "two"], {
+        data: [],
+        uploadRuns: false,
+        client,
+      } as any),
+    ).rejects.toThrow("new target");
   });
 
   test("evaluate supplies the experiment ID when logging run feedback", async () => {
