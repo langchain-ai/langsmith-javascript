@@ -565,24 +565,55 @@ export namespace AnnotationQueueRetrieveAnnotationQueuesResponse {
 export type AnnotationQueueRetrieveQueuesResponse = Array<AnnotationQueueSchema>;
 
 export interface AnnotationQueueUpdateParams {
+  /**
+   * Dataset that reviewed runs are added to by default.
+   */
   default_dataset?: string | null;
 
+  /**
+   * New description.
+   */
   description?: string | null;
 
+  /**
+   * Whether a reviewer reserves a run while reviewing it, so others skip it.
+   */
   enable_reservations?: boolean | DatasetsAPI.Missing;
 
+  /**
+   * Metadata to store on the queue. Replaces the existing metadata.
+   */
   metadata?: { [key: string]: unknown } | DatasetsAPI.Missing | null;
 
+  /**
+   * New name for the queue.
+   */
   name?: string | null;
 
+  /**
+   * How many reviewers must review each run.
+   */
   num_reviewers_per_item?: number | DatasetsAPI.Missing | null;
 
+  /**
+   * How long a reservation lasts, in minutes.
+   */
   reservation_minutes?: number | DatasetsAPI.Missing | null;
 
+  /**
+   * Who completes a run: any (one reviewer is enough) or assigned (every assigned
+   * reviewer must submit).
+   */
   reviewer_access_mode?: 'any' | 'assigned' | null;
 
+  /**
+   * Instructions shown to reviewers.
+   */
   rubric_instructions?: string | null;
 
+  /**
+   * Feedback keys reviewers fill in for each run.
+   */
   rubric_items?: Array<AnnotationQueueRubricItemSchema> | null;
 }
 
@@ -631,10 +662,20 @@ export interface AnnotationQueueExportParams {
 }
 
 export interface AnnotationQueuePopulateParams {
+  /**
+   * ID of the annotation queue to add runs to.
+   */
   queue_id: string;
 
+  /**
+   * Experiments whose runs are added to the queue. Each must be an experiment on a
+   * dataset.
+   */
   session_ids: Array<string>;
 
+  /**
+   * Upgrade the added traces from short-lived to extended retention.
+   */
   extend_trace_retention?: boolean;
 }
 
