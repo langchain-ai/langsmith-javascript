@@ -11,6 +11,8 @@ import { convertMessageToTracedFormat } from "./utils.js";
 import { setUsageMetadataOnRunTree } from "./utils.js";
 import type { KVMap } from "../../schemas.js";
 import { isPrimitive, isRecord } from "../../utils/types.js";
+import { type AgentAddress, ensureAgent } from "../../address.js";
+import { rejectConflicting } from "../../utils/addressing.js";
 import { vercelLsAgentTypeMetadata } from "./_agent_type.js";
 
 /**
@@ -48,6 +50,12 @@ export interface LangSmithTelemetryConfig {
    * Project name to log runs to.
    */
   projectName?: string;
+
+  /**
+   * Agent address to send runs to instead of a project.
+   * Cannot be combined with `projectName`.
+   */
+  address?: AgentAddress;
 
   /**
    * Transform inputs before logging on the root span.
@@ -205,6 +213,7 @@ export function LangSmithTelemetry(
     tags: customTags,
     client,
     projectName,
+    address: rawAddress,
     processInputs,
     processOutputs,
     processChildLLMRunInputs,
@@ -214,6 +223,8 @@ export function LangSmithTelemetry(
     tracingEnabled,
     extra: customExtra,
   } = config ?? {};
+  const address = ensureAgent(rawAddress);
+  rejectConflicting(projectName, address);
 
   interface ExperimentalHarnessState {
     lastStepContent: unknown[];
@@ -383,6 +394,7 @@ export function LangSmithTelemetry(
       tags: customTags,
       ...(client ? { client } : {}),
       ...(projectName ? { project_name: projectName } : {}),
+      ...(address ? { address } : {}),
     };
 
     let rootRunTree: RunTree;

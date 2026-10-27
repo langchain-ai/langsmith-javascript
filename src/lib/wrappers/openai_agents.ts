@@ -6,6 +6,8 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 import { RunTree } from "../run_trees.js";
+import { type AgentAddress, ensureAgent } from "../address.js";
+import { rejectConflicting } from "../utils/addressing.js";
 import type { ExtractedUsageMetadata } from "../schemas.js";
 import { Client } from "../client.js";
 import {
@@ -539,6 +541,7 @@ function _resolveOpenAIAgentsLsAgentType(
  * @param metadata - Metadata to associate with all traces.
  * @param tags - Tags to associate with all traces.
  * @param projectName - LangSmith project to trace to.
+ * @param address - Agent address to send root traces to instead of a project. Cannot be combined with `projectName`.
  * @param name - Name of the root trace.
  *
  * @example
@@ -572,6 +575,7 @@ export class OpenAIAgentsTracingProcessor implements TracingProcessor {
   private _metadata?: Record<string, unknown>;
   private _tags?: string[];
   private _projectName?: string;
+  private _address?: AgentAddress;
   private _name?: string;
 
   private _firstResponseInputs: Record<string, Record<string, unknown>> = {};
@@ -591,12 +595,16 @@ export class OpenAIAgentsTracingProcessor implements TracingProcessor {
     metadata?: Record<string, unknown>;
     tags?: string[];
     projectName?: string;
+    /** Send root traces to this agent address instead of a project. */
+    address?: AgentAddress;
     name?: string;
   }) {
     this.client = options?.client ?? new Client();
     this._metadata = options?.metadata;
     this._tags = options?.tags;
     this._projectName = options?.projectName;
+    this._address = ensureAgent(options?.address);
+    rejectConflicting(this._projectName, this._address);
     this._name = options?.name;
   }
 
@@ -670,6 +678,9 @@ export class OpenAIAgentsTracingProcessor implements TracingProcessor {
 
         if (this._projectName !== undefined) {
           runTreeConfig.project_name = this._projectName;
+        }
+        if (this._address !== undefined) {
+          runTreeConfig.address = this._address;
         }
 
         newRun = new RunTree(runTreeConfig);

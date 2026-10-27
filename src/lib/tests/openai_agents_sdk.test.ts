@@ -4,6 +4,7 @@ import { OpenAIAgentsTracingProcessor } from "../wrappers/openai_agents.js";
 import { mockClient } from "./utils/mock_client.js";
 import { getAssumedTreeFromCalls } from "./utils/tree.js";
 import { traceable } from "../traceable.js";
+import { AgentAddress } from "../address.js";
 import { AsyncLocalStorageProviderSingleton } from "../singletons/traceable.js";
 
 // Mock types matching @openai/agents-core/tracing
@@ -1378,5 +1379,52 @@ describe("OpenAIAgentsTracingProcessor", () => {
       expect(flushSpy).toHaveBeenCalled();
       flushSpy.mockRestore();
     });
+  });
+});
+
+describe("OpenAIAgentsTracingProcessor address", () => {
+  const address = new AgentAddress("customer-support", "production");
+
+  beforeEach(() => {
+    const storage = AsyncLocalStorageProviderSingleton.getInstance();
+    const maybeEnterWith = (storage as any).enterWith;
+    if (typeof maybeEnterWith === "function") {
+      maybeEnterWith.call(storage, undefined);
+    }
+  });
+
+  test("sends the root run to the address", async () => {
+    const { client, callSpy } = mockClient();
+    const processor = new OpenAIAgentsTracingProcessor({ client, address });
+    const trace = createMockTrace("trace-addr", "Agent");
+    await processor.onTraceStart(trace);
+    await processor.onTraceEnd(trace);
+    await client.awaitPendingTraceBatches();
+
+    const bodies = callSpy.mock.calls
+      .filter(([url]: [string]) => String(url).endsWith("/runs"))
+      .map(([, init]: [string, any]) =>
+        JSON.parse(
+          typeof init.body === "string"
+            ? init.body
+            : new TextDecoder().decode(init.body),
+        ),
+      );
+    expect(bodies.length).toBeGreaterThan(0);
+    expect(bodies[0].address).toBe(
+      "lrn:agents/customer-support/environments/production",
+    );
+    expect(bodies[0]).not.toHaveProperty("session_name");
+  });
+
+  test("rejects an address together with projectName", () => {
+    expect(
+      () =>
+        new OpenAIAgentsTracingProcessor({
+          client: mockClient().client,
+          address,
+          projectName: "p",
+        }),
+    ).toThrow(/not both/);
   });
 });
