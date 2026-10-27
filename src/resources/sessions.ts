@@ -1374,7 +1374,8 @@ export namespace TracerSession {
 }
 
 /**
- * TracerSession schema.
+ * @deprecated Legacy session response model. Use TracerSession for new
+ * integrations.
  */
 export interface TracerSessionWithoutVirtualFields {
   id: string;
