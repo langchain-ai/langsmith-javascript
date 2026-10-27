@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.11.2](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.1...v0.11.2) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sandboxes:** add sandbox volumes
+
+### Features
+
+* **backend:** add support for uploading custom avatars for agents ([c9c10f2](https://github.com/langchain-ai/langsmith-javascript/commit/c9c10f22838851b7947d97205d34a0e9f4a34c05))
+* **engine:** scope GitHub fixes to the instance they were opened on ([82781ea](https://github.com/langchain-ai/langsmith-javascript/commit/82781ea8f60ad7044db4622a1770c8319f09f808))
+* **sandboxes:** add sandbox volumes ([ded5cc0](https://github.com/langchain-ai/langsmith-javascript/commit/ded5cc0f356e9387903919069db6a8fa15709f70))
+* **sandboxes:** create non-persistent sandboxes with `persistent: false` (private beta), never billed for storage ([3dbbe4e](https://github.com/langchain-ai/langsmith-javascript/commit/3dbbe4ebd0181cc61c1a902ea613a7f1307d0956))
+* **sandboxes:** embed token-mode service URLs and browser windows with the token kept out of server-visible URLs ([be0a0ea](https://github.com/langchain-ai/langsmith-javascript/commit/be0a0ea2076e4b1780f62bf73b5c5acb12d33744))
+* **sandboxes:** relay sandbox egress through a customer's network ([5246a91](https://github.com/langchain-ai/langsmith-javascript/commit/5246a91cb4e5c7a4f18fc2102e6e0f1b71b91a82))
+* **sandboxes:** sandbox functions ([d5632f1](https://github.com/langchain-ai/langsmith-javascript/commit/d5632f1e07e0129bedfcbde9126ddcf2e465da65))
+* support selective JavaScript evaluation uploads ([ebca8e1](https://github.com/langchain-ai/langsmith-javascript/commit/ebca8e1cd79af9f075f65e644e842f926da0bbce))
+
+
+### Bug Fixes
+
+* **sdk:** omit TypeScript sources and maps from JS package ([32915e8](https://github.com/langchain-ai/langsmith-javascript/commit/32915e8c7a4f63e092be247e7b03ff77ea66d0af))
+* **sdk:** ship vendored license files in JS package ([3bc9ab7](https://github.com/langchain-ai/langsmith-javascript/commit/3bc9ab7ebbd4ccb59e43a04f1cc4f72018b9666f))
+
+
+### Chores
+
+* release 0.11.2 ([67f2aaf](https://github.com/langchain-ai/langsmith-javascript/commit/67f2aaff81a7a302aa0f9fb63b496c517e11a012))
+
+
+### Documentation
+
+* remove the beta label from agent addressing ([dd1d708](https://github.com/langchain-ai/langsmith-javascript/commit/dd1d708bb127a59e31ce0fadb0f6f94b64940fe6))
+* **threads:** bring POST /api/v2/threads/query into API standards compliance ([4d31ffe](https://github.com/langchain-ai/langsmith-javascript/commit/4d31ffeeaea94b5e2d6f48cd61d017436c1c4b69))
+
+
+### Refactors
+
+* consolidate SDK tooling under sdks ([3150bc0](https://github.com/langchain-ai/langsmith-javascript/commit/3150bc08f3c47c9f7ca4627c74f065d1d470284d))
+
 ## [0.11.1](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.0...v0.11.1) (2026-10-23)
 
 
