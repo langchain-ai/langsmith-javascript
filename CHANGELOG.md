@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.3](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.2...v0.11.3) (2026-10-27)
+
+
+### Features
+
+* include subtree usage in frontend runs queries ([784adcb](https://github.com/langchain-ai/langsmith-javascript/commit/784adcb0e45f3061aeabcdc300570a460c7dcd15))
+* **js:** accept address in OpenAI Agents and Vercel integrations ([db26521](https://github.com/langchain-ai/langsmith-javascript/commit/db26521cd8bad84798588fe4bd61d4c0df31554d))
+* **sdks:** stream v2 run, trace and thread queries ([f66eff3](https://github.com/langchain-ai/langsmith-javascript/commit/f66eff33ba0e2adebcde94bb88cb9b96a957a8fe))
+
+
+### Bug Fixes
+
+* align v1 session write responses (LSO-4121, LSO-4130) ([77e765d](https://github.com/langchain-ai/langsmith-javascript/commit/77e765d13656028a3291954357cdb78fbb6bbd5c))
+
 ## [0.11.2](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.1...v0.11.2) (2026-10-27)
 
 
