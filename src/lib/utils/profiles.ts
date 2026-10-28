@@ -49,13 +49,19 @@ export type ProfileClientConfig = {
   profileAuth?: ProfileAuth;
 };
 
+export type ProfileSelection = {
+  profile?: string;
+  configPath?: string;
+};
+
 function isBrowserLikeRuntime(): boolean {
   const env = getEnv();
   return env === "browser" || env === "webworker";
 }
 
-function getProfileConfigPath(): string | undefined {
-  const explicitPath = getEnvironmentVariable("LANGSMITH_CONFIG_FILE");
+function getProfileConfigPath(selected?: string): string | undefined {
+  const explicitPath =
+    selected || getEnvironmentVariable("LANGSMITH_CONFIG_FILE");
   if (explicitPath) {
     return explicitPath;
   }
@@ -69,10 +75,11 @@ function getProfileConfigPath(): string | undefined {
 
 function resolveProfileName(
   config: LangSmithProfileConfigFile,
+  selected?: string,
 ): string | undefined {
-  const envProfile = getEnvironmentVariable("LANGSMITH_PROFILE");
-  if (envProfile) {
-    return envProfile;
+  const chosen = selected || getEnvironmentVariable("LANGSMITH_PROFILE");
+  if (chosen) {
+    return chosen;
   }
   if (config.current_profile) {
     return config.current_profile;
@@ -83,11 +90,13 @@ function resolveProfileName(
   return undefined;
 }
 
-function loadProfileState(): LangSmithProfileState | undefined {
+function loadProfileState(
+  selection: ProfileSelection = {},
+): LangSmithProfileState | undefined {
   if (isBrowserLikeRuntime()) {
     return undefined;
   }
-  const configPath = getProfileConfigPath();
+  const configPath = getProfileConfigPath(selection.configPath);
   if (!configPath || !fsUtils.existsSync(configPath)) {
     return undefined;
   }
@@ -95,7 +104,7 @@ function loadProfileState(): LangSmithProfileState | undefined {
     const config = JSON.parse(
       fsUtils.readFileSync(configPath),
     ) as LangSmithProfileConfigFile;
-    const profileName = resolveProfileName(config);
+    const profileName = resolveProfileName(config, selection.profile);
     const profile = profileName ? config.profiles?.[profileName] : undefined;
     if (!profileName || !profile) {
       return undefined;
@@ -340,8 +349,10 @@ async function waitForAbortSignal<T>(
   }
 }
 
-export function loadProfileClientConfig(): ProfileClientConfig {
-  const state = loadProfileState();
+export function loadProfileClientConfig(
+  selection: ProfileSelection = {},
+): ProfileClientConfig {
+  const state = loadProfileState(selection);
   const profile = state?.profile;
   if (!state || !profile) {
     return {};

@@ -931,6 +931,106 @@ describe("Client", () => {
       expect((client as any)._mergedHeaders.Authorization).toBeUndefined();
     });
 
+    it("uses the profile option over LANGSMITH_PROFILE and the current profile", () => {
+      writeProfileConfig({
+        current_profile: "prod",
+        profiles: {
+          prod: { oauth: { access_token: "prod-token" } },
+          staging: { oauth: { access_token: "staging-token" } },
+          dev: { oauth: { access_token: "dev-token" } },
+        },
+      });
+      process.env.LANGSMITH_PROFILE = "staging";
+
+      expect((new Client() as any)._mergedHeaders.Authorization).toBe(
+        "Bearer staging-token",
+      );
+      expect(
+        (new Client({ profile: "dev" }) as any)._mergedHeaders.Authorization,
+      ).toBe("Bearer dev-token");
+    });
+
+    it("reads profiles from profileConfigPath over LANGSMITH_CONFIG_FILE", () => {
+      const chosen = path.join(tempDir, "chosen.json");
+      fs.writeFileSync(
+        chosen,
+        JSON.stringify({ profiles: { default: { api_key: "chosen-key" } } }),
+      );
+      writeProfileConfig({
+        profiles: { default: { api_key: "env-file-key" } },
+      });
+
+      const client = new Client({ profileConfigPath: chosen });
+
+      expect((client as any)._mergedHeaders["x-api-key"]).toBe("chosen-key");
+    });
+
+    it("prefers the profile login over environment auth with preferProfileAuth", () => {
+      writeProfileConfig({
+        profiles: {
+          default: { oauth: { access_token: "profile-access-token" } },
+          keyless: { api_url: "https://profile.example.com" },
+        },
+      });
+      process.env.LANGSMITH_API_KEY = "env-key";
+
+      const preferred = new Client({ preferProfileAuth: true }) as any;
+      expect(preferred._mergedHeaders.Authorization).toBe(
+        "Bearer profile-access-token",
+      );
+      expect(preferred._mergedHeaders["x-api-key"]).toBeUndefined();
+
+      const explicit = new Client({
+        preferProfileAuth: true,
+        apiKey: "own-key",
+      }) as any;
+      expect(explicit._mergedHeaders["x-api-key"]).toBe("own-key");
+
+      const noLogin = new Client({
+        preferProfileAuth: true,
+        profile: "keyless",
+      }) as any;
+      expect(noLogin._mergedHeaders["x-api-key"]).toBe("env-key");
+    });
+
+    it("uses the preferred profile's api_url and workspace over the environment's", () => {
+      writeProfileConfig({
+        profiles: {
+          default: {
+            api_url: "https://profile.example.com",
+            workspace_id: "profile-workspace",
+            oauth: { access_token: "profile-access-token" },
+          },
+        },
+      });
+      process.env.LANGSMITH_API_KEY = "env-key";
+      process.env.LANGSMITH_ENDPOINT = "https://env.example.com";
+      process.env.LANGSMITH_WORKSPACE_ID = "env-workspace";
+
+      const preferred = new Client({ preferProfileAuth: true }) as any;
+      expect(preferred.apiUrl).toBe("https://profile.example.com");
+      expect(preferred.workspaceId).toBe("profile-workspace");
+
+      const keyed = new Client() as any;
+      expect(keyed.apiUrl).toBe("https://env.example.com");
+      expect(keyed.workspaceId).toBe("env-workspace");
+
+      const explicit = new Client({
+        preferProfileAuth: true,
+        apiKey: "own-key",
+      }) as any;
+      expect(explicit.apiUrl).toBe("https://env.example.com");
+      expect(explicit.workspaceId).toBe("env-workspace");
+
+      writeProfileConfig({
+        profiles: {
+          default: { oauth: { access_token: "profile-access-token" } },
+        },
+      });
+      const noUrl = new Client({ preferProfileAuth: true }) as any;
+      expect(noUrl.apiUrl).toBe("https://api.smith.langchain.com");
+    });
+
     it("suppresses profile auth when constructor auth is set", async () => {
       writeProfileConfig({
         profiles: {

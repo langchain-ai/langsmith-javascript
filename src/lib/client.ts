@@ -230,6 +230,12 @@ export interface ClientConfig {
    * The workspace ID. Required for org-scoped API keys.
    */
   workspaceId?: string;
+  /** CLI login profile to use instead of `LANGSMITH_PROFILE`. */
+  profile?: string;
+  /** CLI config file to use instead of `LANGSMITH_CONFIG_FILE`. */
+  profileConfigPath?: string;
+  /** Use the profile's login over `LANGSMITH_API_KEY` and its endpoint and workspace. */
+  preferProfileAuth?: boolean;
   /**
    * Custom fetch implementation. Useful for testing.
    */
@@ -1443,7 +1449,12 @@ export class Client implements LangSmithTracingClientInterface {
   debug = getEnvironmentVariable("LANGSMITH_DEBUG") === "true";
 
   constructor(config: ClientConfig = {}) {
-    const defaultConfig = Client.getDefaultClientConfig();
+    const defaultConfig = Client.getDefaultClientConfig({
+      profile: config.profile,
+      apiKey: config.apiKey,
+      profileConfigPath: config.profileConfigPath,
+      preferProfileAuth: config.preferProfileAuth,
+    });
 
     this.tracingSampleRate = getTracingSamplingRate(config.tracingSamplingRate);
     this.apiUrl = trimQuotes(config.apiUrl ?? defaultConfig.apiUrl) ?? "";
@@ -1572,11 +1583,30 @@ export class Client implements LangSmithTracingClientInterface {
     }
   }
 
-  public static getDefaultClientConfig(): DefaultClientConfig {
-    const profileConfig = loadProfileClientConfig();
-    const envApiKey = getLangSmithEnvironmentVariable("API_KEY");
-    const envApiUrl = getLangSmithEnvironmentVariable("ENDPOINT");
-    const envWorkspaceId = getLangSmithEnvironmentVariable("WORKSPACE_ID");
+  public static getDefaultClientConfig(
+    options: Pick<
+      ClientConfig,
+      "apiKey" | "profile" | "profileConfigPath" | "preferProfileAuth"
+    > = {},
+  ): DefaultClientConfig {
+    const profileConfig = loadProfileClientConfig({
+      profile: options.profile,
+      configPath: options.profileConfigPath,
+    });
+    const useProfile =
+      options.preferProfileAuth === true &&
+      !hasValue(trimQuotes(options.apiKey)) &&
+      profileConfig.profileAuth !== undefined;
+    const envApiKey = useProfile
+      ? undefined
+      : getLangSmithEnvironmentVariable("API_KEY");
+    const envApiUrl = useProfile
+      ? undefined
+      : getLangSmithEnvironmentVariable("ENDPOINT");
+    const envWorkspaceId =
+      useProfile && profileConfig.workspaceId != null
+        ? undefined
+        : getLangSmithEnvironmentVariable("WORKSPACE_ID");
     const envAuthSet = hasValue(envApiKey);
     const apiUrl = envApiUrl ?? profileConfig.apiUrl ?? DEFAULT_API_URL;
     const apiUrlSource =
