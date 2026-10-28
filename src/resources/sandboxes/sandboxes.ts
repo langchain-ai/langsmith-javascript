@@ -1118,9 +1118,9 @@ export interface SandboxResponse {
   name?: string;
 
   /**
-   * Persistent (private beta) reports whether the sandbox keeps its filesystem
-   * across stops. When false, its writes are discarded whenever it stops and it is
-   * not charged for storage.
+   * Persistent reports whether the sandbox keeps its filesystem across stops. When
+   * false, its writes are discarded whenever it stops and it is not charged for
+   * storage.
    */
   persistent?: boolean;
 
