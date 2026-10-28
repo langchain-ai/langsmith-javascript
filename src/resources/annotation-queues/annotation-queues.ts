@@ -204,9 +204,13 @@ export interface AnnotationQueueRubricItemSchema {
 
   regex_validator?: string | DatasetsAPI.Missing | null;
 
+  required_if?: AnnotationQueueRubricItemSchema.RequiredIf | null;
+
   score_descriptions?: { [key: string]: string } | null;
 
   value_descriptions?: { [key: string]: string } | null;
+
+  visible_if?: AnnotationQueueRubricItemSchema.VisibleIf | null;
 }
 
 export namespace AnnotationQueueRubricItemSchema {
@@ -253,6 +257,38 @@ export namespace AnnotationQueueRubricItemSchema {
 
         label?: string | null;
       }
+    }
+  }
+
+  export interface RequiredIf {
+    join: 'all' | 'any';
+
+    rules: Array<RequiredIf.Rule>;
+  }
+
+  export namespace RequiredIf {
+    export interface Rule {
+      key: string;
+
+      op: 'is' | 'is_one_of' | 'is_empty' | 'is_not_empty';
+
+      values?: Array<number>;
+    }
+  }
+
+  export interface VisibleIf {
+    join: 'all' | 'any';
+
+    rules: Array<VisibleIf.Rule>;
+  }
+
+  export namespace VisibleIf {
+    export interface Rule {
+      key: string;
+
+      op: 'is' | 'is_one_of' | 'is_empty' | 'is_not_empty';
+
+      values?: Array<number>;
     }
   }
 }
