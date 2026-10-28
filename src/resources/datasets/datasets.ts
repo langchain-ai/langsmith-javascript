@@ -132,6 +132,11 @@ export namespace FeedbackCreateCoreSchema {
      */
     type: 'continuous' | 'categorical' | 'freeform';
 
+    /**
+     * Whether a reviewer can pick several categories. Categorical feedback only.
+     */
+    allows_multiple_categories?: boolean;
+
     categories?: Array<FeedbackConfig.Category> | null;
 
     max?: number | null;

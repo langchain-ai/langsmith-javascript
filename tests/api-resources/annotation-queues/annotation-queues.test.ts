@@ -79,6 +79,7 @@ describe('resource annotationQueues', () => {
             id: '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
             feedback_config: {
               type: 'continuous',
+              allows_multiple_categories: true,
               categories: [{ value: 0, label: 'x' }],
               max: 0,
               min: 0,
