@@ -249,6 +249,12 @@ export interface BoxCreateParams {
 
   env_vars?: { [key: string]: string };
 
+  /**
+   * Disk for the sandbox, in bytes; defaults to the snapshot's and cannot be
+   * smaller. A sandbox with persistent=false gets at most 16 GiB of disk per vCPU,
+   * so at most 256 GiB: omit CPU and it is derived from the disk, set it and a
+   * larger disk is rejected.
+   */
   fs_capacity_bytes?: number;
 
   idle_ttl_seconds?: number;
