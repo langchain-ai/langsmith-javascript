@@ -1372,11 +1372,30 @@ export interface SandboxListUsageCostsResponse {
   compute_standard_units?: string | null;
 
   /**
+   * Memory usage in GiB-hours, as a decimal string. Available with RESOURCE
+   * granularity; null means complete usage is unavailable.
+   */
+  memory_gib_hours?: string | null;
+
+  /**
+   * Storage usage in GiB-hours from hourly attributed-byte samples, including
+   * checkpoints. Available with RESOURCE granularity; null means complete usage is
+   * unavailable.
+   */
+  storage_gib_hours?: string | null;
+
+  /**
    * Allocated storage usage in Standard Units, as a decimal string, separate from
    * LSU. Null means complete Standard storage usage is unavailable; "0" means known
    * zero usage.
    */
   storage_standard_units?: string | null;
+
+  /**
+   * CPU usage in vCPU-hours, as a decimal string. Available with RESOURCE
+   * granularity; null means complete usage is unavailable.
+   */
+  vcpu_hours?: string | null;
 }
 
 export interface SandboxListUsageCostsParams extends ItemsCursorGetPaginationParams {
@@ -1397,9 +1416,16 @@ export interface SandboxListUsageCostsParams extends ItemsCursorGetPaginationPar
   granularity?: 'HOUR' | 'RESOURCE';
 
   /**
+   * Include bounded daily physical usage for the top 10 resources per metric and
+   * Other. Requires RESOURCE and include_totals. Omitted when unrestricted access or
+   * service support is unavailable. CLI: use --format raw to show this summary.
+   */
+  include_daily?: boolean;
+
+  /**
    * Include usage totals across the filtered interval (RESOURCE only). Omitted when
    * unrestricted resource access cannot be verified or the service does not support
-   * totals.
+   * totals. CLI: use --format raw to show this summary.
    */
   include_totals?: boolean;
 

@@ -31,6 +31,7 @@ describe('resource sandboxes', () => {
       start_time: '2019-12-27T18:11:19.117Z',
       cursor: 'cursor',
       granularity: 'HOUR',
+      include_daily: true,
       include_totals: true,
       page_size: 1,
       resource_ids: ['string'],
