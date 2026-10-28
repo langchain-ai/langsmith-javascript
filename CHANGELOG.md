@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.4](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.3...v0.11.4) (2026-10-28)
+
+
+### Features
+
+* **sdk-js:** Let the Client Pick a CLI Login Profile and Prefer It Over the Shell Key ([e1356b2](https://github.com/langchain-ai/langsmith-javascript/commit/e1356b20e1c138325eda7049052e9f9e9237949a))
+
+
+### Documentation
+
+* **api:** describe the annotation queue, example and feedback token CLI flags ([4be339e](https://github.com/langchain-ai/langsmith-javascript/commit/4be339ec998207144e04b201c679e15ca65cd393))
+
 ## [0.11.3](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.2...v0.11.3) (2026-10-27)
 
 
