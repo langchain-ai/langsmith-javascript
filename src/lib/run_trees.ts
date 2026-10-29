@@ -1356,6 +1356,18 @@ function _getWriteReplicasFromEnv(): WriteReplica[] {
           continue;
         }
 
+        if (
+          item.workspace_id !== undefined &&
+          item.workspace_id !== null &&
+          typeof item.workspace_id !== "string"
+        ) {
+          console.warn(
+            `Invalid workspace_id type in LANGSMITH_RUNS_ENDPOINTS: ` +
+              `expected string, got ${typeof item.workspace_id}; ignoring it`,
+          );
+          item.workspace_id = undefined;
+        }
+
         if (item.primary !== undefined && typeof item.primary !== "boolean") {
           console.warn(
             `Invalid primary type in LANGSMITH_RUNS_ENDPOINTS: ` +
@@ -1368,6 +1380,7 @@ function _getWriteReplicasFromEnv(): WriteReplica[] {
           apiUrl: item.api_url.replace(/\/$/, ""),
           apiKey: item.api_key,
           projectName: item.project_name ?? undefined,
+          workspaceId: item.workspace_id?.trim() || undefined,
           primary: item.primary ?? undefined,
         });
       }

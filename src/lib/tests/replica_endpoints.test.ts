@@ -610,6 +610,152 @@ describe("LANGSMITH_RUNS_ENDPOINTS Replica Testing", () => {
       expect(parsedBodies[0].post).toEqual(parsedBodies[1].post);
       expect(parsedBodies[0].patch).toEqual(parsedBodies[1].patch);
     });
+
+    it("sends the workspace_id of a LANGSMITH_RUNS_ENDPOINTS entry", async () => {
+      process.env.LANGSMITH_RUNS_ENDPOINTS = JSON.stringify([
+        {
+          api_url: "https://dev.example.com",
+          api_key: "dev-org-key",
+          workspace_id: "dev-workspace",
+        },
+        {
+          api_url: "https://base.example.com",
+          api_key: "empty-key",
+          workspace_id: "",
+        },
+        {
+          api_url: "https://base.example.com",
+          api_key: "bad-key",
+          workspace_id: 1,
+        },
+      ]);
+      const mockFetch = jest.fn<typeof fetch>().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve(""),
+        json: () => Promise.resolve({}),
+      } as Response);
+      const client = new Client({
+        apiUrl: "https://base.example.com",
+        apiKey: "base-key",
+        workspaceId: "base-workspace",
+        autoBatchTracing: false,
+        fetchImplementation: mockFetch,
+      });
+
+      const runTree = new RunTree({
+        name: "test_run",
+        inputs: { input: "test" },
+        client,
+      });
+      await runTree.postRun();
+
+      const tenantByKey: Record<string, string | undefined> = {};
+      for (const call of mockFetch.mock.calls) {
+        if (!String(call[0]).endsWith("/runs")) continue;
+        const headers = (call[1] as any).headers;
+        tenantByKey[headers["x-api-key"]] = headers["x-tenant-id"];
+      }
+      expect(tenantByKey).toEqual({
+        "dev-org-key": "dev-workspace",
+        "empty-key": "base-workspace",
+        "bad-key": "base-workspace",
+      });
+    });
+
+    const replicaCases = [
+      [
+        "other-instance",
+        "https://dev.example.com",
+        "dev-key",
+        undefined,
+        undefined,
+      ],
+      [
+        "other-instance-own-tenant",
+        "https://dev.example.com",
+        "dev-key",
+        "dev-workspace",
+        "dev-workspace",
+      ],
+      [
+        "same-instance",
+        "https://base.example.com",
+        "same-org-key",
+        undefined,
+        "base-workspace",
+      ],
+      [
+        "other-host-same-key",
+        "https://data-plane.example.com",
+        "base-key",
+        undefined,
+        "base-workspace",
+      ],
+    ] as const;
+    const transports = [
+      ["single", false, false],
+      ["batch-json", true, false],
+      ["multipart", true, true],
+    ] as const;
+
+    describe.each(transports)("%s", (_t, autoBatchTracing, useMultipart) => {
+      it.each(replicaCases)(
+        "drops the base workspace only for a replica on another instance (%s)",
+        async (
+          _c,
+          replicaUrl,
+          replicaKey,
+          replicaWorkspace,
+          expectedTenant,
+        ) => {
+          const mockFetch = jest.fn<typeof fetch>().mockResolvedValue({
+            ok: true,
+            status: 200,
+            text: () => Promise.resolve(""),
+            json: () => Promise.resolve({}),
+          } as Response);
+          const client = new Client({
+            apiUrl: "https://base.example.com",
+            apiKey: "base-key",
+            workspaceId: "base-workspace",
+            autoBatchTracing,
+            fetchImplementation: mockFetch,
+          });
+          jest.spyOn(client as any, "_getServerInfo").mockResolvedValue({
+            version: "test",
+            batch_ingest_config: { use_multipart_endpoint: useMultipart },
+          });
+
+          const runTree = new RunTree({
+            name: "test_run",
+            inputs: { input: "test" },
+            client,
+            replicas: [
+              {
+                apiUrl: replicaUrl,
+                apiKey: replicaKey,
+                workspaceId: replicaWorkspace,
+              },
+            ],
+          });
+          await runTree.postRun();
+          await runTree.end({ output: "test" });
+          await runTree.patchRun();
+          await client.awaitPendingTraceBatches();
+
+          const writes = mockFetch.mock.calls.filter((call) =>
+            String(call[0]).startsWith(`${replicaUrl}/`),
+          );
+          expect(writes.length).toBeGreaterThan(0);
+          for (const call of writes) {
+            const headers = (call[1] as any).headers;
+            expect(headers["x-api-key"]).toBe(replicaKey);
+            expect(headers["x-tenant-id"]).toBe(expectedTenant);
+          }
+        },
+      );
+    });
   });
 
   describe("Error Handling", () => {

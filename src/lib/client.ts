@@ -1214,6 +1214,24 @@ export class Client implements LangSmithTracingClientInterface {
 
   private profileAuth?: ProfileAuth;
 
+  // Workspace ids are per instance: a replica with its own key on another host
+  // drops the inherited one.
+  private _applyReplicaWorkspace(
+    headers: Record<string, string>,
+    options?: { apiKey?: string; apiUrl?: string; workspaceId?: string },
+  ): void {
+    if (options?.workspaceId !== undefined) {
+      headers["x-tenant-id"] = options.workspaceId;
+    } else if (
+      options?.apiUrl !== undefined &&
+      options.apiKey !== undefined &&
+      options.apiKey !== this.apiKey &&
+      new URL(options.apiUrl).host !== new URL(this.apiUrl).host
+    ) {
+      delete headers["x-tenant-id"];
+    }
+  }
+
   private get _fetch(): typeof fetch {
     const fetchImplementation =
       this.fetchImplementation || _getFetchImplementation(this.debug);
@@ -2232,7 +2250,8 @@ export class Client implements LangSmithTracingClientInterface {
         (acc, item) => {
           const apiUrl = item.apiUrl ?? this.apiUrl;
           const apiKey = item.apiKey ?? this.apiKey;
-          const workspaceId = item.workspaceId ?? this.workspaceId;
+          // Not `?? this.workspaceId`: _applyReplicaWorkspace decides for the base one.
+          const workspaceId = item.workspaceId;
           const isDefault =
             item.apiKey === this.apiKey &&
             item.apiUrl === this.apiUrl &&
@@ -2939,9 +2958,7 @@ export class Client implements LangSmithTracingClientInterface {
     if (options?.apiKey !== undefined) {
       headers["x-api-key"] = options.apiKey;
     }
-    if (options?.workspaceId !== undefined) {
-      headers["x-tenant-id"] = options.workspaceId;
-    }
+    this._applyReplicaWorkspace(headers, options);
     const body = serializePayloadForTracing(
       mergedRunCreateParam,
       `Creating run with id: ${mergedRunCreateParam.id}`,
@@ -3062,9 +3079,7 @@ export class Client implements LangSmithTracingClientInterface {
     if (options?.apiKey !== undefined) {
       headers["x-api-key"] = options.apiKey;
     }
-    if (options?.workspaceId !== undefined) {
-      headers["x-tenant-id"] = options.workspaceId;
-    }
+    this._applyReplicaWorkspace(headers, options);
     await this.batchIngestCaller.callWithOptions(
       { sizeBytes: options?.sizeBytes },
       async () => {
@@ -3437,9 +3452,7 @@ export class Client implements LangSmithTracingClientInterface {
           if (options?.apiKey !== undefined) {
             headers["x-api-key"] = options.apiKey;
           }
-          if (options?.workspaceId !== undefined) {
-            headers["x-tenant-id"] = options.workspaceId;
-          }
+          this._applyReplicaWorkspace(headers, options);
 
           let transformedBody = body;
           if (
@@ -3610,9 +3623,7 @@ export class Client implements LangSmithTracingClientInterface {
     if (options?.apiKey !== undefined) {
       headers["x-api-key"] = options.apiKey;
     }
-    if (options?.workspaceId !== undefined) {
-      headers["x-tenant-id"] = options.workspaceId;
-    }
+    this._applyReplicaWorkspace(headers, options);
     const wireRun = { ...run };
     applyToPayload(wireRun, { update: true });
     const body = serializePayloadForTracing(
@@ -6138,9 +6149,7 @@ export class Client implements LangSmithTracingClientInterface {
     if (options?.apiKey !== undefined) {
       headers["x-api-key"] = options.apiKey;
     }
-    if (options?.workspaceId !== undefined) {
-      headers["x-tenant-id"] = options.workspaceId;
-    }
+    this._applyReplicaWorkspace(headers, options);
     const body = JSON.stringify(feedback);
     await this.caller.call(async () => {
       const res = await this._fetch(
