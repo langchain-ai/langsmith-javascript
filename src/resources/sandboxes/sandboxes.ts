@@ -162,19 +162,20 @@ export namespace ProxyConfig {
     headers?: Array<Rule.Header>;
 
     /**
-     * MatchHeaders restricts a header injection rule to requests carrying every listed
-     * header, each written "name: value" with a lowercase name and an exact value.
-     * Pair with headers of the same name to swap a placeholder the sandbox sends (e.g.
-     * "authorization: Bearer account-b") for a real credential, so one host can serve
-     * several accounts. Rules are evaluated in order and the first match wins.
+     * MatchHeaders restricts a header injection or rewrite rule to requests carrying
+     * every listed header, each written "name: value" with a lowercase name and an
+     * exact value. Pair with headers of the same name to swap a placeholder the
+     * sandbox sends (e.g. "authorization: Bearer account-b") for a real credential, so
+     * one host can serve several accounts. Rules are evaluated in order and the first
+     * match wins.
      */
     match_headers?: Array<string>;
 
     /**
-     * MatchHosts is only accepted for header injection and relay rules. Provider auth
-     * rules use built-in host matching. A relay rule may also list IP addresses and
-     * CIDR blocks (10.0.0.0/8), which match connections the sandbox makes to an IP
-     * address rather than a name.
+     * MatchHosts is only accepted for header injection, rewrite, and relay rules.
+     * Provider auth rules use built-in host matching. A relay rule may also list IP
+     * addresses and CIDR blocks (10.0.0.0/8), which match connections the sandbox
+     * makes to an IP address rather than a name.
      */
     match_hosts?: Array<string>;
 
@@ -188,6 +189,8 @@ export namespace ProxyConfig {
      * and a matched host never falls back to a direct connection.
      */
     relay_id?: string;
+
+    rewrite?: Rule.Rewrite;
 
     type?: string;
   }
@@ -383,6 +386,30 @@ export namespace ProxyConfig {
       is_set?: boolean;
 
       value?: string;
+    }
+
+    export interface Rewrite {
+      port: number;
+
+      /**
+       * Credentials is what happens to credential headers the sandbox sent, such as
+       * Authorization and Cookie: "strip" (the default) removes them, "redact" keeps
+       * each with its value replaced by "redacted" (after an auth scheme such as "Bearer
+       * "), and "keep" forwards them unchanged.
+       */
+      credentials?: 'strip' | 'redact' | 'keep';
+
+      /**
+       * Host is an HTTPS destination. Exactly one of host and sandbox is set.
+       */
+      host?: string;
+
+      /**
+       * Sandbox is the name or ID of a sandbox to send requests to, over plain HTTP. A
+       * sandbox link from this sandbox to that sandbox's port must exist. Exactly one of
+       * host and sandbox is set.
+       */
+      sandbox?: string;
     }
   }
 }
