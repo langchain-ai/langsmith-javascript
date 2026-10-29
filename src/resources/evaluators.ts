@@ -233,6 +233,9 @@ export interface EvaluatorListParams {
 }
 
 export interface EvaluatorCreateDecisionModelParams {
+  /**
+   * The evaluator's name.
+   */
   display_name: string;
 
   /**
