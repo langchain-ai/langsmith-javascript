@@ -90,6 +90,10 @@ import { Traces } from "../resources/traces.js";
 import { Sessions } from "../resources/sessions.js";
 import { Public } from "../resources/public/public.js";
 import { assertUuid } from "./utils/_uuid.js";
+import {
+  CompressedRunBuffer,
+  SerializedPart,
+} from "./utils/compressed_runs.js";
 import { isSampledById } from "./utils/sampling.js";
 import { warnOnce } from "./utils/warn.js";
 import {
@@ -1020,8 +1024,9 @@ export class AutoBatchQueue {
     const size = estimateSerializedSize(item.item).size;
 
     // Check if adding this item would exceed the size limit
-    // Allow the run if the queue is empty (to support large single traces)
-    if (this.sizeBytes + size > this.maxSizeBytes && this.items.length > 0) {
+    // Allow the run if nothing is held (to support large single traces).
+    // sizeBytes includes runs waiting to be gzipped.
+    if (this.sizeBytes + size > this.maxSizeBytes && this.sizeBytes > 0) {
       console.warn(
         `AutoBatchQueue size limit (${this.maxSizeBytes} bytes) exceeded. Dropping run with id: ${item.item.id}. ` +
           `Current queue size: ${this.sizeBytes} bytes, attempted addition: ${size} bytes.`,
@@ -1171,6 +1176,27 @@ export class Client implements LangSmithTracingClientInterface {
    * serialize) that hasn't yet registered with batchIngestCaller.queue.
    */
   private _pendingDrains = new Set<Promise<unknown>>();
+
+  /**
+   * Open gzip buffers, one per destination, that queued run operations are
+   * written into when the server accepts gzip (see CompressedRunBuffer).
+   */
+  private _compressedBuffers = new Map<
+    string,
+    {
+      buffer: CompressedRunBuffer;
+      apiKey?: string;
+      apiUrl?: string;
+      workspaceId?: string;
+    }
+  >();
+
+  // One chain, so a run's post is written before its patch.
+  private _compressedWriteChain: Promise<void> = Promise.resolve();
+
+  private _compressedFlushTimeout?: ReturnType<typeof setTimeout>;
+
+  private _maxIngestMemoryBytes = DEFAULT_MAX_SIZE_BYTES;
 
   private langSmithToOTELTranslator?: LangSmithToOTELTranslator;
 
@@ -1507,6 +1533,7 @@ export class Client implements LangSmithTracingClientInterface {
 
     // Use maxIngestMemoryBytes for both queues
     const maxMemory = config.maxIngestMemoryBytes ?? DEFAULT_MAX_SIZE_BYTES;
+    this._maxIngestMemoryBytes = maxMemory;
 
     this.batchIngestCaller = new AsyncCaller({
       maxRetries: 4,
@@ -2474,6 +2501,10 @@ export class Client implements LangSmithTracingClientInterface {
     }
     const sizeLimitBytes = await this._getBatchSizeLimitBytes();
     const sizeLimit = await this._getBatchSizeLimit();
+    if (this._shouldCompressOnQueue()) {
+      this._moveQueueToCompressed();
+      return itemPromise;
+    }
     if (
       this.autoBatchQueue.sizeBytes > sizeLimitBytes ||
       this.autoBatchQueue.items.length > sizeLimit
@@ -2593,16 +2624,252 @@ export class Client implements LangSmithTracingClientInterface {
     return await this.settings;
   }
 
+  /** OTel and JSON batch need run objects, so they keep the queue. */
+  private _shouldCompressOnQueue(): boolean {
+    const serverInfo = this._serverInfo;
+    return (
+      serverInfo !== undefined &&
+      this.langSmithToOTELTranslator === undefined &&
+      !this._runCompressionDisabled &&
+      !this._multipartDisabled &&
+      CompressedRunBuffer.isSupported() &&
+      (serverInfo.batch_ingest_config?.use_multipart_endpoint ?? true) &&
+      serverInfo.instance_flags?.gzip_body_enabled === true
+    );
+  }
+
+  /** Move queued runs into the gzip buffers, oldest first. */
+  private _moveQueueToCompressed() {
+    // Not pop(): its callback keeps the runs alive until sent. sizeBytes is
+    // released per run once written.
+    const queued = this.autoBatchQueue.items.splice(0);
+    for (const queuedItem of queued) {
+      const { itemPromiseResolve, size } = queuedItem;
+      void this._enqueueCompressed(size, {
+        action: queuedItem.action,
+        item: queuedItem.payload,
+        otelContext: queuedItem.otelContext,
+        apiKey: queuedItem.apiKey,
+        apiUrl: queuedItem.apiUrl,
+        workspaceId: queuedItem.workspaceId,
+      }).then(itemPromiseResolve);
+    }
+  }
+
+  private async _serializeQueuedOperation(
+    item: AutoBatchQueueItem,
+  ): Promise<{ parts: SerializedPart[]; context: string }> {
+    if (item.action === "feedback") {
+      const feedback = item.item as FeedbackCreate;
+      return {
+        parts: [await this._serializeFeedbackPart(feedback)],
+        context: `trace=${feedback.trace_id},id=${feedback.id}`,
+      };
+    }
+    const prepared =
+      item.action === "create"
+        ? await this.prepareRunCreateOrUpdateInputs(item.item as RunCreate)
+        : await this.prepareRunCreateOrUpdateInputs(item.item as RunUpdate, {
+            update: true,
+          });
+    const attachments = (prepared as RunCreate).attachments;
+    delete (prepared as RunCreate).attachments;
+    return {
+      parts: await this._serializeRunParts(
+        item.action === "create" ? "post" : "patch",
+        prepared,
+        attachments,
+      ),
+      context: `trace=${prepared.trace_id},id=${prepared.id}`,
+    };
+  }
+
+  /** Gzip an operation into its destination's buffer. Resolves once sent. */
+  private _enqueueCompressed(
+    queuedSize: number,
+    item: AutoBatchQueueItem,
+  ): Promise<void> {
+    let onSent!: () => void;
+    const sent = new Promise<void>((resolve) => {
+      onSent = resolve;
+    });
+    const isDefault =
+      item.apiKey === this.apiKey &&
+      item.apiUrl === this.apiUrl &&
+      item.workspaceId === this.workspaceId;
+    const key = isDefault
+      ? "default"
+      : `${item.apiUrl ?? this.apiUrl}|${item.apiKey ?? this.apiKey}|${
+          item.workspaceId ?? this.workspaceId ?? ""
+        }`;
+    // One at a time, so at most one operation is held uncompressed.
+    const write = async () => {
+      let serialized;
+      try {
+        serialized = await this._serializeQueuedOperation(item);
+      } finally {
+        this.autoBatchQueue.sizeBytes -= queuedSize;
+      }
+      const { parts, context } = serialized;
+      const sizeLimitBytes = await this._getBatchSizeLimitBytes();
+      const sizeLimit = await this._getBatchSizeLimit();
+      const size = parts.reduce((sum, p) => sum + p.data.byteLength, 0);
+      let entry = this._compressedBuffers.get(key);
+      if (
+        entry !== undefined &&
+        entry.buffer.count > 0 &&
+        entry.buffer.uncompressedSize + size > this._maxIngestMemoryBytes
+      ) {
+        // Over the memory cap: send this buffer, start a new one.
+        this._compressedBuffers.delete(key);
+        this._trackDrain(this._sendCompressedBuffer(entry));
+        entry = undefined;
+      }
+      if (entry === undefined) {
+        entry = {
+          buffer: new CompressedRunBuffer(),
+          apiKey: isDefault ? undefined : item.apiKey ?? this.apiKey,
+          apiUrl: isDefault ? undefined : item.apiUrl ?? this.apiUrl,
+          workspaceId: isDefault
+            ? undefined
+            : item.workspaceId ?? this.workspaceId,
+        };
+        this._compressedBuffers.set(key, entry);
+      }
+      await entry.buffer.writeParts(parts, context, onSent);
+      if (
+        entry.buffer.uncompressedSize >= sizeLimitBytes ||
+        entry.buffer.count >= sizeLimit
+      ) {
+        this._compressedBuffers.delete(key);
+        this._trackDrain(this._sendCompressedBuffer(entry));
+      }
+    };
+    this._compressedWriteChain = this._compressedWriteChain
+      .then(write)
+      .catch((e) => {
+        console.error("Error queueing run for tracing:", e);
+        onSent();
+      });
+    // Fixed delay from the first write, so steady traffic still flushes.
+    if (!this.manualFlushMode && this._compressedFlushTimeout === undefined) {
+      this._compressedFlushTimeout = setTimeout(() => {
+        this._compressedFlushTimeout = undefined;
+        this._trackDrain(this._flushCompressedBuffers());
+      }, this.autoBatchAggregationDelayMs);
+    }
+    return sent;
+  }
+
+  /** Close and send a buffer already taken out of _compressedBuffers. */
+  private async _sendCompressedBuffer(entry: {
+    buffer: CompressedRunBuffer;
+    apiKey?: string;
+    apiUrl?: string;
+    workspaceId?: string;
+  }): Promise<void> {
+    const { buffer } = entry;
+    try {
+      const body = await buffer.close();
+      await this._sendCompressedMultipart(body, buffer, entry);
+    } catch (e) {
+      console.error("Error exporting batch:", e);
+    } finally {
+      for (const onSent of buffer.onSent) {
+        onSent();
+      }
+    }
+  }
+
+  private async _flushCompressedBuffers(): Promise<void> {
+    // Inside the chain, so no write is midway.
+    const taken = this._compressedWriteChain.then(() => {
+      const entries = [...this._compressedBuffers.values()];
+      this._compressedBuffers.clear();
+      return entries;
+    });
+    this._compressedWriteChain = taken.then(() => undefined);
+    const entries = await taken;
+    await Promise.all(
+      entries.map((entry) => this._sendCompressedBuffer(entry)),
+    );
+  }
+
+  private async _sendCompressedMultipart(
+    body: Uint8Array<ArrayBuffer>,
+    buffer: CompressedRunBuffer,
+    options: { apiKey?: string; apiUrl?: string; workspaceId?: string },
+  ) {
+    const context = buffer.context.join("; ");
+    const headers: Record<string, string> = {
+      ...this._mergedHeaders,
+      "Content-Type": `multipart/form-data; boundary=${buffer.boundary}`,
+      "Content-Encoding": "gzip",
+    };
+    if (options.apiKey !== undefined) {
+      headers["x-api-key"] = options.apiKey;
+    }
+    if (options.workspaceId !== undefined) {
+      headers["x-tenant-id"] = options.workspaceId;
+    }
+    try {
+      // Retries resend the same bytes.
+      await this.batchIngestCaller.callWithOptions(
+        { sizeBytes: body.byteLength },
+        async () => {
+          const response = await this._fetch(
+            `${options.apiUrl ?? this.apiUrl}/runs/multipart`,
+            {
+              method: "POST",
+              headers,
+              body,
+              signal: AbortSignal.timeout(this.timeout_ms),
+              ...this.fetchOptions,
+            } as RequestInit,
+          );
+          await raiseForStatus(
+            response,
+            `Failed to send multipart request`,
+            true,
+          );
+          return response;
+        },
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (e: any) {
+      if (isLangSmithNotFoundError(e)) {
+        // Later runs use the queue and its JSON batch fallback.
+        this._multipartDisabled = true;
+      }
+      console.warn(`${e.message.trim()}\n\nContext: ${context}`);
+      if (this.failedTracesDir) {
+        await Client._writeTraceToFallbackDir(
+          this.failedTracesDir,
+          body.buffer,
+          {
+            "Content-Type": `multipart/form-data; boundary=${buffer.boundary}`,
+            "Content-Encoding": "gzip",
+          },
+          "runs/multipart",
+          this.failedTracesMaxBytes,
+        );
+      }
+    }
+  }
+
   /**
    * Flushes current queued traces.
    */
   public async flush() {
     const sizeLimitBytes = await this._getBatchSizeLimitBytes();
     const sizeLimit = await this._getBatchSizeLimit();
-    await this.drainAutoBatchQueue({
-      batchSizeLimitBytes: sizeLimitBytes,
-      batchSizeLimit: sizeLimit,
-    });
+    await Promise.all([
+      this.drainAutoBatchQueue({
+        batchSizeLimitBytes: sizeLimitBytes,
+        batchSizeLimit: sizeLimit,
+      }),
+      this._flushCompressedBuffers(),
+    ]);
   }
 
   private _cloneCurrentOTELContext() {
@@ -2863,9 +3130,22 @@ export class Client implements LangSmithTracingClientInterface {
     }
     let preparedUpdateParams = [];
     for (const update of runUpdates ?? []) {
-      preparedUpdateParams.push(
-        await this.prepareRunCreateOrUpdateInputs(update, { update: true }),
-      );
+      const preparedUpdate = await this.prepareRunCreateOrUpdateInputs(update, {
+        update: true,
+      });
+      // Keyed by run id: parts are named attachment.<run_id>.<name>, so the
+      // server stores them whether the post or the patch carries them.
+      if (
+        preparedUpdate.id !== undefined &&
+        preparedUpdate.attachments !== undefined
+      ) {
+        allAttachments[preparedUpdate.id] = {
+          ...allAttachments[preparedUpdate.id],
+          ...preparedUpdate.attachments,
+        };
+      }
+      delete preparedUpdate.attachments;
+      preparedUpdateParams.push(preparedUpdate);
     }
 
     // require trace_id and dotted_order
@@ -2916,98 +3196,37 @@ export class Client implements LangSmithTracingClientInterface {
     // send the runs in multipart requests
     const accumulatedContext: string[] = [];
     const accumulatedParts: MultipartPart[] = [];
+    const toMultipartPart = (part: SerializedPart): MultipartPart => ({
+      name: part.name,
+      payload: new Blob([part.data as BlobPart], { type: part.contentType }),
+    });
     for (const [method, payloads] of [
       ["post", preparedCreateParams] as const,
       ["patch", preparedUpdateParams] as const,
     ]) {
       for (const originalPayload of payloads) {
-        // collect fields to be sent as separate parts
-        const {
-          inputs,
-          outputs,
-          events,
-          extra,
-          error,
-          serialized,
+        const attachments =
+          originalPayload.id !== undefined
+            ? allAttachments[originalPayload.id]
+            : undefined;
+        if (originalPayload.id !== undefined) {
+          delete allAttachments[originalPayload.id];
+        }
+        const parts = await this._serializeRunParts(
+          method,
+          originalPayload,
           attachments,
-          ...payload
-        } = originalPayload;
-        const fields = { inputs, outputs, events, extra, error, serialized };
-        // encode the main run payload
-        const stringifiedPayload = await this._serializeBody(
-          payload,
-          `Serializing for multipart ingestion of run with id: ${payload.id}`,
         );
-        accumulatedParts.push({
-          name: `${method}.${payload.id}`,
-          payload: new Blob([stringifiedPayload], {
-            type: `application/json; length=${stringifiedPayload.length}`, // encoding=gzip
-          }),
-        });
-        // encode the fields we collected
-        for (const [key, value] of Object.entries(fields)) {
-          if (value === undefined) {
-            continue;
-          }
-          const stringifiedValue = await this._serializeBody(
-            value,
-            `Serializing ${key} for multipart ingestion of run with id: ${payload.id}`,
-          );
-          accumulatedParts.push({
-            name: `${method}.${payload.id}.${key}`,
-            payload: new Blob([stringifiedValue], {
-              type: `application/json; length=${stringifiedValue.length}`,
-            }),
-          });
-        }
-        // encode the attachments
-        if (payload.id !== undefined) {
-          const attachments = allAttachments[payload.id];
-          if (attachments) {
-            delete allAttachments[payload.id];
-            for (const [name, attachment] of Object.entries(attachments)) {
-              let contentType: string;
-              let content: AttachmentData;
-
-              if (Array.isArray(attachment)) {
-                [contentType, content] = attachment;
-              } else {
-                contentType = attachment.mimeType;
-                content = attachment.data;
-              }
-
-              // Validate that the attachment name doesn't contain a '.'
-              if (name.includes(".")) {
-                console.warn(
-                  `Skipping attachment '${name}' for run ${payload.id}: Invalid attachment name. ` +
-                    `Attachment names must not contain periods ('.'). Please rename the attachment and try again.`,
-                );
-                continue;
-              }
-              accumulatedParts.push({
-                name: `attachment.${payload.id}.${name}`,
-                payload: new Blob([content as BlobPart], {
-                  type: `${contentType}; length=${content.byteLength}`,
-                }),
-              });
-            }
-          }
-        }
-        // compute context
-        accumulatedContext.push(`trace=${payload.trace_id},id=${payload.id}`);
+        accumulatedParts.push(...parts.map(toMultipartPart));
+        accumulatedContext.push(
+          `trace=${originalPayload.trace_id},id=${originalPayload.id}`,
+        );
       }
     }
     for (const feedback of feedbacks ?? []) {
-      const stringifiedFeedback = await this._serializeBody(
-        feedback,
-        `Serializing for multipart ingestion of feedback with id: ${feedback.id}`,
+      accumulatedParts.push(
+        toMultipartPart(await this._serializeFeedbackPart(feedback)),
       );
-      accumulatedParts.push({
-        name: `feedback.${feedback.id}`,
-        payload: new Blob([stringifiedFeedback], {
-          type: `application/json; length=${stringifiedFeedback.length}`,
-        }),
-      });
       accumulatedContext.push(`trace=${feedback.trace_id},id=${feedback.id}`);
     }
     await this._sendMultipartRequest(
@@ -3015,6 +3234,96 @@ export class Client implements LangSmithTracingClientInterface {
       accumulatedContext.join("; "),
       options,
     );
+  }
+
+  /** Serialize one run operation into its multipart parts. */
+  private async _serializeRunParts(
+    method: "post" | "patch",
+    originalPayload: RunCreate | RunUpdate,
+    attachments?: Attachments,
+  ): Promise<SerializedPart[]> {
+    const parts: SerializedPart[] = [];
+    // collect fields to be sent as separate parts
+    const {
+      inputs,
+      outputs,
+      events,
+      extra,
+      error,
+      serialized,
+      attachments: _attachments,
+      ...payload
+    } = originalPayload as RunCreate;
+    const fields = { inputs, outputs, events, extra, error, serialized };
+    // encode the main run payload
+    const stringifiedPayload = await this._serializeBody(
+      payload,
+      `Serializing for multipart ingestion of run with id: ${payload.id}`,
+    );
+    parts.push({
+      name: `${method}.${payload.id}`,
+      contentType: `application/json; length=${stringifiedPayload.length}`,
+      data: stringifiedPayload,
+    });
+    // encode the fields we collected
+    for (const [key, value] of Object.entries(fields)) {
+      if (value === undefined) {
+        continue;
+      }
+      const stringifiedValue = await this._serializeBody(
+        value,
+        `Serializing ${key} for multipart ingestion of run with id: ${payload.id}`,
+      );
+      parts.push({
+        name: `${method}.${payload.id}.${key}`,
+        contentType: `application/json; length=${stringifiedValue.length}`,
+        data: stringifiedValue,
+      });
+    }
+    // encode the attachments
+    for (const [name, attachment] of Object.entries(attachments ?? {})) {
+      let contentType: string;
+      let content: AttachmentData;
+
+      if (Array.isArray(attachment)) {
+        [contentType, content] = attachment;
+      } else {
+        contentType = attachment.mimeType;
+        content = attachment.data;
+      }
+
+      // Validate that the attachment name doesn't contain a '.'
+      if (name.includes(".")) {
+        console.warn(
+          `Skipping attachment '${name}' for run ${payload.id}: Invalid attachment name. ` +
+            `Attachment names must not contain periods ('.'). Please rename the attachment and try again.`,
+        );
+        continue;
+      }
+      parts.push({
+        name: `attachment.${payload.id}.${name}`,
+        contentType: `${contentType}; length=${content.byteLength}`,
+        data:
+          content instanceof Uint8Array
+            ? content
+            : new Uint8Array(content as ArrayBuffer),
+      });
+    }
+    return parts;
+  }
+
+  private async _serializeFeedbackPart(
+    feedback: FeedbackCreate,
+  ): Promise<SerializedPart> {
+    const stringifiedFeedback = await this._serializeBody(
+      feedback,
+      `Serializing for multipart ingestion of feedback with id: ${feedback.id}`,
+    );
+    return {
+      name: `feedback.${feedback.id}`,
+      contentType: `application/json; length=${stringifiedFeedback.length}`,
+      data: stringifiedFeedback,
+    };
   }
 
   private async _createNodeFetchBody(parts: MultipartPart[], boundary: string) {
@@ -8305,6 +8614,16 @@ export class Client implements LangSmithTracingClientInterface {
     // batchIngestCaller queue) before checking queue idleness.
     while (this._pendingDrains.size > 0) {
       await Promise.all([...this._pendingDrains]);
+    }
+    // Send open gzip buffers now. Twice, to catch runs queued during the
+    // first send.
+    for (let pass = 0; pass < 2; pass++) {
+      clearTimeout(this._compressedFlushTimeout);
+      this._compressedFlushTimeout = undefined;
+      await this._flushCompressedBuffers();
+      while (this._pendingDrains.size > 0) {
+        await Promise.all([...this._pendingDrains]);
+      }
     }
     await Promise.all([
       ...this.autoBatchQueue.items.map(({ itemPromise }) => itemPromise),

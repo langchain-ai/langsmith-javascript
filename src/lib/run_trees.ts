@@ -362,6 +362,9 @@ export class RunTree implements BaseRun {
    */
   private _serialized_start_time: string | undefined;
 
+  /** Attachment names already sent by postRun, so patchRun does not resend them. */
+  private _postedAttachmentNames: Set<string> | undefined;
+
   /**
    * @internal
    */
@@ -642,7 +645,8 @@ export class RunTree implements BaseRun {
       trace_id: run.trace_id,
       dotted_order: run.dotted_order,
       tags: run.tags,
-      attachments: run.attachments,
+      // Copied so files added later are left to patchRun, not this create.
+      attachments: run.attachments ? { ...run.attachments } : undefined,
       events: run.events,
     };
   }
@@ -905,6 +909,11 @@ export class RunTree implements BaseRun {
     }
     try {
       const runtimeEnv = getRuntimeEnvironment();
+      // Read before createRun awaits: traceable runs the function meanwhile,
+      // and files it adds then are not in the create payload.
+      const postedAttachmentNames = new Set(
+        Object.keys(this.attachments ?? {}),
+      );
       if (this.replicas && this.replicas.length > 0) {
         for (const replica of this.replicas) {
           const {
@@ -943,6 +952,7 @@ export class RunTree implements BaseRun {
         );
         await this.client.createRun(runCreate);
       }
+      this._postedAttachmentNames = postedAttachmentNames;
 
       if (!excludeChildRuns) {
         warnOnce(
@@ -959,6 +969,15 @@ export class RunTree implements BaseRun {
     }
   }
 
+  /** Attachments added since postRun, or undefined when there are none. */
+  private _attachmentsToPatch(): Attachments | undefined {
+    const posted = this._postedAttachmentNames;
+    const pending = Object.entries(this.attachments ?? {}).filter(
+      ([name]) => !posted?.has(name),
+    );
+    return pending.length > 0 ? Object.fromEntries(pending) : undefined;
+  }
+
   /**
    * Patch the run tree to the API.
    *
@@ -973,6 +992,7 @@ export class RunTree implements BaseRun {
    */
   async patchRun(options?: { excludeInputs?: boolean }): Promise<void> {
     const excludeInputs = options?.excludeInputs ?? getExcludeInputsOnPatch();
+    const attachments = this._attachmentsToPatch();
     if (this.replicas && this.replicas.length > 0) {
       for (const replica of this.replicas) {
         const {
@@ -1014,7 +1034,7 @@ export class RunTree implements BaseRun {
           events: runData.events,
           tags: runData.tags,
           extra: runData.extra,
-          attachments: this.attachments,
+          attachments,
           ...updates,
         };
         // Important that inputs is not a key in the run update
@@ -1046,7 +1066,7 @@ export class RunTree implements BaseRun {
           dotted_order: this.dotted_order,
           trace_id: this.trace_id,
           tags: this.tags,
-          attachments: this.attachments,
+          attachments,
           session_name: this.project_name,
           address: this.address,
         };

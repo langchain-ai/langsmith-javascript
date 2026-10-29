@@ -5,7 +5,7 @@
 import { jest, describe, expect, afterEach, it } from "@jest/globals";
 import { v4 as uuidv4 } from "../utils/uuid/src/index.js";
 import { Client, mergeRuntimeEnvIntoRun } from "../client.js";
-import { convertToDottedOrderFormat } from "../run_trees.js";
+import { convertToDottedOrderFormat, RunTree } from "../run_trees.js";
 import type { KVMap, RunCreate } from "../schemas.js";
 
 const parseMockRequestBody = async (
@@ -2556,5 +2556,154 @@ describe("sample rate and caller metadata survive batching and compression", () 
       requestParam.body,
     )) as unknown as ParsedBatchBody;
     expectSampleRateAndUserId(reqBody, runIdA, runIdB);
+  });
+});
+
+describe("Batch client attachments on run updates", () => {
+  const partNames = async (body: string | Uint8Array | ReadableStream) => {
+    let raw: string;
+    if (body instanceof ReadableStream) {
+      const [gzipped, plain] = body.tee();
+      try {
+        raw = await new Response(
+          gzipped.pipeThrough(new DecompressionStream("gzip")),
+        ).text();
+      } catch {
+        raw = await new Response(plain).text();
+      }
+    } else {
+      raw = typeof body === "string" ? body : new TextDecoder().decode(body);
+    }
+    return [...raw.matchAll(/name="([^"]+)"/g)].map((m) => m[1]);
+  };
+
+  const createClient = () => {
+    const bodies: any[] = [];
+    const client = new Client({
+      apiKey: "test-api-key",
+      autoBatchTracing: true,
+      fetchImplementation: jest.fn((url: any, init: any) => {
+        if (url.includes("/runs/")) bodies.push(init.body);
+        return Promise.resolve({
+          ok: true,
+          text: () => Promise.resolve(""),
+        } as Response);
+      }) as any,
+    });
+    jest.spyOn(client as any, "_ensureServerInfo").mockResolvedValue({
+      version: "foo",
+      batch_ingest_config: { use_multipart_endpoint: true },
+      instance_flags: { gzip_body_enabled: true },
+    });
+    const attachmentsSent = async () => {
+      await client.awaitPendingTraceBatches();
+      const names = (await Promise.all(bodies.map(partNames))).map((n) =>
+        n.filter((name) => name.startsWith("attachment.")),
+      );
+      bodies.length = 0;
+      return names.flat();
+    };
+    return { client, attachmentsSent };
+  };
+
+  const file = (text: string): [string, Uint8Array] => [
+    "text/plain",
+    new TextEncoder().encode(text),
+  ];
+
+  it("sends attachments passed on updateRun", async () => {
+    const { client, attachmentsSent } = createClient();
+    const id = uuidv4();
+    const { dottedOrder } = convertToDottedOrderFormat(Date.now(), id);
+    const run = { trace_id: id, dotted_order: dottedOrder };
+    await client.createRun({
+      id,
+      name: "test_run",
+      run_type: "tool",
+      inputs: {},
+      attachments: { input: file("a") },
+      ...run,
+    });
+    await client.updateRun(id, {
+      outputs: {},
+      end_time: Date.now(),
+      attachments: { report: file("b") },
+      ...run,
+    });
+    expect((await attachmentsSent()).sort()).toEqual([
+      `attachment.${id}.input`,
+      `attachment.${id}.report`,
+    ]);
+
+    // An update whose create was already sent carries its own files.
+    await client.updateRun(id, {
+      end_time: Date.now(),
+      attachments: { late: file("c") },
+      ...run,
+    });
+    expect(await attachmentsSent()).toEqual([`attachment.${id}.late`]);
+  });
+
+  it("RunTree.patchRun sends only attachments added after postRun", async () => {
+    const { client, attachmentsSent } = createClient();
+    const runTree = new RunTree({
+      name: "test_run",
+      run_type: "tool",
+      inputs: {},
+      client,
+      attachments: { input: file("a") },
+    });
+    await runTree.postRun();
+    expect(await attachmentsSent()).toEqual([`attachment.${runTree.id}.input`]);
+
+    runTree.attachments = { ...runTree.attachments, report: file("b") };
+    await runTree.end({});
+    await runTree.patchRun();
+    expect(await attachmentsSent()).toEqual([
+      `attachment.${runTree.id}.report`,
+    ]);
+  });
+
+  it("RunTree uploads a file added in place during postRun once", async () => {
+    const { client, attachmentsSent } = createClient();
+    const runTree = new RunTree({
+      name: "test_run",
+      run_type: "tool",
+      inputs: {},
+      client,
+      attachments: { input: file("a") },
+    });
+    const posting = runTree.postRun();
+    runTree.attachments!.report = file("b");
+    await posting;
+    const posted = await attachmentsSent();
+    await runTree.end({});
+    await runTree.patchRun();
+    const patched = await attachmentsSent();
+    expect([...posted, ...patched].sort()).toEqual([
+      `attachment.${runTree.id}.input`,
+      `attachment.${runTree.id}.report`,
+    ]);
+  });
+
+  it("RunTree.patchRun sends attachments added while postRun is pending", async () => {
+    const { client, attachmentsSent } = createClient();
+    const runTree = new RunTree({
+      name: "test_run",
+      run_type: "tool",
+      inputs: {},
+      client,
+      attachments: { input: file("a") },
+    });
+    // traceable starts the function without waiting for postRun.
+    const posting = runTree.postRun();
+    runTree.attachments = { ...runTree.attachments, report: file("b") };
+    await posting;
+    await runTree.end({});
+    await runTree.patchRun();
+    expect((await attachmentsSent()).sort()).toEqual([
+      `attachment.${runTree.id}.input`,
+      `attachment.${runTree.id}.report`,
+    ]);
   });
 });
