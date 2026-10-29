@@ -908,6 +908,68 @@ describe("Client", () => {
       expect((client as any)._mergedHeaders["x-api-key"]).toBeUndefined();
     });
 
+    it("reads the profile API key from api_key_env", async () => {
+      writeProfileConfig({
+        current_profile: "prod",
+        profiles: {
+          prod: { api_key_env: "MY_LANGSMITH_KEY", api_key_cmd: "never-run" },
+        },
+      });
+      process.env.MY_LANGSMITH_KEY = "  env-ref-key\n";
+      const mockFetch = jest.fn(
+        async () => new Response("{}", { status: 200 }),
+      );
+      const client = new Client({ fetchImplementation: mockFetch as any });
+
+      expect((client as any)._mergedHeaders["x-api-key"]).toBe("env-ref-key");
+      await (client as any)._fetch("https://api.smith.langchain.com/info", {});
+      const [[, init]] = mockFetch.mock.calls as unknown as [
+        [RequestInfo | URL, RequestInit],
+      ];
+      expect(new Headers(init.headers).get("x-api-key")).toBe("env-ref-key");
+    });
+
+    it.each([
+      [
+        { api_key_env: "MY_UNSET_LANGSMITH_KEY" },
+        'LangSmith profile "prod" reads its API key from $MY_UNSET_LANGSMITH_KEY, which is not set',
+      ],
+      [
+        { api_key_cmd: "op read op://vault/langsmith/key" },
+        'LangSmith profile "prod" gets its API key from a command (api_key_cmd), which the JS SDK does not support yet',
+      ],
+    ])(
+      "fails requests whose profile API key cannot be resolved (%o)",
+      async (profile, message) => {
+        writeProfileConfig({
+          current_profile: "prod",
+          profiles: { prod: profile },
+        });
+        delete process.env.MY_UNSET_LANGSMITH_KEY;
+        const mockFetch = jest.fn(
+          async () => new Response("{}", { status: 200 }),
+        );
+
+        const client = new Client({ fetchImplementation: mockFetch as any });
+        expect((client as any)._mergedHeaders["x-api-key"]).toBeUndefined();
+        await expect(
+          (client as any)._fetch("https://api.smith.langchain.com/info", {}),
+        ).rejects.toThrow(message);
+        expect(mockFetch).not.toHaveBeenCalled();
+
+        // Explicit auth headers still take precedence over the reference.
+        await (client as any)._fetch("https://api.smith.langchain.com/info", {
+          headers: { "x-api-key": "explicit-key" },
+        });
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+
+        process.env.LANGSMITH_API_KEY = "env-key";
+        expect((new Client() as any)._mergedHeaders["x-api-key"]).toBe(
+          "env-key",
+        );
+      },
+    );
+
     it("suppresses profile auth when environment auth is set", () => {
       writeProfileConfig({
         profiles: {

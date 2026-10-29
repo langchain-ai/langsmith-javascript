@@ -16,8 +16,14 @@ type LangSmithProfileOAuth = {
   expires_at?: string;
 };
 
+// A profile can name where its API key lives instead of storing it: api_key_env
+// is an environment variable, and api_key_cmd is a shell command that prints
+// the key. api_key wins over api_key_env, which wins over api_key_cmd. The CLI
+// and Go SDK run api_key_cmd; this SDK reports it as unsupported instead.
 type LangSmithProfile = {
   api_key?: string;
+  api_key_env?: string;
+  api_key_cmd?: string;
   api_url?: string;
   workspace_id?: string;
   oauth?: LangSmithProfileOAuth;
@@ -360,6 +366,9 @@ export function loadProfileClientConfig(
   const apiKey = trimConfigValue(profile.api_key);
   const oauthAccessToken = trimConfigValue(profile.oauth?.access_token);
   const oauthRefreshToken = trimConfigValue(profile.oauth?.refresh_token);
+  const apiKeyRef =
+    trimConfigValue(profile.api_key_env) ||
+    trimConfigValue(profile.api_key_cmd);
   return {
     apiUrl: profile.api_url,
     apiKey,
@@ -367,10 +376,18 @@ export function loadProfileClientConfig(
     oauthAccessToken,
     oauthRefreshToken,
     profileAuth:
-      apiKey || oauthAccessToken || oauthRefreshToken
+      apiKey || oauthAccessToken || oauthRefreshToken || apiKeyRef
         ? new ProfileAuth(state)
         : undefined,
   };
+}
+
+// A profile API key reference that cannot be resolved.
+class ProfileApiKeyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ProfileApiKeyError";
+  }
 }
 
 export class ProfileAuth {
@@ -382,8 +399,21 @@ export class ProfileAuth {
     this.rememberProfileAuthHeader(this.currentAuthHeader());
   }
 
+  /**
+   * The auth header to snapshot into default headers. A profile API key that
+   * cannot be resolved yields none here; `getAuthHeader` reports it when a
+   * request needs it.
+   */
   currentAuthHeader(): ProfileAuthHeader | undefined {
-    const header = currentAuthHeaderFromProfile(this.state.profile);
+    let header: ProfileAuthHeader | undefined;
+    try {
+      header = currentAuthHeaderFromProfile(this.state);
+    } catch (error) {
+      if (!(error instanceof ProfileApiKeyError)) {
+        throw error;
+      }
+      header = undefined;
+    }
     this.rememberProfileAuthHeader(header);
     return header;
   }
@@ -402,7 +432,7 @@ export class ProfileAuth {
       }
       await waitForAbortSignal(this.refreshPromise, signal);
     }
-    const header = authHeaderFromProfile(this.state.profile);
+    const header = authHeaderFromProfile(this.state);
     this.rememberProfileAuthHeader(header);
     return header;
   }
@@ -496,8 +526,9 @@ export class ProfileAuth {
 }
 
 function currentAuthHeaderFromProfile(
-  profile: LangSmithProfile,
+  state: LangSmithProfileState,
 ): ProfileAuthHeader | undefined {
+  const { profile } = state;
   const oauthAccessToken = trimConfigValue(profile.oauth?.access_token);
   if (oauthAccessToken) {
     return { name: "Authorization", value: `Bearer ${oauthAccessToken}` };
@@ -505,19 +536,48 @@ function currentAuthHeaderFromProfile(
   if (trimConfigValue(profile.oauth?.refresh_token)) {
     return undefined;
   }
-  return authHeaderFromProfile(profile);
+  return authHeaderFromProfile(state);
 }
 
 function authHeaderFromProfile(
-  profile: LangSmithProfile,
+  state: LangSmithProfileState,
 ): ProfileAuthHeader | undefined {
+  const { profile } = state;
   const oauthAccessToken = trimConfigValue(profile.oauth?.access_token);
   if (oauthAccessToken) {
     return { name: "Authorization", value: `Bearer ${oauthAccessToken}` };
   }
-  const apiKey = trimConfigValue(profile.api_key);
+  const apiKey = profileApiKey(state.profileName, profile);
   if (apiKey) {
     return { name: "x-api-key", value: apiKey };
+  }
+  return undefined;
+}
+
+function profileApiKey(
+  profileName: string,
+  profile: LangSmithProfile,
+): string | undefined {
+  const apiKey = trimConfigValue(profile.api_key);
+  if (apiKey) {
+    return apiKey;
+  }
+  const apiKeyEnv = trimConfigValue(profile.api_key_env);
+  if (apiKeyEnv) {
+    const key = getEnvironmentVariable(apiKeyEnv)?.trim();
+    if (key) {
+      return key;
+    }
+    throw new ProfileApiKeyError(
+      `LangSmith profile "${profileName}" reads its API key from $${apiKeyEnv}, which is not set`,
+    );
+  }
+  if (trimConfigValue(profile.api_key_cmd)) {
+    throw new ProfileApiKeyError(
+      `LangSmith profile "${profileName}" gets its API key from a command (api_key_cmd), ` +
+        "which the JS SDK does not support yet. Set api_key_env in the profile, " +
+        "or set LANGSMITH_API_KEY.",
+    );
   }
   return undefined;
 }
