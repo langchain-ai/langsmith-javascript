@@ -45,6 +45,17 @@ export {
   type Missing,
   type SortByDatasetColumn,
 } from './datasets/datasets';
+export {
+  Evaluators,
+  type CodeEvaluatorTopLevel,
+  type Evaluator,
+  type EvaluatorPagerdutyAlert,
+  type EvaluatorTopLevel,
+  type EvaluatorWebhook,
+  type EvaluatorListResponse,
+  type EvaluatorListParams,
+  type EvaluatorCreateDecisionModelParams,
+} from './evaluators';
 export { Fleet } from './fleet/fleet';
 export { Info, type InfoListResponse } from './info';
 export {

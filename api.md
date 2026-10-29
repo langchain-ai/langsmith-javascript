@@ -192,6 +192,22 @@ Methods:
 
 - <code title="post /api/v2/traces/query">client.traces.streaming.<a href="./src/resources/traces/streaming.ts">query</a>({ ...params }) -> StreamingQueryResponse</code>
 
+# Evaluators
+
+Types:
+
+- <code><a href="./src/resources/evaluators.ts">CodeEvaluatorTopLevel</a></code>
+- <code><a href="./src/resources/evaluators.ts">Evaluator</a></code>
+- <code><a href="./src/resources/evaluators.ts">EvaluatorPagerdutyAlert</a></code>
+- <code><a href="./src/resources/evaluators.ts">EvaluatorTopLevel</a></code>
+- <code><a href="./src/resources/evaluators.ts">EvaluatorWebhook</a></code>
+- <code><a href="./src/resources/evaluators.ts">EvaluatorListResponse</a></code>
+
+Methods:
+
+- <code title="get /api/v1/runs/rules">client.evaluators.<a href="./src/resources/evaluators.ts">list</a>({ ...params }) -> EvaluatorListResponse</code>
+- <code title="post /api/v1/runs/rules/decision-models">client.evaluators.<a href="./src/resources/evaluators.ts">createDecisionModel</a>({ ...params }) -> Evaluator</code>
+
 # OnlineEvaluators
 
 Types:

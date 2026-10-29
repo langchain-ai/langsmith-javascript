@@ -48,6 +48,17 @@ import {
   Agents,
   AgentsItemsCursorGetPagination,
 } from './resources/agents';
+import {
+  CodeEvaluatorTopLevel,
+  Evaluator,
+  EvaluatorCreateDecisionModelParams,
+  EvaluatorListParams,
+  EvaluatorListResponse,
+  EvaluatorPagerdutyAlert,
+  EvaluatorTopLevel,
+  EvaluatorWebhook,
+  Evaluators,
+} from './resources/evaluators';
 import { Info, InfoListResponse } from './resources/info';
 import {
   Issue,
@@ -979,6 +990,7 @@ export class Langsmith {
   runs: API.Runs = new API.Runs(this);
   threads: API.Threads = new API.Threads(this);
   traces: API.Traces = new API.Traces(this);
+  evaluators: API.Evaluators = new API.Evaluators(this);
   onlineEvaluators: API.OnlineEvaluators = new API.OnlineEvaluators(this);
   public: API.Public = new API.Public(this);
   annotationQueues: API.AnnotationQueues = new API.AnnotationQueues(this);
@@ -996,6 +1008,7 @@ Langsmith.Datasets = Datasets;
 Langsmith.Runs = Runs;
 Langsmith.Threads = Threads;
 Langsmith.Traces = Traces;
+Langsmith.Evaluators = Evaluators;
 Langsmith.OnlineEvaluators = OnlineEvaluators;
 Langsmith.Public = Public;
 Langsmith.AnnotationQueues = AnnotationQueues;
@@ -1144,6 +1157,18 @@ export declare namespace Langsmith {
     type TracesItemsCursorPostPagination as TracesItemsCursorPostPagination,
     type TraceListRunsParams as TraceListRunsParams,
     type TraceQueryParams as TraceQueryParams,
+  };
+
+  export {
+    Evaluators as Evaluators,
+    type CodeEvaluatorTopLevel as CodeEvaluatorTopLevel,
+    type Evaluator as Evaluator,
+    type EvaluatorPagerdutyAlert as EvaluatorPagerdutyAlert,
+    type EvaluatorTopLevel as EvaluatorTopLevel,
+    type EvaluatorWebhook as EvaluatorWebhook,
+    type EvaluatorListResponse as EvaluatorListResponse,
+    type EvaluatorListParams as EvaluatorListParams,
+    type EvaluatorCreateDecisionModelParams as EvaluatorCreateDecisionModelParams,
   };
 
   export {
