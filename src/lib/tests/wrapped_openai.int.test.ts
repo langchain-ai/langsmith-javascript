@@ -39,14 +39,16 @@ test("chat.completions", async () => {
     messages: [{ role: "user", content: `Say 'foo'` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
   });
 
   const patched = await patchedClient.chat.completions.create({
     messages: [{ role: "user", content: `Say 'foo'` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
   });
 
   expect(patched.choices).toEqual(original.choices);
@@ -56,7 +58,8 @@ test("chat.completions", async () => {
       messages: [{ role: "user", content: `Say 'foo'` }],
       temperature: 0,
       seed: 42,
-      model: "gpt-4.1-nano",
+      model: "gpt-6-luna",
+      reasoning_effort: "none",
     })
     .asResponse();
 
@@ -67,7 +70,8 @@ test("chat.completions", async () => {
     messages: [{ role: "user", content: `Say 'foo'` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
     stream: true,
   });
 
@@ -80,7 +84,8 @@ test("chat.completions", async () => {
     messages: [{ role: "user", content: `Say 'foo'` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
     stream: true,
   });
 
@@ -125,7 +130,8 @@ test("chat.completions", async () => {
     messages: [{ role: "user", content: `Say 'hello world hello again'` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
     stream: true,
   });
 
@@ -145,7 +151,8 @@ test("chat.completions", async () => {
       messages: [{ role: "user", content: `Say 'foo'` }],
       temperature: 0,
       seed: 42,
-      model: "gpt-4.1-nano",
+      model: "gpt-6-luna",
+      reasoning_effort: "none",
       stream: true,
     },
     {
@@ -188,7 +195,8 @@ test("prepopulated invocation params are merged and runtime params override", as
 
   await wrappedClient.chat.completions.create({
     messages: [{ role: "user", content: "Say 'hello'" }],
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
     seed: 42, // Should override prepopulated seed=100
     store: true,
     metadata: {
@@ -224,7 +232,7 @@ test("prepopulated invocation params are merged and runtime params override", as
 
   // OpenAI request metadata is copied to LangSmith run metadata
   expect(metadata?.request_key).toBe("request_value");
-  expect(metadata?.ls_model_name).toBe("gpt-4.1-nano");
+  expect(metadata?.ls_model_name).toBe("gpt-6-luna");
   expect(lsInvocationParams?.metadata).toBeUndefined();
 
   callSpy.mockClear();
@@ -295,7 +303,8 @@ test("chat completions with tool calling", async () => {
     messages: [{ role: "user", content: `What is the current weather in SF?` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
     tools: toolDefinition,
     tool_choice: {
       type: "function",
@@ -307,7 +316,8 @@ test("chat completions with tool calling", async () => {
     messages: [{ role: "user", content: `What is the current weather in SF?` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
     tools: toolDefinition,
     tool_choice: {
       type: "function",
@@ -324,7 +334,8 @@ test("chat completions with tool calling", async () => {
     messages: [{ role: "user", content: `What is the current weather in SF?` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
     tools: toolDefinition,
     tool_choice: {
       type: "function",
@@ -342,7 +353,8 @@ test("chat completions with tool calling", async () => {
     messages: [{ role: "user", content: `What is the current weather in SF?` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
     tools: toolDefinition,
     tool_choice: {
       type: "function",
@@ -395,7 +407,8 @@ test("chat completions with tool calling", async () => {
       ],
       temperature: 0,
       seed: 42,
-      model: "gpt-4.1-nano",
+      model: "gpt-6-luna",
+      reasoning_effort: "none",
       tools: toolDefinition,
       tool_choice: {
         type: "function",
@@ -430,7 +443,7 @@ test("chat completions with tool calling", async () => {
     const body = parseRequestBody((call[1] as any).body);
     expect(body.extra.metadata).toMatchObject({
       thing1: "thing2",
-      ls_model_name: "gpt-4.1-nano",
+      ls_model_name: "gpt-6-luna",
       ls_model_type: "chat",
       ls_provider: "openai",
       ls_temperature: 0,
@@ -450,7 +463,8 @@ test.skip("with initialization time config", async () => {
     messages: [{ role: "user", content: `What is the current weather in SF?` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
     stream: true,
   });
 
@@ -470,7 +484,8 @@ test.skip("no tracing with env var unset", async () => {
     messages: [{ role: "user", content: `Say 'bazqux'` }],
     temperature: 0,
     seed: 42,
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
   });
   expect(patched).toBeDefined();
 });
@@ -495,7 +510,8 @@ test("chat extra name", async () => {
       messages: [{ role: "user", content: `Say 'red'` }],
       temperature: 0,
       seed: 42,
-      model: "gpt-4.1-nano",
+      model: "gpt-6-luna",
+      reasoning_effort: "none",
     },
     { langsmithExtra: { name: "red", metadata: { customKey: "red" } } },
   );
@@ -505,7 +521,8 @@ test("chat extra name", async () => {
       messages: [{ role: "user", content: `Say 'green'` }],
       temperature: 0,
       seed: 42,
-      model: "gpt-4.1-nano",
+      model: "gpt-6-luna",
+      reasoning_effort: "none",
       stream: true,
     },
     { langsmithExtra: { name: "green", metadata: { customKey: "green" } } },
@@ -559,7 +576,8 @@ test("chat.completions.parse", async () => {
   });
 
   await openai.chat.completions.parse({
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning_effort: "none",
     temperature: 0,
     messages: [
       {
@@ -580,7 +598,7 @@ test("chat.completions.parse", async () => {
     expect(["POST", "PATCH"]).toContain((call[1] as any)["method"]);
     const body = parseRequestBody((call[1] as any).body);
     expect(body.extra.metadata).toMatchObject({
-      ls_model_name: "gpt-4.1-nano",
+      ls_model_name: "gpt-6-luna",
       ls_model_type: "chat",
       ls_provider: "openai",
       ls_temperature: 0,
@@ -678,7 +696,8 @@ test("responses.create streaming", async () => {
   });
 
   const stream = await openai.responses.create({
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning: { effort: "none" },
     input: [
       {
         role: "user",
@@ -715,7 +734,7 @@ test("responses.create streaming", async () => {
     expect(["POST", "PATCH"]).toContain((call[1] as any)["method"]);
     const body = parseRequestBody((call[1] as any).body);
     expect(body.extra.metadata).toMatchObject({
-      ls_model_name: "gpt-4.1-nano",
+      ls_model_name: "gpt-6-luna",
       ls_model_type: "chat",
       ls_provider: "openai",
     });
@@ -738,7 +757,8 @@ test("responses.parse", async () => {
   });
 
   const response = await openai.responses.parse({
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning: { effort: "none" },
     input: [
       {
         role: "user",
@@ -763,7 +783,7 @@ test("responses.parse", async () => {
     expect(["POST", "PATCH"]).toContain((call[1] as any)["method"]);
     const body = parseRequestBody((call[1] as any).body);
     expect(body.extra.metadata).toMatchObject({
-      ls_model_name: "gpt-4.1-nano",
+      ls_model_name: "gpt-6-luna",
       ls_model_type: "chat",
       ls_provider: "openai",
     });
@@ -779,7 +799,8 @@ test("responses.parse streaming", async () => {
   });
 
   const stream = openai.responses.stream({
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning: { effort: "none" },
     input: [
       {
         role: "user",
@@ -806,7 +827,7 @@ test("responses.parse streaming", async () => {
     expect(["POST", "PATCH"]).toContain((call[1] as any)["method"]);
     const body = parseRequestBody((call[1] as any).body);
     expect(body.extra.metadata).toMatchObject({
-      ls_model_name: "gpt-4.1-nano",
+      ls_model_name: "gpt-6-luna",
       ls_model_type: "chat",
       ls_provider: "openai",
     });
@@ -1166,7 +1187,8 @@ test("responses.stream with finalResponse", async () => {
   });
 
   const stream = openai.responses.stream({
-    model: "gpt-4.1-nano",
+    model: "gpt-6-luna",
+    reasoning: { effort: "none" },
     input: [
       {
         role: "user",
