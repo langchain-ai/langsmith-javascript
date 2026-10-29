@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.11.5](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.4...v0.11.5) (2026-10-29)
+
+
+### Features
+
+* add HTTPS destination rewrite rules for sandboxes ([34be0ec](https://github.com/langchain-ai/langsmith-javascript/commit/34be0ec87c27ec39083c4657108f9496ef688990))
+* **annotation-queues:** rubric item required_if and visible_if conditions ([3287bde](https://github.com/langchain-ai/langsmith-javascript/commit/3287bded26da04a831a881b79ba038f6501bd1e8))
+* **feedback:** add allows_multiple_categories flag to categorical feedback configs ([160e930](https://github.com/langchain-ai/langsmith-javascript/commit/160e930ed48cd742f62f69494d60907c66b91447))
+* **sandboxes:** allow non-persistent mode for all tenants ([3f2bebf](https://github.com/langchain-ai/langsmith-javascript/commit/3f2bebf485b7bb9887dba6d3ac3a4ba73f50875c))
+* **sandboxes:** show granular usage instead of dollar estimates ([8764ed8](https://github.com/langchain-ai/langsmith-javascript/commit/8764ed8f7ec85f0dfa4fa88a65e3c5e9eaaa7787))
+* **sdks:** add create_decision_model to the generated SDKs ([48f6580](https://github.com/langchain-ai/langsmith-javascript/commit/48f6580500ce1ea76dabc3c3f5c68acc478a7686))
+
+
+### Bug Fixes
+
+* **js:** gzip queued runs as they arrive, like Python's zstd buffer ([ba8b710](https://github.com/langchain-ai/langsmith-javascript/commit/ba8b710b5aa16815213b0f6b0b8f661a94881fce))
+* **sandboxes:** cap non-persistent sandbox disk at 16 GiB per vCPU ([a966b40](https://github.com/langchain-ai/langsmith-javascript/commit/a966b40de8bb581f4f38606382d97d40408b4f01))
+* **sandboxes:** retain recorded storage across sampling gaps ([d1c55cb](https://github.com/langchain-ai/langsmith-javascript/commit/d1c55cb0f0693bc8b80551bdbc29258e2bdd5cb4))
+* **sdk:** drop the base workspace for write replicas on another instance ([9493e5a](https://github.com/langchain-ai/langsmith-javascript/commit/9493e5aa4cadd1d2ce9ac59bfc4cb7f0d317422e))
+
 ## [0.11.4](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.3...v0.11.4) (2026-10-28)
 
 
