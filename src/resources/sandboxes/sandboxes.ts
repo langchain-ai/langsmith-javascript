@@ -1405,9 +1405,9 @@ export interface SandboxListUsageCostsResponse {
   memory_gib_hours?: string | null;
 
   /**
-   * Storage usage in GiB-hours from hourly attributed-byte samples, including
-   * checkpoints. Available with RESOURCE granularity; null means complete usage is
-   * unavailable.
+   * Recorded storage usage in GiB-hours from hourly samples, including checkpoints.
+   * Available with RESOURCE granularity. Missing intervals are excluded; null means
+   * no usable measurements are available.
    */
   storage_gib_hours?: string | null;
 
