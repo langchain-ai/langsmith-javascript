@@ -498,6 +498,11 @@ interface AwsStaticAuthConfig {
 /** IAM role assumed and renewed by LangSmith, outside the sandbox. */
 interface AwsRoleAuthConfig {
   role_arn: string;
+  /**
+   * AWS session tags for the role session, for role policies that scope access
+   * with `${aws:PrincipalTag/<key>}`. Only valid on a proxyConfig AWS rule.
+   */
+  session_tags?: Record<string, string>;
   access_key_id?: never;
   secret_access_key?: never;
 }

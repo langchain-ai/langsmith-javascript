@@ -51,6 +51,14 @@ function checkAuthAlternatives() {
   awsAuth({ secretAccessKey: secret });
   // @ts-expect-error an authentication alternative is required
   awsAuth({});
+  // @ts-expect-error session tags require a role
+  awsAuth({
+    accessKeyId: key,
+    secretAccessKey: secret,
+    sessionTags: { a: "b" },
+  });
+  const taggedRole = awsAuth({ roleArn, sessionTags: { user: "u-1" } });
+  const tags: Record<string, string> | undefined = taggedRole.aws.session_tags;
   const mixed: SandboxAwsAuthRule = {
     name: "bad",
     type: "aws",
@@ -147,6 +155,40 @@ describe("sandbox AWS role auth", () => {
     expect(() =>
       mountConfig({ auth: [rule as never], mounts: mounts() }),
     ).toThrow("only role_arn");
+  });
+
+  it("carries session tags on a proxy role", () => {
+    const tags = { env: "dev", user: "u-1" };
+    const rule = awsAuth({ roleArn, sessionTags: tags });
+    expect(rule.aws).toEqual({ role_arn: roleArn, session_tags: tags });
+    const proxy = proxyConfig({ rules: [rule] });
+    expect(proxy.rules?.[0]).toEqual(rule);
+    // A shared proxy role with tags still supplies S3 mount auth.
+    expect(mountConfig({ proxyConfig: proxy, mounts: mounts() })).toEqual({
+      auth: {},
+      mounts: mounts(),
+    });
+  });
+
+  it.each([
+    { roleArn, sessionTags: ["user"] },
+    { roleArn, sessionTags: { user: "" } },
+    { roleArn, sessionTags: { "": "u-1" } },
+    { roleArn, sessionTags: { user: 1 } },
+    {
+      accessKeyId: workspaceSecret("K"),
+      secretAccessKey: workspaceSecret("S"),
+      sessionTags: { user: "u-1" },
+    },
+  ])("rejects bad session tags", (options) => {
+    expect(() => awsAuth(options as never)).toThrow();
+  });
+
+  it("rejects session tags on a mount-scoped role", () => {
+    const rule = awsAuth({ roleArn, sessionTags: { user: "u-1" } });
+    expect(() => mountConfig({ auth: [rule], mounts: mounts() })).toThrow(
+      "only supported on a proxyConfig",
+    );
   });
 
   it("preserves mount-scoped roles under auth.aws", () => {

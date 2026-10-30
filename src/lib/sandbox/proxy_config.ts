@@ -64,7 +64,7 @@ function requireProxyRules(
 
 function validateProxyProviderRule(rule: SandboxProxyRule): void {
   if (rule.type === "aws") {
-    getAwsRoleArn(rule.aws);
+    getAwsRoleArn(rule.aws, ["session_tags"]);
     return;
   }
   if ((rule as Record<string, unknown>).type !== "gcp") {
@@ -77,20 +77,63 @@ function validateProxyProviderRule(rule: SandboxProxyRule): void {
   requireNonEmptyStringArray(gcp.scopes, "scopes");
 }
 
-/** Validate role-only descriptors without tightening legacy static inputs. */
-export function getAwsRoleArn(aws: unknown): string | undefined {
+/**
+ * Validate role-only descriptors without tightening legacy static inputs.
+ * `options` are the role fields this caller accepts besides role_arn.
+ */
+export function getAwsRoleArn(
+  aws: unknown,
+  options: string[] = [],
+): string | undefined {
   if (aws === null || typeof aws !== "object" || Array.isArray(aws)) {
     return undefined;
   }
   const config = aws as Record<string, unknown>;
   if (!("role_arn" in config) || config.role_arn === "") {
+    if (
+      config.session_tags !== undefined &&
+      Object.keys(config.session_tags as object).length > 0
+    ) {
+      throw new Error("sessionTags requires roleArn");
+    }
     return undefined;
   }
   const roleArn = requireNonEmptyString(config.role_arn as string, "roleArn");
-  if (Object.keys(config).some((key) => key !== "role_arn")) {
-    throw new Error("AWS role auth must contain only role_arn");
+  if ("session_tags" in config && !options.includes("session_tags")) {
+    throw new Error(
+      "sessionTags are only supported on a proxyConfig AWS rule, not mountConfig auth",
+    );
+  }
+  if (
+    Object.keys(config).some(
+      (key) => key !== "role_arn" && !options.includes(key),
+    )
+  ) {
+    throw new Error(
+      `AWS role auth must contain only role_arn${options
+        .map((o) => ` and ${o}`)
+        .join("")}`,
+    );
+  }
+  if ("session_tags" in config) {
+    requireSessionTags(config.session_tags);
   }
   return roleArn;
+}
+
+// LangSmith validates AWS's tag rules; this only checks the shape.
+function requireSessionTags(tags: unknown): Record<string, string> {
+  if (tags === null || typeof tags !== "object" || Array.isArray(tags)) {
+    throw new Error("sessionTags must map tag keys to values");
+  }
+  for (const [key, value] of Object.entries(tags)) {
+    requireNonEmptyString(key, "sessionTags key");
+    requireNonEmptyString(
+      value as string,
+      `sessionTags[${JSON.stringify(key)}]`,
+    );
+  }
+  return { ...(tags as Record<string, string>) };
 }
 
 /** Reference a LangSmith workspace secret in a sandbox proxy configuration. */
@@ -157,10 +200,19 @@ type AwsStaticAuthOptions = AwsAuthCommonOptions & {
   accessKeyId: SandboxProxySecret;
   secretAccessKey: SandboxProxySecret;
   roleArn?: "";
+  sessionTags?: never;
 };
 
 type AwsRoleAuthOptions = AwsAuthCommonOptions & {
   roleArn: string;
+  /**
+   * AWS session tags for the role session, so the role's own policy can scope
+   * access per sandbox with `${aws:PrincipalTag/<key>}` (for example an S3
+   * prefix per user). The role's trust policy must allow sts:TagSession. Only
+   * valid in proxyConfig; a mount-scoped role in mountConfig.auth cannot carry
+   * tags.
+   */
+  sessionTags?: Record<string, string>;
   accessKeyId?: never;
   secretAccessKey?: never;
 };
@@ -185,19 +237,27 @@ export function awsAuth({
   accessKeyId,
   secretAccessKey,
   roleArn,
+  sessionTags,
   name = "aws",
   enabled = true,
   envVars,
 }: AwsStaticAuthOptions | AwsRoleAuthOptions): SandboxAwsAuthRule {
   const candidate: Record<string, unknown> = {};
   if (roleArn !== undefined) candidate.role_arn = roleArn;
+  if (sessionTags !== undefined) candidate.session_tags = sessionTags;
   if (accessKeyId !== undefined) candidate.access_key_id = accessKeyId;
   if (secretAccessKey !== undefined)
     candidate.secret_access_key = secretAccessKey;
-  const normalizedRole = getAwsRoleArn(candidate);
+  const normalizedRole = getAwsRoleArn(candidate, ["session_tags"]);
   let aws: SandboxAwsAuthRule["aws"];
   if (normalizedRole !== undefined) {
-    aws = { role_arn: normalizedRole };
+    aws =
+      sessionTags === undefined
+        ? { role_arn: normalizedRole }
+        : {
+            role_arn: normalizedRole,
+            session_tags: requireSessionTags(sessionTags),
+          };
   } else {
     if (accessKeyId === undefined || secretAccessKey === undefined) {
       throw new Error("AWS auth requires roleArn or both static credentials");
