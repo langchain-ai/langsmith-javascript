@@ -35,6 +35,7 @@ import { RunnableSequence } from "@langchain/core/runnables";
 import { load } from "langchain/load";
 import { _getFetchImplementation } from "../singletons/fetch.js";
 import { traceable } from "../traceable.js";
+import { coerce, gte } from "semver";
 
 type CheckOutputsType = boolean | ((run: Run) => boolean);
 async function waitUntilRunFound(
@@ -593,6 +594,17 @@ describe("createChatExample", () => {
 
 test("listExamples with excludeDefaultFields returns only selected fields", async () => {
   const client = new Client({ autoBatchTracing: false });
+  const info = await (
+    client as unknown as { _getServerInfo(): Promise<{ version: string }> }
+  )._getServerInfo();
+  const version = coerce(info.version);
+  expect(version).not.toBeNull();
+  if (!gte(version!, "0.18.15")) {
+    console.warn(
+      "Test skipped: excludeDefaultFields requires server >= 0.18.15rc1",
+    );
+    return;
+  }
   const datasetName = `__test_exclude_default_fields_${uuidv4().slice(0, 8)}`;
   await deleteDataset(client, datasetName);
   const dataset = await client.createDataset(datasetName);
