@@ -1777,6 +1777,38 @@ describe("Client", () => {
     });
   });
 
+  describe("deletePrompt", () => {
+    it.each([
+      [
+        "200 with JSON",
+        () =>
+          new Response("{}", {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+      ],
+      ["204 No Content", () => new Response(null, { status: 204 })],
+    ])("should succeed on %s", async (_name, makeResponse) => {
+      const client = new Client({ apiKey: "test-api-key" });
+
+      jest.spyOn(client, "promptExists").mockResolvedValue(true);
+      jest
+        .spyOn(client as any, "_currentTenantIsOwner")
+        .mockResolvedValue(true);
+      const fetchSpy = jest
+        .spyOn(client as any, "_fetch")
+        .mockResolvedValue(makeResponse());
+
+      await expect(
+        client.deletePrompt("owner/my-prompt"),
+      ).resolves.toBeUndefined();
+      expect(fetchSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/\/repos\/owner\/my-prompt$/),
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+  });
+
   describe("pushPrompt", () => {
     it("should forward commit tags without updating prompt metadata", async () => {
       const client = new Client({ apiKey: "test-api-key" });

@@ -7868,7 +7868,7 @@ export class Client implements LangSmithTracingClientInterface {
       throw await this._ownerConflictError("delete a prompt", owner);
     }
 
-    const response = await this.caller.call(async () => {
+    await this.caller.call(async () => {
       const res = await this._fetch(
         `${this.apiUrl}/repos/${owner}/${promptName}`,
         {
@@ -7878,10 +7878,9 @@ export class Client implements LangSmithTracingClientInterface {
           ...this.fetchOptions,
         },
       );
-      await raiseForStatus(res, "delete prompt");
+      await raiseForStatus(res, "delete prompt", true);
       return res;
     });
-    return response.json();
   }
 
   /**
