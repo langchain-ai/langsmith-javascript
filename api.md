@@ -58,6 +58,8 @@ Types:
 
 Methods:
 
+- <code title="post /api/v1/sessions">client.sessions.<a href="./src/resources/sessions.ts">create</a>({ ...params }) -> TracerSession</code>
+- <code title="patch /api/v1/sessions/{session_id}">client.sessions.<a href="./src/resources/sessions.ts">update</a>(project_id, { ...params }) -> TracerSession</code>
 - <code title="get /api/v1/sessions/resolutions">client.sessions.<a href="./src/resources/sessions.ts">resolve</a>({ ...params }) -> SessionResolveResponse</code>
 
 # Datasets

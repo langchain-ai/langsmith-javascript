@@ -154,6 +154,8 @@ export {
   type TracerSession,
   type TracerSessionWithoutVirtualFields,
   type SessionResolveResponse,
+  type SessionCreateParams,
+  type SessionUpdateParams,
   type SessionResolveParams,
 } from './sessions';
 export {

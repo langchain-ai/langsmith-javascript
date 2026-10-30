@@ -115,9 +115,11 @@ import {
   CustomChartsSection,
   CustomChartsSectionRequest,
   RunStatsGroupBy,
+  SessionCreateParams,
   SessionResolveParams,
   SessionResolveResponse,
   SessionSortableColumns,
+  SessionUpdateParams,
   Sessions,
   TimedeltaInput,
   TracerSession,
@@ -1103,6 +1105,8 @@ export declare namespace Langsmith {
     type TracerSession as TracerSession,
     type TracerSessionWithoutVirtualFields as TracerSessionWithoutVirtualFields,
     type SessionResolveResponse as SessionResolveResponse,
+    type SessionCreateParams as SessionCreateParams,
+    type SessionUpdateParams as SessionUpdateParams,
     type SessionResolveParams as SessionResolveParams,
   };
 

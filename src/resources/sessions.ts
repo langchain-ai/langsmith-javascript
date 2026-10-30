@@ -3,8 +3,24 @@
 import { APIResource } from '../core/resource';
 import { APIPromise } from '../core/api-promise';
 import { RequestOptions } from '../internal/request-options';
+import { path } from '../internal/utils/path';
 
 export class Sessions extends APIResource {
+  /**
+   * Create a new project.
+   */
+  create(params: SessionCreateParams, options?: RequestOptions): APIPromise<TracerSession> {
+    const { upsert, ...body } = params;
+    return this._client.post('/api/v1/sessions', { query: { upsert }, body, ...options });
+  }
+
+  /**
+   * Update a project.
+   */
+  update(project_id: string, body: SessionUpdateParams, options?: RequestOptions): APIPromise<TracerSession> {
+    return this._client.patch(path`/api/v1/sessions/${project_id}`, { body, ...options });
+  }
+
   /**
    * Returns the tracing project (session) an address names. An address is an AGENT
    * (`id` and `environment`), an EXPERIMENT (`id`), or an EVALUATOR (no `id`:
@@ -1408,6 +1424,97 @@ export interface SessionResolveResponse {
   session_id: string;
 }
 
+export interface SessionCreateParams {
+  /**
+   * Query param
+   */
+  upsert?: boolean;
+
+  /**
+   * Body param
+   */
+  id?: string | null;
+
+  /**
+   * Body param
+   */
+  default_dataset_id?: string | null;
+
+  /**
+   * Body param
+   */
+  description?: string | null;
+
+  /**
+   * Body param
+   */
+  end_time?: string | null;
+
+  /**
+   * Body param
+   */
+  evaluator_keys?: Array<string> | null;
+
+  /**
+   * Body param
+   */
+  extra?: { [key: string]: unknown } | null;
+
+  /**
+   * Body param
+   */
+  kicked_off_by?: string | null;
+
+  /**
+   * Body param
+   */
+  name?: string;
+
+  /**
+   * Body param
+   */
+  num_examples?: number | null;
+
+  /**
+   * Body param
+   */
+  num_repetitions?: number | null;
+
+  /**
+   * Body param
+   */
+  reference_dataset_id?: string | null;
+
+  /**
+   * Body param
+   */
+  start_time?: string;
+
+  /**
+   * Body param
+   */
+  tag_value_ids?: Array<string> | null;
+
+  /**
+   * Body param
+   */
+  trace_tier?: 'longlived' | 'shortlived' | null;
+}
+
+export interface SessionUpdateParams {
+  default_dataset_id?: string | null;
+
+  description?: string | null;
+
+  end_time?: string | null;
+
+  extra?: { [key: string]: unknown } | null;
+
+  name?: string | null;
+
+  trace_tier?: 'longlived' | 'shortlived' | null;
+}
+
 export interface SessionResolveParams {
   /**
    * The kind of address.
@@ -1436,6 +1543,8 @@ export declare namespace Sessions {
     type TracerSession as TracerSession,
     type TracerSessionWithoutVirtualFields as TracerSessionWithoutVirtualFields,
     type SessionResolveResponse as SessionResolveResponse,
+    type SessionCreateParams as SessionCreateParams,
+    type SessionUpdateParams as SessionUpdateParams,
     type SessionResolveParams as SessionResolveParams,
   };
 }
