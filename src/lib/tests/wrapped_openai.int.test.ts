@@ -951,7 +951,8 @@ const usageMetadataTestCases = [
   {
     description: "reasoning",
     params: {
-      model: "o1",
+      model: "gpt-6-luna",
+      reasoning_effort: "medium",
       messages: [
         {
           role: "user",
