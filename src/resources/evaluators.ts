@@ -103,6 +103,12 @@ export interface Evaluator {
 
   dataset_name?: string | null;
 
+  /**
+   * spend_limit if set; otherwise the organization's default evaluator spend limit,
+   * once the rule has made its first evaluator call.
+   */
+  effective_spend_limit?: Evaluator.EffectiveSpendLimit | null;
+
   evaluator_id?: string | null;
 
   evaluator_name?: string | null;
@@ -155,6 +161,16 @@ export interface Evaluator {
 }
 
 export namespace Evaluator {
+  /**
+   * spend_limit if set; otherwise the organization's default evaluator spend limit,
+   * once the rule has made its first evaluator call.
+   */
+  export interface EffectiveSpendLimit {
+    limit_usd: string;
+
+    window: 'weekly';
+  }
+
   export interface SpendLimit {
     limit_usd: string;
 
