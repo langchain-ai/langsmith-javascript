@@ -7,6 +7,14 @@
  * still throw on their own if browser use is unsupported at that layer.
  */
 
+export function resolveConfigPath(filePath: string): string {
+  return filePath;
+}
+
+export function homeDirectory(): string {
+  return "";
+}
+
 export const path = {
   join: (...parts: string[]) => parts.join("/"),
   dirname: (p: string) => p.split("/").slice(0, -1).join("/"),

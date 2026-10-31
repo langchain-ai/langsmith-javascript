@@ -8,6 +8,21 @@
 import * as nodeFs from "node:fs";
 import * as nodeFsPromises from "node:fs/promises";
 import * as nodePath from "node:path";
+import { homedir } from "node:os";
+import { randomUUID } from "node:crypto";
+
+export function resolveConfigPath(filePath: string): string {
+  const expanded =
+    filePath === "~" || filePath.startsWith("~/") || filePath.startsWith("~\\")
+      ? nodePath.join(homedir(), filePath.slice(1))
+      : filePath;
+  const absolute = nodePath.resolve(expanded);
+  return nodeFs.existsSync(absolute) ? nodeFs.realpathSync(absolute) : absolute;
+}
+
+export function homeDirectory(): string {
+  return homedir();
+}
 
 export const path = nodePath;
 
@@ -23,12 +38,19 @@ export async function writeFileAtomic(
   filePath: string,
   content: string,
 ): Promise<void> {
-  const tempPath = `${filePath}.tmp`;
-  await nodeFsPromises.writeFile(tempPath, content, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
-  await nodeFsPromises.rename(tempPath, filePath);
+  const tempPath = `${filePath}.${randomUUID()}.tmp`;
+  const file = await nodeFsPromises.open(tempPath, "wx", 0o600);
+  try {
+    try {
+      await file.writeFile(content, "utf8");
+      await file.sync();
+    } finally {
+      await file.close();
+    }
+    await nodeFsPromises.rename(tempPath, filePath);
+  } finally {
+    await nodeFsPromises.rm(tempPath, { force: true });
+  }
 }
 
 export async function readdir(dir: string): Promise<string[]> {
@@ -90,5 +112,13 @@ export function statMtimeMs(filePath: string): number | undefined {
 }
 
 export async function rmRecursive(filePath: string): Promise<void> {
-  await nodeFsPromises.rm(filePath, { recursive: true, force: true });
+  // On Windows, deletes fail with EBUSY/EPERM while another process (e.g. the
+  // Python or Go SDK reading an OAuth lock file) has the file open. Node
+  // retries those errors with a short linear backoff (~150ms total).
+  await nodeFsPromises.rm(filePath, {
+    recursive: true,
+    force: true,
+    maxRetries: 5,
+    retryDelay: 10,
+  });
 }

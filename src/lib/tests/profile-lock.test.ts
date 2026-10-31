@@ -37,16 +37,49 @@ test("acquire times out when the lock is held", async () => {
   await held.release();
 });
 
-test("a stale lock (expired timestamp) is broken and reacquired", async () => {
+test("an abandoned lock (expired timestamp) is taken over", async () => {
   const configPath = newConfigPath();
   const lockDir = `${configPath}.oauth.lock.lock`;
   const stale = new Date(
     Date.now() - _internal.LOCK_STALE_AFTER_MS - 1000,
   ).toISOString();
-  writeMeta(lockDir, stale, "someone-else");
-  const lock = await acquireOAuthRefreshLock(configPath, Date.now() + 5000);
-  expect(_internal.lockOwner(lockDir)).not.toBe("someone-else");
+  writeMeta(lockDir, stale, "crashed-owner");
+  const lock = await acquireOAuthRefreshLock(configPath, Date.now() + 1000);
+  expect(_internal.lockOwner(lockDir)).not.toBe("crashed-owner");
   await lock.release();
+  expect(fs.existsSync(lockDir)).toBe(false);
+});
+
+test.each([undefined, "malformed"])(
+  "an abandoned lock with %s metadata falls back to the directory mtime",
+  async (metadata) => {
+    const configPath = newConfigPath();
+    const lockDir = `${configPath}.oauth.lock.lock`;
+    if (metadata === undefined) {
+      fs.mkdirSync(lockDir);
+    } else {
+      writeMeta(lockDir, metadata, "crashed-owner");
+    }
+    const stale = (Date.now() - _internal.LOCK_STALE_AFTER_MS - 1000) / 1000;
+    fs.utimesSync(lockDir, stale, stale);
+    const lock = await acquireOAuthRefreshLock(configPath, Date.now() + 1000);
+    expect(_internal.lockOwner(lockDir)).not.toBe("crashed-owner");
+    await lock.release();
+  },
+);
+
+test("a live lock is not taken over", async () => {
+  const configPath = newConfigPath();
+  const lockDir = `${configPath}.oauth.lock.lock`;
+  const fresh = new Date(
+    Date.now() - _internal.LOCK_STALE_AFTER_MS + 1000,
+  ).toISOString();
+  writeMeta(lockDir, fresh, "live-owner");
+  await expect(
+    acquireOAuthRefreshLock(configPath, Date.now() + 50),
+  ).rejects.toThrow(/timed out/);
+  expect(_internal.lockOwner(lockDir)).toBe("live-owner");
+  fs.rmSync(lockDir, { recursive: true });
 });
 
 test("release does not remove a lock owned by someone else", async () => {
@@ -108,12 +141,10 @@ test("two ProfileAuth instances refresh the token endpoint only once", async () 
     if (!authA || !authB) {
       throw new Error("expected profileAuth to be defined");
     }
-    const headerA = await authA.getAuthHeader(
-      fakeFetch as unknown as typeof fetch,
-    );
-    const headerB = await authB.getAuthHeader(
-      fakeFetch as unknown as typeof fetch,
-    );
+    const [headerA, headerB] = await Promise.all([
+      authA.getAuthHeader(fakeFetch as unknown as typeof fetch),
+      authB.getAuthHeader(fakeFetch as unknown as typeof fetch),
+    ]);
 
     expect(calls).toBe(1);
     expect(headerA).toEqual({
@@ -132,5 +163,112 @@ test("two ProfileAuth instances refresh the token endpoint only once", async () 
     } else {
       process.env.LANGSMITH_CONFIG_FILE = prev;
     }
+  }
+});
+
+test.each(["malformed", "removed", "deleted"])(
+  "refresh fails closed when the locked config is %s",
+  async (change) => {
+    const configPath = newConfigPath();
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        current_profile: "default",
+        profiles: {
+          default: {
+            oauth: {
+              access_token: "stale",
+              refresh_token: "already-rotated",
+              expires_at: "2000-01-01T00:00:00Z",
+            },
+          },
+        },
+      }),
+    );
+    const auth = loadProfileClientConfig({ configPath }).profileAuth;
+    expect(auth).toBeDefined();
+    if (change === "deleted") {
+      fs.unlinkSync(configPath);
+    } else {
+      fs.writeFileSync(
+        configPath,
+        change === "malformed" ? "{" : '{"profiles":{}}',
+      );
+    }
+    const fetchMock = jest.fn<typeof fetch>();
+    await auth?.getAuthHeader(fetchMock);
+    expect(fetchMock).not.toHaveBeenCalled();
+    if (change === "deleted") {
+      expect(fs.existsSync(configPath)).toBe(false);
+    } else {
+      expect(fs.readFileSync(configPath, "utf8")).toBe(
+        change === "malformed" ? "{" : '{"profiles":{}}',
+      );
+    }
+  },
+);
+
+const posixNonRoot =
+  process.platform !== "win32" && process.getuid?.() !== 0 ? test : test.skip;
+
+posixNonRoot.each([
+  ["within the refresh leeway", 30_000, true],
+  ["expired", -60_000, false],
+])(
+  "read-only config dir with a token %s",
+  async (_label, expiresInMs, usable) => {
+    const configPath = newConfigPath();
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        current_profile: "default",
+        profiles: {
+          default: {
+            oauth: {
+              access_token: "cached",
+              refresh_token: "refresh-abc",
+              expires_at: new Date(Date.now() + expiresInMs).toISOString(),
+            },
+          },
+        },
+      }),
+    );
+    const auth = loadProfileClientConfig({ configPath }).profileAuth;
+    if (!auth) {
+      throw new Error("expected profileAuth to be defined");
+    }
+    const fetchMock = jest.fn<typeof fetch>();
+    const dir = path.dirname(configPath);
+    fs.chmodSync(dir, 0o500);
+    try {
+      if (usable) {
+        await expect(auth.getAuthHeader(fetchMock)).resolves.toEqual({
+          name: "Authorization",
+          value: "Bearer cached",
+        });
+      } else {
+        await expect(auth.getAuthHeader(fetchMock)).rejects.toThrow(
+          /not be writable/,
+        );
+      }
+    } finally {
+      fs.chmodSync(dir, 0o700);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+  },
+);
+
+test("symlink aliases contend on the canonical config lock", async () => {
+  const configPath = newConfigPath();
+  fs.writeFileSync(configPath, "{}");
+  const alias = `${configPath}.alias`;
+  fs.symlinkSync(configPath, alias);
+  const held = await acquireOAuthRefreshLock(configPath, Date.now() + 5000);
+  try {
+    await expect(
+      acquireOAuthRefreshLock(alias, Date.now() + 50),
+    ).rejects.toThrow(/timed out/);
+  } finally {
+    await held.release();
   }
 });

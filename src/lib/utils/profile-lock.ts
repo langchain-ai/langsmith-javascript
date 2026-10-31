@@ -1,7 +1,11 @@
 import * as fsUtils from "./fs.js";
 
 const LOCK_POLL_INTERVAL_MS = 10;
-const LOCK_STALE_AFTER_MS = 10_000;
+// A lock older than this is treated as abandoned (its holder crashed) and taken
+// over. Holders bound their whole refresh to the 10s refresh timeout, so a live
+// holder is never evicted. Shared with the Python, Go and Java SDKs.
+export const OAUTH_REFRESH_LOCK_STALE_AFTER_MS = 15_000;
+const LOCK_STALE_AFTER_MS = OAUTH_REFRESH_LOCK_STALE_AFTER_MS;
 const LOCK_METADATA_FILE = "created_at";
 
 export interface OAuthRefreshLock {
@@ -30,6 +34,8 @@ function lockMetadataLines(lockDir: string): string[] | undefined {
   }
 }
 
+// Falls back to the directory's mtime when the metadata is missing or
+// malformed (e.g. the holder crashed between mkdir and writing it).
 function lockCreatedAtMs(lockDir: string): number | undefined {
   const lines = lockMetadataLines(lockDir);
   if (lines && lines[0] && lines[0].trim()) {
@@ -39,14 +45,6 @@ function lockCreatedAtMs(lockDir: string): number | undefined {
     }
   }
   return fsUtils.statMtimeMs(lockDir);
-}
-
-function lockOwner(lockDir: string): string | undefined {
-  const lines = lockMetadataLines(lockDir);
-  if (lines && lines.length >= 2 && lines[1].trim()) {
-    return lines[1].trim();
-  }
-  return undefined;
 }
 
 async function removeStaleLock(lockDir: string): Promise<boolean> {
@@ -61,26 +59,36 @@ async function removeStaleLock(lockDir: string): Promise<boolean> {
   return true;
 }
 
+function lockOwner(lockDir: string): string | undefined {
+  const lines = lockMetadataLines(lockDir);
+  if (lines && lines.length >= 2 && lines[1].trim()) {
+    return lines[1].trim();
+  }
+  return undefined;
+}
+
 /**
- * Acquire an exclusive cross-process lock for refreshing OAuth tokens.
- *
- * Uses an atomic-`mkdir` directory lock at `<configPath>.oauth.lock.lock` with a
- * stale-break heuristic and owner-checked release, mirroring langsmith-go's
- * non-POSIX path. `deadline` is a `Date.now()`-based timestamp; acquisition
- * rejects once it passes. Callers treat any rejection as "skip refresh, use the
- * current token".
+ * Acquire the cross-process lock for refreshing OAuth tokens, shared with the
+ * Python, Go and Java SDKs: an atomic-`mkdir` directory at
+ * `<resolved config>.oauth.lock.lock` with owner-checked release. A lock older
+ * than LOCK_STALE_AFTER_MS is taken over. `deadline` is a `Date.now()`-based
+ * timestamp; acquisition rejects once it passes.
  */
 export async function acquireOAuthRefreshLock(
   configPath: string,
   deadline: number,
 ): Promise<OAuthRefreshLock> {
-  const lockDir = `${configPath}.oauth.lock.lock`;
+  const lockDir = `${fsUtils.resolveConfigPath(configPath)}.oauth.lock.lock`;
+  const waitUntil = performance.now() + Math.max(0, deadline - Date.now());
   const parent = fsUtils.path.dirname(lockDir);
   if (parent) {
     await fsUtils.mkdir(parent);
   }
   const owner = globalThis.crypto.randomUUID();
   for (;;) {
+    if (performance.now() >= waitUntil) {
+      throw new Error("timed out acquiring OAuth refresh lock");
+    }
     try {
       await fsUtils.mkdirExclusive(lockDir);
     } catch (err) {
@@ -88,11 +96,11 @@ export async function acquireOAuthRefreshLock(
         throw err;
       }
       if (!(await removeStaleLock(lockDir))) {
-        if (Date.now() >= deadline) {
-          throw new Error("timed out acquiring OAuth refresh lock");
-        }
         await sleep(
-          Math.min(LOCK_POLL_INTERVAL_MS, Math.max(0, deadline - Date.now())),
+          Math.min(
+            LOCK_POLL_INTERVAL_MS,
+            Math.max(0, waitUntil - performance.now()),
+          ),
         );
       }
       continue;

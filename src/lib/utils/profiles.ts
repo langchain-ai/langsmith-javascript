@@ -1,6 +1,9 @@
 import { getEnv, getEnvironmentVariable } from "./env.js";
 import * as fsUtils from "./fs.js";
-import { acquireOAuthRefreshLock } from "./profile-lock.js";
+import {
+  acquireOAuthRefreshLock,
+  OAUTH_REFRESH_LOCK_STALE_AFTER_MS,
+} from "./profile-lock.js";
 
 export const DEFAULT_API_URL = "https://api.smith.langchain.com";
 
@@ -68,15 +71,14 @@ function isBrowserLikeRuntime(): boolean {
 function getProfileConfigPath(selected?: string): string | undefined {
   const explicitPath =
     selected || getEnvironmentVariable("LANGSMITH_CONFIG_FILE");
-  if (explicitPath) {
-    return explicitPath;
-  }
-  const home =
-    getEnvironmentVariable("HOME") ?? getEnvironmentVariable("USERPROFILE");
-  if (!home) {
+  const configuredPath =
+    explicitPath ||
+    fsUtils.path.join(fsUtils.homeDirectory(), ".langsmith", "config.json");
+  try {
+    return fsUtils.resolveConfigPath(configuredPath);
+  } catch {
     return undefined;
   }
-  return fsUtils.path.join(home, ".langsmith", "config.json");
 }
 
 function resolveProfileName(
@@ -145,6 +147,17 @@ function shouldRefreshProfileToken(profile: LangSmithProfile): boolean {
     return false;
   }
   return expiresAt <= Date.now() + TOKEN_REFRESH_LEEWAY_MS;
+}
+
+/** Whether the cached access token can still authenticate a request. */
+function accessTokenUsable(profile: LangSmithProfile): boolean {
+  if (!trimConfigValue(profile.oauth?.access_token)) {
+    return false;
+  }
+  const expiresAt = profile.oauth?.expires_at
+    ? Date.parse(profile.oauth.expires_at)
+    : Number.NaN;
+  return Number.isNaN(expiresAt) || expiresAt > Date.now();
 }
 
 function normalizeConfigUrl(apiUrl: string): string {
@@ -252,13 +265,18 @@ async function fetchOAuthMetadata(
   url: string,
   base: string,
   fetchImplementation: typeof fetch,
+  deadline: number,
 ): Promise<OAuthServerMetadata | undefined> {
+  const timeoutMs = Math.min(OAUTH_DISCOVERY_TIMEOUT_MS, deadline - Date.now());
+  if (timeoutMs <= 0) {
+    return undefined;
+  }
   let response: Response;
   try {
     response = await fetchImplementation(url, {
       method: "GET",
       headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(OAUTH_DISCOVERY_TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs),
     });
   } catch {
     return undefined;
@@ -287,10 +305,16 @@ async function fetchOAuthMetadata(
 export async function resolveTokenEndpoint(
   apiUrl: string,
   fetchImplementation: typeof fetch,
+  deadline: number = Number.POSITIVE_INFINITY,
 ): Promise<string> {
   for (const base of oauthDiscoveryCandidates(apiUrl)) {
     for (const url of oauthMetadataUrls(base)) {
-      const doc = await fetchOAuthMetadata(url, base, fetchImplementation);
+      const doc = await fetchOAuthMetadata(
+        url,
+        base,
+        fetchImplementation,
+        deadline,
+      );
       if (doc) {
         return doc.token_endpoint as string;
       }
@@ -390,6 +414,18 @@ class ProfileApiKeyError extends Error {
   }
 }
 
+// The shared OAuth refresh lock could not be acquired and the cached access
+// token has expired.
+class ProfileRefreshLockError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message);
+    this.name = "ProfileRefreshLockError";
+    if (options && "cause" in options) {
+      (this as Error & { cause?: unknown }).cause = options.cause;
+    }
+  }
+}
+
 export class ProfileAuth {
   private refreshPromise?: Promise<void>;
 
@@ -465,25 +501,53 @@ export class ProfileAuth {
     if (!refreshToken) {
       return;
     }
-    const refreshApiUrl =
-      trimConfigValue(this.state.profile.api_url) ?? DEFAULT_API_URL;
     const deadline = Date.now() + TOKEN_REFRESH_TIMEOUT_MS;
     let lock: { release(): Promise<void> } | undefined;
     try {
-      lock = await acquireOAuthRefreshLock(this.state.configPath, deadline);
-      const fresh = this.reloadProfile();
-      if (fresh && !shouldRefreshProfileToken(this.state.profile)) {
+      try {
+        lock = await acquireOAuthRefreshLock(this.state.configPath, deadline);
+      } catch (error) {
+        // Without the lock the cached refresh token must not be used. An
+        // unexpired access token still works; an expired one would only
+        // produce opaque 401s, so report why the refresh could not run.
+        if (!accessTokenUsable(this.state.profile)) {
+          throw new ProfileRefreshLockError(
+            `Could not refresh the expired OAuth token for LangSmith profile "${
+              this.state.profileName
+            }": failed to acquire the refresh lock next to ${
+              this.state.configPath
+            } (${error instanceof Error ? error.message : String(error)}). ` +
+              "Another process may be refreshing it, or the config directory may not be writable; " +
+              "OAuth profiles need a writable config. Use an API key for read-only configs. " +
+              `A lock left by a crashed process is released automatically after ${
+                OAUTH_REFRESH_LOCK_STALE_AFTER_MS / 1000
+              } seconds.`,
+            { cause: error },
+          );
+        }
         return;
       }
+      const fresh = this.reloadProfile();
+      const freshRefreshToken = fresh?.oauth?.refresh_token;
+      if (!fresh || !freshRefreshToken || !shouldRefreshProfileToken(fresh)) {
+        return;
+      }
+      const refreshApiUrl = trimConfigValue(fresh.api_url) ?? DEFAULT_API_URL;
       const body = new URLSearchParams({
         grant_type: "refresh_token",
         client_id: OAUTH_CLIENT_ID,
-        refresh_token: this.state.profile.oauth?.refresh_token ?? refreshToken,
+        refresh_token: freshRefreshToken,
       });
+      // The whole exchange stays within `deadline` so the lock is never held
+      // long enough for another process to treat it as abandoned.
       const tokenEndpoint = await resolveTokenEndpoint(
         refreshApiUrl,
         fetchImplementation,
+        deadline,
       );
+      if (Date.now() >= deadline) {
+        return;
+      }
       const response = await fetchImplementation(tokenEndpoint, {
         method: "POST",
         headers: {
@@ -510,7 +574,10 @@ export class ProfileAuth {
         this.state.configPath,
         `${JSON.stringify(this.state.config, null, 2)}\n`,
       );
-    } catch {
+    } catch (error) {
+      if (error instanceof ProfileRefreshLockError) {
+        throw error;
+      }
       return;
     } finally {
       await lock?.release();
