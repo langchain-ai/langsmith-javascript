@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.11.6](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.5...v0.11.6) (2026-10-31)
+
+
+### Features
+
+* **cli:** add langsmith evaluators create-decision-model ([4eef887](https://github.com/langchain-ai/langsmith-javascript/commit/4eef8870d09b966c86b3f3294d0bdbc289ed8395))
+* **sandboxes:** AWS session tags on proxy role rules ([94937b7](https://github.com/langchain-ai/langsmith-javascript/commit/94937b7b35d8fc9e853aa25231d29d943f9c8681))
+* **sdk:** read profile api_key_env in Python, JS and Java SDKs ([deb4271](https://github.com/langchain-ai/langsmith-javascript/commit/deb4271b33aea365032d94ba2359399cc396ec13))
+
+
+### Bug Fixes
+
+* **evaluators:** show the effective spend limit in the evaluator tables ([8022edf](https://github.com/langchain-ai/langsmith-javascript/commit/8022edf33b5b60bf6d79cf930ad0ea37583e7ba0))
+* expose v1 session creation and updates in Python and TypeScript SDKs (LSO-4121, LSO-4130) ([2625568](https://github.com/langchain-ai/langsmith-javascript/commit/2625568bf6a282be7d3951b6bc965123f7e551ac))
+* **sdks:** accept 204 No Content from delete endpoints ([5330121](https://github.com/langchain-ai/langsmith-javascript/commit/53301210ff9ddf07f1bae366c94bb3e8d59d5520))
+* **sdks:** unify shared-profile OAuth refresh locking ([c2aa959](https://github.com/langchain-ai/langsmith-javascript/commit/c2aa95914640783e4a111dedf97a2c030a43b133))
+
+
+### Documentation
+
+* **sandboxes:** document match_paths on proxy rules ([4b0f537](https://github.com/langchain-ai/langsmith-javascript/commit/4b0f537c2a539678399e47bc07cbe52953e7c7cc))
+
 ## [0.11.5](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.4...v0.11.5) (2026-10-29)
 
 
