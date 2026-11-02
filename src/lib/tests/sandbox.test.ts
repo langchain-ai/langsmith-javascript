@@ -907,6 +907,46 @@ describe("SandboxClient - createSandbox", () => {
     },
   );
 
+  it("should send memory and label options only when set and read them back", async () => {
+    const mockFetch = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        name: "test-sb",
+        dataplane_url: "https://dp.example.com",
+        status: "ready",
+        preserve_memory_on_stop: true,
+        labels: { env: "prod", team: "agents" },
+      }),
+    } as Response);
+
+    const client = createClientWithMock(mockFetch);
+    const sandbox = await client.createSandbox("snap-123", {
+      preserveMemoryOnStop: true,
+      restoreMemory: false,
+      labels: { team: "agents" },
+    });
+    await client.createSandbox("snap-123");
+
+    const [setBody, unsetBody] = mockFetch.mock.calls.map(([, init]) =>
+      JSON.parse((init as RequestInit).body as string),
+    );
+    expect(setBody).toMatchObject({
+      preserve_memory_on_stop: true,
+      restore_memory: false,
+      labels: { team: "agents" },
+    });
+    const optionalKeys = [
+      "preserve_memory_on_stop",
+      "restore_memory",
+      "labels",
+    ];
+    for (const key of optionalKeys) {
+      expect(unsetBody).not.toHaveProperty(key);
+    }
+    expect(sandbox.preserve_memory_on_stop).toBe(true);
+    expect(sandbox.labels).toEqual({ env: "prod", team: "agents" });
+  });
+
   it("should send wait_for_ready: false and omit timeout when waitForReady is false", async () => {
     const mockFetch = jest.fn<typeof fetch>().mockResolvedValue({
       ok: true,

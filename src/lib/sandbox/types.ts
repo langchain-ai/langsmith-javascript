@@ -270,6 +270,16 @@ export interface SandboxData {
    * none.
    */
   access_delegation?: AccessDelegation;
+  /**
+   * Whether a voluntary stop suspends the sandbox's memory so the next start
+   * resumes running processes.
+   */
+  preserve_memory_on_stop?: boolean;
+  /**
+   * Key/value metadata stored with the sandbox, including labels inherited
+   * from its snapshot.
+   */
+  labels?: Record<string, string>;
 }
 
 /**
@@ -737,6 +747,20 @@ export interface CreateSandboxOptions {
   /** Whether filesystem writes survive stops; defaults to true. */
   persistent?: boolean;
   /**
+   * If true, a voluntary stop (idle timeout or `stopSandbox()`) suspends the
+   * sandbox's memory, so the next start resumes running processes instead of
+   * cold-booting. Requires a persistent sandbox. Omit to use the server
+   * default (off).
+   */
+  preserveMemoryOnStop?: boolean;
+  /**
+   * How to handle memory captured in the snapshot, for this create only.
+   * `true` always resumes from it (rejected if the snapshot has none), `false`
+   * always cold-boots. Omit to resume when the snapshot has memory and
+   * cold-boot otherwise.
+   */
+  restoreMemory?: boolean;
+  /**
    * Optional snapshot name to boot from. Mutually exclusive with the positional
    * `snapshotId`.
    * Resolved server-side to a snapshot owned by the caller's tenant.
@@ -778,6 +802,12 @@ export interface CreateSandboxOptions {
   memBytes?: number;
   /** Root filesystem capacity in bytes. */
   fsCapacityBytes?: number;
+  /**
+   * Free-form key/value metadata stored with the sandbox and returned on
+   * reads. Labels from the source snapshot are inherited unless overridden
+   * here.
+   */
+  labels?: Record<string, string>;
   /**
    * Mount configuration forwarded to the server as `mount_config`. The backend
    * expands mount auth into runtime proxy rules. Explicit AWS/GCP proxy rules

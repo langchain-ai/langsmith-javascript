@@ -117,6 +117,17 @@ export class Sandbox {
    * has none.
    */
   readonly access_delegation?: AccessDelegation;
+  /**
+   * Whether a voluntary stop suspends the sandbox's memory so the next start
+   * resumes running processes. Undefined when the server response does not
+   * include it.
+   */
+  readonly preserve_memory_on_stop?: boolean;
+  /**
+   * Key/value metadata stored with the sandbox, including labels inherited
+   * from its snapshot.
+   */
+  readonly labels?: Record<string, string>;
 
   private _client: SandboxClient;
 
@@ -138,6 +149,8 @@ export class Sandbox {
     this.fs_capacity_bytes = data.fs_capacity_bytes;
     this.run_config = data.run_config;
     this.access_delegation = data.access_delegation;
+    this.preserve_memory_on_stop = data.preserve_memory_on_stop;
+    this.labels = data.labels;
     this._client = client;
   }
 

@@ -951,9 +951,12 @@ try {
 | `waitForReady?`           | Wait for the sandbox to be ready before returning (default: `true`)                                                                                                        |
 | `idleTtlSeconds?`         | Idle timeout in seconds (multiple of 60; `0` disables idle stop). When omitted, the server applies a default of `600` seconds (10 minutes).                                |
 | `deleteAfterStopSeconds?` | Seconds after the sandbox enters `stopped` before deletion (multiple of 60; `0` disables stop-anchored deletion). When omitted, the server applies its configured default. |
+| `preserveMemoryOnStop?`   | Suspend memory on a voluntary stop so the next start resumes running processes (requires a persistent sandbox; server default off)                                         |
+| `restoreMemory?`          | For this create only: `true` always resumes from the snapshot's memory, `false` always cold-boots; omit to resume when the snapshot has memory                             |
 | `vCpus?`                  | Number of vCPUs                                                                                                                                                            |
 | `memBytes?`               | Memory allocation in bytes                                                                                                                                                 |
 | `fsCapacityBytes?`        | Root filesystem capacity in bytes                                                                                                                                          |
+| `labels?`                 | Key/value metadata stored with the sandbox; inherits the snapshot's labels unless overridden                                                                               |
 | `mountConfig?`            | High-level mount config from `mountConfig({ mounts, auth })`; sent as `mount_config` and expanded by the backend at runtime                                                |
 | `proxyConfig?`            | Per-sandbox proxy configuration (access control, rules, callbacks)                                                                                                         |
 

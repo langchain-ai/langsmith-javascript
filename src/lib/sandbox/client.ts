@@ -679,6 +679,8 @@ export class SandboxClient {
       snapshotName,
       name,
       persistent,
+      preserveMemoryOnStop,
+      restoreMemory,
       timeout = 30,
       waitForReady = true,
       idleTtlSeconds,
@@ -686,6 +688,7 @@ export class SandboxClient {
       vCpus,
       memBytes,
       fsCapacityBytes,
+      labels,
       mountConfig,
       proxyConfig,
       runConfig,
@@ -708,6 +711,12 @@ export class SandboxClient {
     };
     if (persistent !== undefined) {
       payload.persistent = persistent;
+    }
+    if (preserveMemoryOnStop !== undefined) {
+      payload.preserve_memory_on_stop = preserveMemoryOnStop;
+    }
+    if (restoreMemory !== undefined) {
+      payload.restore_memory = restoreMemory;
     }
     if (snapshotId) {
       payload.snapshot_id = snapshotId;
@@ -735,6 +744,9 @@ export class SandboxClient {
     }
     if (fsCapacityBytes !== undefined) {
       payload.fs_capacity_bytes = fsCapacityBytes;
+    }
+    if (labels !== undefined) {
+      payload.labels = labels;
     }
     if (mountConfig !== undefined) {
       validateMountConfigProxyConfig(mountConfig, proxyConfig);
