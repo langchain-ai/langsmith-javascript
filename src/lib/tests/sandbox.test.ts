@@ -880,24 +880,32 @@ describe("SandboxClient - createSandbox", () => {
     return client;
   };
 
-  it("should send wait_for_ready: true and include timeout by default", async () => {
-    const mockFetch = jest.fn<typeof fetch>().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        name: "test-sb",
-        dataplane_url: "https://dp.example.com",
-        status: "ready",
-      }),
-    } as Response);
+  it.each([undefined, true, false])(
+    "should send default readiness options and preserve persistent=%p",
+    async (persistent) => {
+      const mockFetch = jest.fn<typeof fetch>().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          name: "test-sb",
+          dataplane_url: "https://dp.example.com",
+          status: "ready",
+        }),
+      } as Response);
 
-    const client = createClientWithMock(mockFetch);
-    await client.createSandbox("snap-123");
+      const client = createClientWithMock(mockFetch);
+      await client.createSandbox("snap-123", { persistent });
 
-    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
-    const body = JSON.parse(init.body as string);
-    expect(body.wait_for_ready).toBe(true);
-    expect(body.timeout).toBe(30);
-  });
+      const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body.wait_for_ready).toBe(true);
+      expect(body.timeout).toBe(30);
+      if (persistent === undefined) {
+        expect(body).not.toHaveProperty("persistent");
+      } else {
+        expect(body.persistent).toBe(persistent);
+      }
+    },
+  );
 
   it("should send wait_for_ready: false and omit timeout when waitForReady is false", async () => {
     const mockFetch = jest.fn<typeof fetch>().mockResolvedValue({

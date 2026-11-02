@@ -734,6 +734,8 @@ export interface SandboxMountConfig {
  * Options for creating a sandbox.
  */
 export interface CreateSandboxOptions {
+  /** Whether filesystem writes survive stops; defaults to true. */
+  persistent?: boolean;
   /**
    * Optional snapshot name to boot from. Mutually exclusive with the positional
    * `snapshotId`.

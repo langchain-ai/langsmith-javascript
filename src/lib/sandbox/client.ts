@@ -678,6 +678,7 @@ export class SandboxClient {
     const {
       snapshotName,
       name,
+      persistent,
       timeout = 30,
       waitForReady = true,
       idleTtlSeconds,
@@ -705,6 +706,9 @@ export class SandboxClient {
     const payload: Record<string, unknown> = {
       wait_for_ready: waitForReady,
     };
+    if (persistent !== undefined) {
+      payload.persistent = persistent;
+    }
     if (snapshotId) {
       payload.snapshot_id = snapshotId;
     }
