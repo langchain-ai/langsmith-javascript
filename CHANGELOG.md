@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.7](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.6...v0.11.7) (2026-11-02)
+
+
+### Features
+
+* **sdk:** expose sandbox persistence in TypeScript client ([ba317e6](https://github.com/langchain-ai/langsmith-javascript/commit/ba317e6036ac187277de04c8fca5768a69bf63ce))
+
 ## [0.11.6](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.5...v0.11.6) (2026-10-31)
 
 
