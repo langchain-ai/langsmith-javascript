@@ -16,6 +16,22 @@ export class Sessions extends APIResource {
   }
 
   /**
+   * Get a specific project.
+   */
+  retrieve(
+    project_id: string,
+    params: SessionRetrieveParams | null | undefined = {},
+    options?: RequestOptions,
+  ): APIPromise<TracerSession> {
+    const { accept, ...query } = params ?? {};
+    return this._client.get(path`/api/v1/sessions/${project_id}`, {
+      query,
+      ...options,
+      headers: buildHeaders([{ ...(accept != null ? { accept: accept } : undefined) }, options?.headers]),
+    });
+  }
+
+  /**
    * Update a project.
    */
   update(project_id: string, body: SessionUpdateParams, options?: RequestOptions): APIPromise<TracerSession> {
@@ -1536,6 +1552,23 @@ export interface SessionCreateParams {
   trace_tier?: 'longlived' | 'shortlived' | null;
 }
 
+export interface SessionRetrieveParams {
+  /**
+   * Query param
+   */
+  include_stats?: boolean;
+
+  /**
+   * Query param
+   */
+  stats_start_time?: string | null;
+
+  /**
+   * Header param
+   */
+  accept?: string;
+}
+
 export interface SessionUpdateParams {
   default_dataset_id?: string | null;
 
@@ -1616,6 +1649,7 @@ export declare namespace Sessions {
     type TracerSessionWithoutVirtualFields as TracerSessionWithoutVirtualFields,
     type SessionResolveResponse as SessionResolveResponse,
     type SessionCreateParams as SessionCreateParams,
+    type SessionRetrieveParams as SessionRetrieveParams,
     type SessionUpdateParams as SessionUpdateParams,
     type SessionDashboardParams as SessionDashboardParams,
     type SessionResolveParams as SessionResolveParams,

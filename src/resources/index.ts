@@ -155,6 +155,7 @@ export {
   type TracerSessionWithoutVirtualFields,
   type SessionResolveResponse,
   type SessionCreateParams,
+  type SessionRetrieveParams,
   type SessionUpdateParams,
   type SessionDashboardParams,
   type SessionResolveParams,
