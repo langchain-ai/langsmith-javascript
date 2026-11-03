@@ -1,5 +1,15 @@
 const encoder = new TextEncoder();
 
+const concat = (chunks: Uint8Array[]) => {
+  const out = new Uint8Array(chunks.reduce((sum, c) => sum + c.byteLength, 0));
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+};
+
 export type SerializedPart = {
   name: string;
   contentType: string;
@@ -57,17 +67,20 @@ export class CompressedRunBuffer {
     this.count += 1;
     this.context.push(context);
     this.onSent.push(onSent);
-    for (const part of parts) {
-      await this._write(
-        encoder.encode(
-          `--${this.boundary}\r\n` +
-            `Content-Disposition: form-data; name="${part.name}"\r\n` +
-            `Content-Type: ${part.contentType}\r\n\r\n`,
-        ),
-      );
-      await this._write(part.data);
-      await this._write(encoder.encode("\r\n"));
-    }
+    // One write per run: each write waits for a busy event loop.
+    await this._write(
+      concat(
+        parts.flatMap((part) => [
+          encoder.encode(
+            `--${this.boundary}\r\n` +
+              `Content-Disposition: form-data; name="${part.name}"\r\n` +
+              `Content-Type: ${part.contentType}\r\n\r\n`,
+          ),
+          part.data,
+          encoder.encode("\r\n"),
+        ]),
+      ),
+    );
   }
 
   /** Close the multipart body and return the gzipped bytes. */
@@ -75,14 +88,7 @@ export class CompressedRunBuffer {
     await this._write(encoder.encode(`--${this.boundary}--\r\n`));
     await this.writer.close();
     await this.readDone;
-    const body = new Uint8Array(
-      this.chunks.reduce((sum, c) => sum + c.byteLength, 0),
-    );
-    let offset = 0;
-    for (const chunk of this.chunks) {
-      body.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
+    const body = concat(this.chunks);
     this.chunks = [];
     return body;
   }

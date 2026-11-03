@@ -245,14 +245,26 @@ describe("runs are gzipped as they are queued", () => {
 });
 
 describe("CompressedRunBuffer", () => {
-  it("returns a gzipped multipart body", async () => {
+  it("returns a gzipped multipart body, one write per run", async () => {
     const buffer = new CompressedRunBuffer();
-    const data = new TextEncoder().encode('{"a":1}');
+    const write = jest.spyOn((buffer as any).writer, "write");
     await buffer.writeParts(
-      [{ name: "post.1", contentType: "application/json", data }],
+      [
+        {
+          name: "post.1",
+          contentType: "application/json",
+          data: new TextEncoder().encode('{"a":1}'),
+        },
+        {
+          name: "post.1.inputs",
+          contentType: "application/json",
+          data: new TextEncoder().encode('{"b":2}'),
+        },
+      ],
       "trace=1,id=1",
       () => undefined,
     );
+    expect(write).toHaveBeenCalledTimes(1);
     const body = await buffer.close();
     const text = gunzipSync(body).toString("utf8");
 
@@ -261,6 +273,10 @@ describe("CompressedRunBuffer", () => {
         `Content-Disposition: form-data; name="post.1"\r\n` +
         `Content-Type: application/json\r\n\r\n` +
         `{"a":1}\r\n` +
+        `--${buffer.boundary}\r\n` +
+        `Content-Disposition: form-data; name="post.1.inputs"\r\n` +
+        `Content-Type: application/json\r\n\r\n` +
+        `{"b":2}\r\n` +
         `--${buffer.boundary}--\r\n`,
     );
     expect(buffer.count).toBe(1);
