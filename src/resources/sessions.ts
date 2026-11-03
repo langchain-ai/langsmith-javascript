@@ -2,6 +2,7 @@
 
 import { APIResource } from '../core/resource';
 import { APIPromise } from '../core/api-promise';
+import { buildHeaders } from '../internal/headers';
 import { RequestOptions } from '../internal/request-options';
 import { path } from '../internal/utils/path';
 
@@ -19,6 +20,23 @@ export class Sessions extends APIResource {
    */
   update(project_id: string, body: SessionUpdateParams, options?: RequestOptions): APIPromise<TracerSession> {
     return this._client.patch(path`/api/v1/sessions/${project_id}`, { body, ...options });
+  }
+
+  /**
+   * GET with body payload — no resources created. Returns the prebuilt dashboard for
+   * the tracing project matching the query passed as the request payload.
+   */
+  dashboard(
+    sessionID: string,
+    params: SessionDashboardParams,
+    options?: RequestOptions,
+  ): APIPromise<CustomChartsSection> {
+    const { accept, ...body } = params;
+    return this._client.post(path`/api/v1/sessions/${sessionID}/dashboard`, {
+      body,
+      ...options,
+      headers: buildHeaders([{ ...(accept != null ? { accept: accept } : undefined) }, options?.headers]),
+    });
   }
 
   /**
@@ -1515,6 +1533,43 @@ export interface SessionUpdateParams {
   trace_tier?: 'longlived' | 'shortlived' | null;
 }
 
+export interface SessionDashboardParams {
+  /**
+   * Body param
+   */
+  end_time?: string | null;
+
+  /**
+   * Body param: Group by param for run stats.
+   */
+  group_by?: RunStatsGroupBy | null;
+
+  /**
+   * Body param
+   */
+  omit_data?: boolean;
+
+  /**
+   * Body param
+   */
+  start_time?: string | null;
+
+  /**
+   * Body param: Timedelta input.
+   */
+  stride?: TimedeltaInput;
+
+  /**
+   * Body param
+   */
+  timezone?: string;
+
+  /**
+   * Header param
+   */
+  accept?: string;
+}
+
 export interface SessionResolveParams {
   /**
    * The kind of address.
@@ -1545,6 +1600,7 @@ export declare namespace Sessions {
     type SessionResolveResponse as SessionResolveResponse,
     type SessionCreateParams as SessionCreateParams,
     type SessionUpdateParams as SessionUpdateParams,
+    type SessionDashboardParams as SessionDashboardParams,
     type SessionResolveParams as SessionResolveParams,
   };
 }

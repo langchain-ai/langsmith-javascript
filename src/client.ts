@@ -116,6 +116,7 @@ import {
   CustomChartsSectionRequest,
   RunStatsGroupBy,
   SessionCreateParams,
+  SessionDashboardParams,
   SessionResolveParams,
   SessionResolveResponse,
   SessionSortableColumns,
@@ -1107,6 +1108,7 @@ export declare namespace Langsmith {
     type SessionResolveResponse as SessionResolveResponse,
     type SessionCreateParams as SessionCreateParams,
     type SessionUpdateParams as SessionUpdateParams,
+    type SessionDashboardParams as SessionDashboardParams,
     type SessionResolveParams as SessionResolveParams,
   };
 

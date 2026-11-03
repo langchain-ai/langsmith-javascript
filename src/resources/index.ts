@@ -156,6 +156,7 @@ export {
   type SessionResolveResponse,
   type SessionCreateParams,
   type SessionUpdateParams,
+  type SessionDashboardParams,
   type SessionResolveParams,
 } from './sessions';
 export {
