@@ -23,6 +23,23 @@ export class Sessions extends APIResource {
   }
 
   /**
+   * Delete a specific project.
+   *
+   * Returns 202 when deletion is accepted. Cleanup runs asynchronously. Location
+   * identifies the affected project, not a cleanup-status endpoint. For a caller
+   * with read access, GET at that URL returns 200 with the project while it is still
+   * available, or 404 after the project is removed. A 404 does not confirm that
+   * background trace cleanup has finished. Polling for cleanup completion is not
+   * supported.
+   */
+  delete(project_id: string, options?: RequestOptions): APIPromise<void> {
+    return this._client.delete(path`/api/v1/sessions/${project_id}`, {
+      ...options,
+      headers: buildHeaders([{ Accept: '*/*' }, options?.headers]),
+    });
+  }
+
+  /**
    * GET with body payload — no resources created. Returns the prebuilt dashboard for
    * the tracing project matching the query passed as the request payload.
    */
