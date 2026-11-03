@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.11.8](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.7...v0.11.8) (2026-11-03)
+
+
+### Features
+
+* **sandboxes:** narrow AWS/GCP proxy rules with match_hosts, pass through presigned URLs ([31e581c](https://github.com/langchain-ai/langsmith-javascript/commit/31e581cf1019caba98e8f49115a147a5fb51a673))
+
+
+### Bug Fixes
+
+* expose session dashboards in Python and TypeScript SDKs ([b15dd3f](https://github.com/langchain-ai/langsmith-javascript/commit/b15dd3f36f722a372ee2afa183ed0b27621202de))
+
+
+### Performance Improvements
+
+* **js:** write each run to the gzip stream in one write ([cc9419a](https://github.com/langchain-ai/langsmith-javascript/commit/cc9419a7aee379780a18f472558489e6bb733c74))
+
+
+### Chores
+
+* **sdk:** accept preserve_memory_on_stop in sandbox create_sandbox ([174c72e](https://github.com/langchain-ai/langsmith-javascript/commit/174c72e182b0b484feafab3dfee99f5a17a880fb))
+
 ## [0.11.7](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.6...v0.11.7) (2026-11-02)
 
 
