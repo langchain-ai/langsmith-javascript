@@ -1373,7 +1373,7 @@ export interface TracerSession {
 
   tenant_id: string;
 
-  completion_cost?: string | null;
+  completion_cost?: number | null;
 
   completion_tokens?: number | null;
 
@@ -1405,7 +1405,7 @@ export interface TracerSession {
 
   name?: string;
 
-  prompt_cost?: string | null;
+  prompt_cost?: number | null;
 
   prompt_tokens?: number | null;
 
@@ -1423,7 +1423,7 @@ export interface TracerSession {
 
   test_run_number?: number | null;
 
-  total_cost?: string | null;
+  total_cost?: number | null;
 
   total_tokens?: number | null;
 
