@@ -179,6 +179,8 @@ export interface CreateOnlineEvaluatorRequest {
 
   llm_evaluator?: CreateOnlineLlmEvaluatorRequest;
 
+  metadata?: { [key: string]: unknown } | null;
+
   name?: string;
 
   type?: OnlineEvaluatorType;
@@ -287,6 +289,8 @@ export interface OnlineEvaluator {
    * Embedded child evaluator (populated based on type)
    */
   llm_evaluator?: OnlineLlmEvaluator;
+
+  metadata?: { [key: string]: unknown };
 
   name?: string;
 
@@ -462,6 +466,8 @@ export interface UpdateOnlineEvaluatorRequest {
 
   llm_evaluator?: UpdateOnlineLlmEvaluatorRequest;
 
+  metadata?: { [key: string]: unknown } | null;
+
   name?: string;
 }
 
@@ -491,6 +497,8 @@ export interface OnlineEvaluatorCreateParams {
 
   llm_evaluator?: CreateOnlineLlmEvaluatorRequest;
 
+  metadata?: { [key: string]: unknown } | null;
+
   name?: string;
 
   type?: OnlineEvaluatorType;
@@ -500,6 +508,8 @@ export interface OnlineEvaluatorUpdateParams {
   code_evaluator?: UpdateOnlineCodeEvaluatorRequest;
 
   llm_evaluator?: UpdateOnlineLlmEvaluatorRequest;
+
+  metadata?: { [key: string]: unknown } | null;
 
   name?: string;
 }
