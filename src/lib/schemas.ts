@@ -455,6 +455,12 @@ export interface FeedbackConfig {
    * Not applicable to continuous or freeform feedback types.
    */
   categories?: FeedbackCategory[] | null;
+
+  /**
+   * Whether a reviewer can pick several categories. Categorical feedback
+   * only. Defaults to false.
+   */
+  allows_multiple_categories?: boolean;
 }
 
 export interface DatasetDiffInfo {
@@ -650,6 +656,32 @@ export interface AnnotationQueue {
   tenant_id: string;
 }
 
+/** One rule in a rubric item's `required_if` or `visible_if` conditions. */
+export interface RubricItemConditionRule {
+  /** The feedback key of an item earlier in the same rubric. */
+  key: string;
+  /**
+   * How to test that item's feedback. `is` takes exactly one value,
+   * `is_one_of` at least one, and `is_empty` / `is_not_empty` none.
+   */
+  op: "is" | "is_one_of" | "is_empty" | "is_not_empty";
+  /** Category values, not labels. */
+  values?: number[];
+}
+
+/** Rules on earlier rubric items that decide when an item applies. */
+export interface RubricItemConditions {
+  /** Whether all rules or any rule must hold. */
+  join: "all" | "any";
+  /** At least one rule. */
+  rules: RubricItemConditionRule[];
+}
+
+/**
+ * A rubric item assigned to an annotation queue. A rubric item read from one
+ * queue can be passed as-is to another queue's `rubricItems` to copy it,
+ * keeping the same feedback config.
+ */
 export interface AnnotationQueueRubricItem {
   /** The feedback key this rubric item is associated with. */
   feedback_key: string;
@@ -663,8 +695,43 @@ export interface AnnotationQueueRubricItem {
   /** Descriptions for continuous score values. */
   score_descriptions?: Record<string, string> | null;
 
-  /** Whether this rubric item is required. */
+  /** Whether feedback for this rubric item is required whenever it is shown. */
   is_required?: boolean | null;
+
+  /**
+   * Required only while these rules on earlier items hold. On update, omit to
+   * keep the current conditions, or pass null to clear them.
+   */
+  required_if?: RubricItemConditions | null;
+
+  /**
+   * Shown only while these rules on earlier items hold. On update, omit to
+   * keep the current conditions, or pass null to clear them.
+   */
+  visible_if?: RubricItemConditions | null;
+
+  /** Whether this rubric item is an assertion (used in curation mode). */
+  is_assertion?: boolean | null;
+
+  /**
+   * Regex a freeform feedback value must match (searched, not anchored) to be
+   * accepted. At most 500 characters.
+   */
+  regex_validator?: string | null;
+
+  /**
+   * The feedback config this item uses, for keys with more than one. On
+   * create or update, the key's enforced config wins over this, and an item
+   * that already has a config keeps it.
+   */
+  feedback_config_id?: string | null;
+
+  /**
+   * Read-only. The config this item uses, or the key's first config when the
+   * item has none yet. Null when the config is deleted. Creates and updates
+   * ignore it; set `feedback_config_id` to choose the config.
+   */
+  feedback_config?: FeedbackConfigSchema | null;
 }
 
 export interface AnnotationQueueWithDetails extends AnnotationQueue {
@@ -692,7 +759,13 @@ export interface RunKey {
 }
 
 export interface FeedbackConfigSchema {
-  /** The unique key identifying this feedback configuration. */
+  /**
+   * The ID of this feedback configuration. A key can have more than one.
+   * Servers released before October 2026 don't return it.
+   */
+  id?: string;
+
+  /** The feedback key this configuration belongs to. */
   feedback_key: string;
 
   /** The configuration specifying the type, bounds, and categories. */
@@ -712,6 +785,18 @@ export interface FeedbackConfigSchema {
    * for the whole workspace. A key has at most one.
    */
   is_enforced?: boolean;
+
+  /**
+   * Whether this is its key's first configuration. Feedback that doesn't
+   * name a configuration was written against it.
+   */
+  is_first?: boolean;
+
+  /**
+   * Whether this configuration is deleted. Listed only with
+   * `includeAllConfigs`.
+   */
+  is_deleted?: boolean;
 }
 
 export interface RunWithAnnotationQueueInfo extends Exclude<BaseRun, "id"> {

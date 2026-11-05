@@ -24,6 +24,7 @@ import {
   ExampleUpdateWithoutId,
   SparseExample,
   Feedback,
+  FeedbackCategory,
   FeedbackConfig,
   FeedbackIngestToken,
   KVMap,
@@ -6177,6 +6178,17 @@ export class Client implements LangSmithTracingClientInterface {
     );
   }
 
+  /**
+   * Update a feedback. Only the fields you pass are changed: pass `null` to
+   * clear a field, or leave it `undefined` to keep its current value.
+   * @param feedbackId - The ID of the feedback to update
+   * @param options.score - The new score. Numbers are rounded to 4 decimal
+   *   places, the most the API stores; the API rejects more precise scores
+   *   sent to it directly.
+   * @param options.value - The new value
+   * @param options.correction - The new correction
+   * @param options.comment - The new comment
+   */
   public async updateFeedback(
     feedbackId: string,
     {
@@ -6192,16 +6204,16 @@ export class Client implements LangSmithTracingClientInterface {
     },
   ): Promise<void> {
     const feedbackUpdate: FeedbackUpdate = {};
-    if (score !== undefined && score !== null) {
+    if (score !== undefined) {
       feedbackUpdate["score"] = _formatFeedbackScore(score);
     }
-    if (value !== undefined && value !== null) {
+    if (value !== undefined) {
       feedbackUpdate["value"] = value;
     }
-    if (correction !== undefined && correction !== null) {
+    if (correction !== undefined) {
       feedbackUpdate["correction"] = correction;
     }
-    if (comment !== undefined && comment !== null) {
+    if (comment !== undefined) {
       feedbackUpdate["comment"] = comment;
     }
     assertUuid(feedbackId);
@@ -6542,7 +6554,10 @@ export class Client implements LangSmithTracingClientInterface {
    * Create a feedback configuration on the LangSmith API.
    *
    * This upserts: if an identical config already exists, it returns it.
-   * If a conflicting config exists for the same key, a 400 error is raised.
+   * If a different config already exists for the key, the result depends on
+   * the workspace: with enforced feedback configs on, the new config is added
+   * next to the existing ones (unless the key has an enforced config, which
+   * raises a 409); otherwise a 400 "Feedback config already exists" is raised.
    *
    * @param options - The options for creating a feedback config
    * @param options.feedbackKey - The unique key for this feedback config
@@ -6599,6 +6614,13 @@ export class Client implements LangSmithTracingClientInterface {
    * @param options.feedbackKeys - Filter by specific feedback keys
    * @param options.nameContains - Filter by name substring
    * @param options.limit - The maximum number of configs to return
+   * @param options.includeAllConfigs - Return every config of each key,
+   *   deleted ones included, instead of one config per key
+   * @param options.isEnforced - Only enforced configs when true, only
+   *   unenforced ones when false
+   *
+   * `includeAllConfigs` and `isEnforced` need LangSmith 0.18 or later on
+   * self-hosted deployments.
    * @returns An async iterator of FeedbackConfigSchema objects
    */
   public async *listFeedbackConfigs(
@@ -6606,9 +6628,12 @@ export class Client implements LangSmithTracingClientInterface {
       feedbackKeys?: string[];
       nameContains?: string;
       limit?: number;
+      includeAllConfigs?: boolean;
+      isEnforced?: boolean;
     } = {},
   ): AsyncIterableIterator<FeedbackConfigSchema> {
-    const { feedbackKeys, nameContains, limit } = options;
+    const { feedbackKeys, nameContains, limit, includeAllConfigs, isEnforced } =
+      options;
     const params = new URLSearchParams();
     if (feedbackKeys) {
       feedbackKeys.forEach((key) => {
@@ -6616,6 +6641,9 @@ export class Client implements LangSmithTracingClientInterface {
       });
     }
     if (nameContains) params.append("name_contains", nameContains);
+    if (includeAllConfigs) params.append("include_all_configs", "true");
+    if (isEnforced !== undefined)
+      params.append("is_enforced", isEnforced.toString());
     params.append(
       "limit",
       (limit !== undefined ? Math.min(limit, 100) : 100).toString(),
@@ -6636,8 +6664,14 @@ export class Client implements LangSmithTracingClientInterface {
    * Update a feedback configuration on the LangSmith API.
    * @param feedbackKey - The key of the feedback config to update
    * @param options - The options for updating the feedback config
-   * @param options.feedbackConfig - The new feedback config
+   * @param options.feedbackConfig - The new feedback config. Replaces the
+   *   whole config, so include `allows_multiple_categories` to keep a
+   *   multi-select tag multi-select.
    * @param options.isLowerScoreBetter - Whether a lower score is better
+   * @param options.configId - The config to update, for keys with more than
+   *   one. When omitted, the key's enforced config is updated, or else its
+   *   first one, or else its most recently modified one. Self-hosted
+   *   deployments need LangSmith 0.18 or later.
    * @returns The updated FeedbackConfigSchema object
    */
   public async updateFeedbackConfig(
@@ -6645,17 +6679,82 @@ export class Client implements LangSmithTracingClientInterface {
     options: {
       feedbackConfig?: FeedbackConfig;
       isLowerScoreBetter?: boolean;
+      configId?: string;
     } = {},
   ): Promise<FeedbackConfigSchema> {
-    const { feedbackConfig, isLowerScoreBetter } = options;
+    const { feedbackConfig, isLowerScoreBetter, configId } = options;
     const body: Record<string, unknown> = { feedback_key: feedbackKey };
+    if (configId !== undefined) {
+      body.id = assertUuid(configId, "configId");
+    }
     if (feedbackConfig !== undefined) {
       body.feedback_config = feedbackConfig;
     }
     if (isLowerScoreBetter !== undefined) {
       body.is_lower_score_better = isLowerScoreBetter;
     }
+    return this._patchFeedbackConfig(body);
+  }
 
+  /**
+   * Add categories to a categorical feedback config. The existing categories
+   * and `allows_multiple_categories` are kept. Self-hosted deployments need
+   * LangSmith 0.18 or later; older versions ignore the change and return the
+   * config unchanged.
+   * @param feedbackKey - The key of the feedback config to update
+   * @param categories - The categories to add. Values and labels must not
+   *   clash with existing ones.
+   * @param options.configId - The config to update, for keys with more than
+   *   one. When omitted, the key's enforced config is updated, or else its
+   *   first one, or else its most recently modified one.
+   * @returns The updated FeedbackConfigSchema object
+   */
+  public async addFeedbackCategories(
+    feedbackKey: string,
+    categories: FeedbackCategory[],
+    options: { configId?: string } = {},
+  ): Promise<FeedbackConfigSchema> {
+    const body: Record<string, unknown> = {
+      feedback_key: feedbackKey,
+      add_categories: categories,
+    };
+    if (options.configId !== undefined) {
+      body.id = assertUuid(options.configId, "configId");
+    }
+    return this._patchFeedbackConfig(body);
+  }
+
+  /**
+   * Remove categories from a categorical feedback config. Feedback already
+   * written with a removed value is unchanged. The other categories and
+   * `allows_multiple_categories` are kept. At least two categories must remain.
+   * Self-hosted deployments need LangSmith 0.18 or later; older versions ignore
+   * the change and return the config unchanged.
+   * @param feedbackKey - The key of the feedback config to update
+   * @param values - The values (not labels) of the categories to remove
+   * @param options.configId - The config to update, for keys with more than
+   *   one. When omitted, the key's enforced config is updated, or else its
+   *   first one, or else its most recently modified one.
+   * @returns The updated FeedbackConfigSchema object
+   */
+  public async removeFeedbackCategories(
+    feedbackKey: string,
+    values: number[],
+    options: { configId?: string } = {},
+  ): Promise<FeedbackConfigSchema> {
+    const body: Record<string, unknown> = {
+      feedback_key: feedbackKey,
+      remove_categories: values,
+    };
+    if (options.configId !== undefined) {
+      body.id = assertUuid(options.configId, "configId");
+    }
+    return this._patchFeedbackConfig(body);
+  }
+
+  private async _patchFeedbackConfig(
+    body: Record<string, unknown>,
+  ): Promise<FeedbackConfigSchema> {
     const response = await this.caller.call(async () => {
       const res = await this._fetch(`${this.apiUrl}/feedback-configs`, {
         method: "PATCH",
@@ -6671,11 +6770,25 @@ export class Client implements LangSmithTracingClientInterface {
   }
 
   /**
-   * Delete a feedback configuration on the LangSmith API.
-   * @param feedbackKey - The key of the feedback config to delete
+   * Delete a feedback configuration on the LangSmith API. Pass a feedback
+   * key to delete every config of that key, or `{ configId }` to delete one.
+   * @param feedbackKey - The key of the feedback configs to delete
+   * @param options.configId - Delete only this config instead. Self-hosted
+   *   deployments need LangSmith 0.18 or later.
    */
-  public async deleteFeedbackConfig(feedbackKey: string): Promise<void> {
-    const params = new URLSearchParams({ feedback_key: feedbackKey });
+  public async deleteFeedbackConfig(
+    feedbackKey: string | undefined,
+    options: { configId?: string } = {},
+  ): Promise<void> {
+    const { configId } = options;
+    if ((feedbackKey === undefined) === (configId === undefined)) {
+      throw new Error("Pass exactly one of feedbackKey or configId.");
+    }
+    const params = new URLSearchParams(
+      configId !== undefined
+        ? { id: assertUuid(configId, "configId") }
+        : { feedback_key: feedbackKey as string },
+    );
     await this.caller.call(async () => {
       const res = await this._fetch(
         `${this.apiUrl}/feedback-configs?${params}`,
@@ -6744,7 +6857,11 @@ export class Client implements LangSmithTracingClientInterface {
    * @param options.name - The name of the annotation queue
    * @param options.description - The description of the annotation queue
    * @param options.queueId - The ID of the annotation queue
-   * @returns The created AnnotationQueue object
+   * @param options.rubricInstructions - Instructions shown to reviewers
+   * @param options.rubricItems - The queue's rubric. Items read from another
+   *   queue's `rubric_items` can be passed as-is to copy its rubric.
+   * @returns The created queue. Its `rubric_items` is not filled in; call
+   *   `readAnnotationQueue` to get the stored rubric.
    */
   public async createAnnotationQueue(options: {
     name: string;
@@ -6785,7 +6902,8 @@ export class Client implements LangSmithTracingClientInterface {
   /**
    * Read an annotation queue with the specified queue ID.
    * @param queueId - The ID of the annotation queue to read
-   * @returns The AnnotationQueueWithDetails object
+   * @returns The AnnotationQueueWithDetails object, including its rubric
+   *   items and the feedback config each one uses
    */
   public async readAnnotationQueue(
     queueId: string,
@@ -6812,6 +6930,8 @@ export class Client implements LangSmithTracingClientInterface {
    * @param options - The options for updating the annotation queue
    * @param options.name - The new name for the annotation queue
    * @param options.description - The new description for the annotation queue
+   * @param options.rubricInstructions - Instructions shown to reviewers
+   * @param options.rubricItems - The queue's rubric. Replaces the existing one.
    */
   public async updateAnnotationQueue(
     queueId: string,
