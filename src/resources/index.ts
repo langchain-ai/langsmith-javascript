@@ -149,6 +149,8 @@ export {
   type CustomChartsSection,
   type CustomChartsSectionRequest,
   type RunStatsGroupBy,
+  type Session,
+  type SessionFeedbackStat,
   type SessionSortableColumns,
   type TimedeltaInput,
   type TracerSession,
@@ -158,7 +160,9 @@ export {
   type SessionRetrieveParams,
   type SessionUpdateParams,
   type SessionDashboardParams,
+  type SessionListV2Params,
   type SessionResolveParams,
+  type SessionsItemsCursorGetPagination,
 } from './sessions';
 export {
   Threads,

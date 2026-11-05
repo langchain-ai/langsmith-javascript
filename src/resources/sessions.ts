@@ -2,6 +2,11 @@
 
 import { APIResource } from '../core/resource';
 import { APIPromise } from '../core/api-promise';
+import {
+  ItemsCursorGetPagination,
+  type ItemsCursorGetPaginationParams,
+  PagePromise,
+} from '../core/pagination';
 import { buildHeaders } from '../internal/headers';
 import { RequestOptions } from '../internal/request-options';
 import { path } from '../internal/utils/path';
@@ -73,6 +78,22 @@ export class Sessions extends APIResource {
   }
 
   /**
+   * Returns a page of the workspace's tracing projects and experiments. Pass the
+   * response's next_cursor as cursor to fetch the next page; next_cursor is null on
+   * the last page. A cursor is valid only with the same query parameters as the
+   * request that returned it.
+   */
+  listV2(
+    query: SessionListV2Params | null | undefined = {},
+    options?: RequestOptions,
+  ): PagePromise<SessionsItemsCursorGetPagination, Session> {
+    return this._client.getAPIList('/api/v2/sessions', ItemsCursorGetPagination<Session>, {
+      query,
+      ...options,
+    });
+  }
+
+  /**
    * Returns the tracing project (session) an address names. An address is an AGENT
    * (`id` and `environment`), an EXPERIMENT (`id`), or an EVALUATOR (no `id`:
    * evaluator traces share one project per workspace). Send `kind` and `environment`
@@ -86,6 +107,8 @@ export class Sessions extends APIResource {
     return this._client.get('/api/v1/sessions/resolutions', { query, ...options });
   }
 }
+
+export type SessionsItemsCursorGetPagination = ItemsCursorGetPagination<Session>;
 
 export interface CustomChartsSection {
   id: string;
@@ -1345,6 +1368,143 @@ export interface RunStatsGroupBy {
   path?: string | null;
 }
 
+/**
+ * TracerSession schema.
+ */
+export interface Session {
+  id: string;
+
+  name: string;
+
+  start_time: string;
+
+  tenant_id: string;
+
+  completion_cost?: number | null;
+
+  completion_tokens?: number | null;
+
+  default_dataset_id?: string | null;
+
+  description?: string | null;
+
+  end_time?: string | null;
+
+  error_rate?: number | null;
+
+  experiment_progress?: Session.ExperimentProgress | null;
+
+  extra?: { [key: string]: unknown } | null;
+
+  /**
+   * Feedback on the session's runs, by feedback key.
+   */
+  feedback_stats?: { [key: string]: SessionFeedbackStat } | null;
+
+  first_token_p50?: number | null;
+
+  first_token_p99?: number | null;
+
+  last_run_start_time?: string | null;
+
+  last_run_start_time_live?: string | null;
+
+  latency_p50?: number | null;
+
+  latency_p99?: number | null;
+
+  prompt_cost?: number | null;
+
+  prompt_tokens?: number | null;
+
+  reference_dataset_id?: string | null;
+
+  run_count?: number | null;
+
+  run_facets?: Array<{ [key: string]: unknown }> | null;
+
+  /**
+   * Feedback on the session itself, by feedback key.
+   */
+  session_feedback_stats?: { [key: string]: SessionFeedbackStat } | null;
+
+  streaming_rate?: number | null;
+
+  test_run_number?: number | null;
+
+  total_cost?: number | null;
+
+  total_tokens?: number | null;
+
+  trace_tier?: 'LONG_LIVED' | 'SHORT_LIVED' | null;
+}
+
+export namespace Session {
+  export interface ExperimentProgress {
+    evaluator_progress: { [key: string]: number };
+
+    expected_run_count: number;
+
+    run_progress: number;
+  }
+}
+
+/**
+ * Aggregate feedback for one feedback key.
+ */
+export interface SessionFeedbackStat {
+  /**
+   * Mean numeric score.
+   */
+  avg: number | null;
+
+  /**
+   * Whether any feedback was left on a thread.
+   */
+  contains_thread_feedback: boolean;
+
+  /**
+   * Number of feedback entries recorded as errors.
+   */
+  errors: number;
+
+  /**
+   * Highest numeric score.
+   */
+  max: number | null;
+
+  /**
+   * Median numeric score.
+   */
+  median: number | null;
+
+  /**
+   * Lowest numeric score.
+   */
+  min: number | null;
+
+  /**
+   * Number of feedback scores for this key.
+   */
+  n: number;
+
+  /**
+   * Standard deviation of numeric scores.
+   */
+  stdev: number | null;
+
+  /**
+   * `PRIMARY` for recorded feedback, `COMPOSITE` for a score computed from other
+   * feedback keys.
+   */
+  type: 'PRIMARY' | 'COMPOSITE';
+
+  /**
+   * Count of each categorical value.
+   */
+  values: { [key: string]: number };
+}
+
 export type SessionSortableColumns =
   | 'name'
   | 'start_time'
@@ -1620,6 +1780,111 @@ export interface SessionDashboardParams {
   accept?: string;
 }
 
+export interface SessionListV2Params extends ItemsCursorGetPaginationParams {
+  /**
+   * Only return projects with these IDs
+   */
+  id?: Array<string>;
+
+  /**
+   * Only return experiments run against this dataset version (RFC 3339 timestamp)
+   */
+  dataset_version?: string;
+
+  /**
+   * Filter expression, for example eq(name, \
+   */
+  filter?: string;
+
+  /**
+   * Include run facets
+   */
+  include_facets?: boolean;
+
+  /**
+   * Include run statistics
+   */
+  include_stats?: boolean;
+
+  /**
+   * JSON object the project metadata must contain
+   */
+  metadata?: string;
+
+  /**
+   * Only return the project with this exact name
+   */
+  name?: string;
+
+  /**
+   * Only return projects whose name contains this substring
+   */
+  name_contains?: string;
+
+  /**
+   * Only return experiments run against these dataset IDs
+   */
+  reference_dataset_id?: Array<string>;
+
+  /**
+   * true for tracing projects only, false for experiments only
+   */
+  reference_free?: boolean;
+
+  /**
+   * Sort column. FEEDBACK requires reference_dataset_id
+   */
+  sort_by?:
+    | 'NAME'
+    | 'START_TIME'
+    | 'LAST_RUN_START_TIME'
+    | 'ERROR_RATE'
+    | 'LATENCY_P50'
+    | 'LATENCY_P99'
+    | 'FEEDBACK';
+
+  /**
+   * Feedback key to sort by; required when sort_by is FEEDBACK
+   */
+  sort_by_feedback_key?: string;
+
+  /**
+   * Where the sort feedback is recorded; defaults to RUN when sort_by is FEEDBACK
+   */
+  sort_by_feedback_source?: 'RUN' | 'SESSION';
+
+  /**
+   * Sort direction
+   */
+  sort_order?: 'asc' | 'desc';
+
+  /**
+   * Run filter expression that scopes the statistics
+   */
+  stats_filter?: string;
+
+  /**
+   * Statistics to include when include_stats is true; defaults to all
+   */
+  stats_select?: Array<string>;
+
+  /**
+   * Only aggregate statistics at or after this time, within the last 31 days
+   */
+  stats_start_time?: string;
+
+  /**
+   * Only return projects tagged with all of these tag value IDs
+   */
+  tag_value_id?: Array<string>;
+
+  /**
+   * Compute statistics from pre-aggregated data, which is faster but up to an hour
+   * stale
+   */
+  use_approx_stats?: boolean;
+}
+
 export interface SessionResolveParams {
   /**
    * The kind of address.
@@ -1643,15 +1908,19 @@ export declare namespace Sessions {
     type CustomChartsSection as CustomChartsSection,
     type CustomChartsSectionRequest as CustomChartsSectionRequest,
     type RunStatsGroupBy as RunStatsGroupBy,
+    type Session as Session,
+    type SessionFeedbackStat as SessionFeedbackStat,
     type SessionSortableColumns as SessionSortableColumns,
     type TimedeltaInput as TimedeltaInput,
     type TracerSession as TracerSession,
     type TracerSessionWithoutVirtualFields as TracerSessionWithoutVirtualFields,
     type SessionResolveResponse as SessionResolveResponse,
+    type SessionsItemsCursorGetPagination as SessionsItemsCursorGetPagination,
     type SessionCreateParams as SessionCreateParams,
     type SessionRetrieveParams as SessionRetrieveParams,
     type SessionUpdateParams as SessionUpdateParams,
     type SessionDashboardParams as SessionDashboardParams,
+    type SessionListV2Params as SessionListV2Params,
     type SessionResolveParams as SessionResolveParams,
   };
 }

@@ -50,6 +50,8 @@ Types:
 - <code><a href="./src/resources/sessions.ts">CustomChartsSection</a></code>
 - <code><a href="./src/resources/sessions.ts">CustomChartsSectionRequest</a></code>
 - <code><a href="./src/resources/sessions.ts">RunStatsGroupBy</a></code>
+- <code><a href="./src/resources/sessions.ts">Session</a></code>
+- <code><a href="./src/resources/sessions.ts">SessionFeedbackStat</a></code>
 - <code><a href="./src/resources/sessions.ts">SessionSortableColumns</a></code>
 - <code><a href="./src/resources/sessions.ts">TimedeltaInput</a></code>
 - <code><a href="./src/resources/sessions.ts">TracerSession</a></code>
@@ -63,6 +65,7 @@ Methods:
 - <code title="patch /api/v1/sessions/{session_id}">client.sessions.<a href="./src/resources/sessions.ts">update</a>(project_id, { ...params }) -> TracerSession</code>
 - <code title="delete /api/v1/sessions/{session_id}">client.sessions.<a href="./src/resources/sessions.ts">delete</a>(project_id) -> void</code>
 - <code title="post /api/v1/sessions/{session_id}/dashboard">client.sessions.<a href="./src/resources/sessions.ts">dashboard</a>(sessionID, { ...params }) -> CustomChartsSection</code>
+- <code title="get /api/v2/sessions">client.sessions.<a href="./src/resources/sessions.ts">listV2</a>({ ...params }) -> SessionsItemsCursorGetPagination</code>
 - <code title="get /api/v1/sessions/resolutions">client.sessions.<a href="./src/resources/sessions.ts">resolve</a>({ ...params }) -> SessionResolveResponse</code>
 
 # Datasets
