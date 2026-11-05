@@ -527,6 +527,11 @@ export interface OnlineEvaluatorListParams extends OffsetPaginationOnlineEvaluat
   feedback_key?: string;
 
   /**
+   * Filter by metadata containment using a JSON object
+   */
+  metadata?: string;
+
+  /**
    * Filter by name substring (also searches creator names)
    */
   name_contains?: string;

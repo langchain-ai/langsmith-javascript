@@ -66,6 +66,7 @@ describe('resource onlineEvaluators', () => {
           agent_id: 'agent_id',
           feedback_key: 'feedback_key',
           limit: 0,
+          metadata: 'metadata',
           name_contains: 'name_contains',
           offset: 0,
           resource_id: ['string'],
