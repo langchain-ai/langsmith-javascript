@@ -79,9 +79,14 @@ Types:
 
 ## Examples
 
+Types:
+
+- <code><a href="./src/resources/datasets/examples.ts">ExampleUpdateMetadataResponse</a></code>
+
 Methods:
 
 - <code title="delete /api/v1/platform/datasets/{dataset_id}/examples/{example_id}">client.datasets.examples.<a href="./src/resources/datasets/examples.ts">delete</a>(exampleID, { ...params }) -> void</code>
+- <code title="patch /api/v1/platform/datasets/{dataset_id}/examples/metadata">client.datasets.examples.<a href="./src/resources/datasets/examples.ts">updateMetadata</a>(datasetID, { ...params }) -> ExampleUpdateMetadataResponse</code>
 
 ## ExperimentRuns
 

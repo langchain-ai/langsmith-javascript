@@ -2,7 +2,12 @@
 
 import { APIResource } from '../../core/resource';
 import * as ExamplesAPI from './examples';
-import { ExampleDeleteParams, Examples } from './examples';
+import {
+  ExampleDeleteParams,
+  ExampleUpdateMetadataParams,
+  ExampleUpdateMetadataResponse,
+  Examples,
+} from './examples';
 import * as ExperimentRunsAPI from './experiment-runs';
 import {
   ExperimentRunQueryParams,
@@ -221,7 +226,12 @@ export declare namespace Datasets {
     type SortByDatasetColumn as SortByDatasetColumn,
   };
 
-  export { Examples as Examples, type ExampleDeleteParams as ExampleDeleteParams };
+  export {
+    Examples as Examples,
+    type ExampleUpdateMetadataResponse as ExampleUpdateMetadataResponse,
+    type ExampleDeleteParams as ExampleDeleteParams,
+    type ExampleUpdateMetadataParams as ExampleUpdateMetadataParams,
+  };
 
   export {
     ExperimentRuns as ExperimentRuns,
