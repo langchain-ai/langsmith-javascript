@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from "../utils/uuid/src/index.js";
 import { Client } from "../client.js";
 import { Run } from "../schemas.js";
 import { traceable } from "../traceable.js";
-import { toArray, waitUntil } from "./utils.js";
+import { toArray, waitUntil, testRunStart } from "./utils.js";
 import { requiresClickhouse } from "./utils/markers.js";
 
 requiresClickhouse.test(
@@ -69,6 +69,7 @@ requiresClickhouse.test(
       const getNestedFunction = (): Promise<Run[]> =>
         toArray(
           client.listRuns({
+            startTime: testRunStart,
             projectName,
             filter: "eq(name, 'add_negligible_value')",
           }),

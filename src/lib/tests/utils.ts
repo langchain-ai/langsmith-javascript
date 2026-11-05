@@ -3,6 +3,14 @@ import { v4 as uuidv4 } from "../utils/uuid/src/index.js";
 import { faker } from "@faker-js/faker";
 import { RunCreate } from "../schemas.js";
 
+/**
+ * Lower bound for run queries in integration tests: every run a test reads was
+ * created after this module loaded. LangSmith rate-limits API-key run queries
+ * without a start time to a few per workspace every ten seconds, and concurrent
+ * CI jobs share that budget. Five minutes of margin absorbs clock skew.
+ */
+export const testRunStart = new Date(Date.now() - 5 * 60_000);
+
 export async function toArray<T>(iterable: AsyncIterable<T>): Promise<T[]> {
   const result: T[] = [];
   for await (const item of iterable) {
@@ -46,7 +54,9 @@ async function countProjectRuns(
   projectName: string,
 ): Promise<number | null> {
   try {
-    const count = (await toArray(client.listRuns({ projectName }))).length;
+    const count = (
+      await toArray(client.listRuns({ startTime: testRunStart, projectName }))
+    ).length;
     if (count > 0) return count;
   } catch (_e) {
     // Fall through to the v2 endpoint.
@@ -173,6 +183,7 @@ export async function waitUntilRunFoundByMetaField(
       try {
         const runs = await toArray(
           client.listRuns({
+            startTime: testRunStart,
             filter: `and(eq(metadata_key, "${metaKey}"), eq(metadata_value, "${metaValue}"))`,
             projectName,
           }),

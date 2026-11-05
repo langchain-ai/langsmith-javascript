@@ -11,6 +11,7 @@ import {
   pollRunsUntilCount,
   sanitizePresignedUrls,
   skipIfTransientError,
+  testRunStart,
 } from "./utils.js";
 import { requiresClickhouse } from "./utils/markers.js";
 
@@ -85,7 +86,9 @@ test("Test post and patch run", async () => {
     await waitUntil(
       async () => {
         try {
-          const runs = await toArray(langchainClient.listRuns({ projectName }));
+          const runs = await toArray(
+            langchainClient.listRuns({ startTime: testRunStart, projectName }),
+          );
           return runs.length === 5;
         } catch (_e) {
           return false;
@@ -94,7 +97,9 @@ test("Test post and patch run", async () => {
       30_000, // Wait up to 30 seconds
       3000, // every 3 second
     );
-    const runs = await toArray(langchainClient.listRuns({ projectName }));
+    const runs = await toArray(
+      langchainClient.listRuns({ startTime: testRunStart, projectName }),
+    );
     expect(runs.length).toEqual(5);
     const runMap = new Map(runs.map((run) => [run.name, run]));
     expect(runMap.get("child_run")?.parent_run_id).toEqual(
@@ -114,7 +119,10 @@ test("Test post and patch run", async () => {
       async () => {
         try {
           const runs_ = await toArray(
-            langchainClient.listRuns({ traceId: runs[0].trace_id }),
+            langchainClient.listRuns({
+              startTime: testRunStart,
+              traceId: runs[0].trace_id,
+            }),
           );
           return runs_.length === 5;
         } catch (_e) {
@@ -126,6 +134,7 @@ test("Test post and patch run", async () => {
     );
 
     const traceRunsIter = langchainClient.listRuns({
+      startTime: testRunStart,
       traceId: runs[0].trace_id,
     });
     const traceRuns = await toArray(traceRunsIter);
@@ -191,6 +200,7 @@ requiresClickhouse.test(
         await pollRunsUntilCount(langchainClient, projectNames[1], 1);
 
         const runsIter = langchainClient.listRuns({
+          startTime: testRunStart,
           projectName: projectNames,
         });
         const runs = await toArray(runsIter);
@@ -239,7 +249,9 @@ requiresClickhouse.test(
     await parentRun.postRun();
 
     await pollRunsUntilCount(langchainClient, projectName, 1);
-    const runs = await toArray(langchainClient.listRuns({ id: [runId] }));
+    const runs = await toArray(
+      langchainClient.listRuns({ startTime: testRunStart, id: [runId] }),
+    );
     expect(runs.length).toEqual(1);
     expect(runs[0].extra);
     await langchainClient.deleteProject({ projectName });
@@ -260,7 +272,9 @@ requiresClickhouse.test("dotted order matches start_time", async () => {
   await parentRun.end({ output: "Completed: foo" });
   await parentRun.patchRun();
   await pollRunsUntilCount(langchainClient, projectName, 1);
-  const runs = await toArray(langchainClient.listRuns({ projectName }));
+  const runs = await toArray(
+    langchainClient.listRuns({ startTime: testRunStart, projectName }),
+  );
   expect(runs.length).toEqual(1);
   expect(runs[0].dotted_order).toEqual(parentRun.dotted_order);
   expect((runs[0].start_time as string).replace(/[-:.Z]/g, "")).toEqual(

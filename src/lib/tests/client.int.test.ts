@@ -27,6 +27,7 @@ import {
   toArray,
   waitUntil,
   skipIfTransientError,
+  testRunStart,
 } from "./utils.js";
 import { requiresBetaDataset, requiresClickhouse } from "./utils/markers.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
@@ -956,7 +957,11 @@ requiresClickhouse.test(
       );
 
       let iters = 0;
-      for await (const run of client.listRuns({ limit, projectName })) {
+      for await (const run of client.listRuns({
+        startTime: testRunStart,
+        limit,
+        projectName,
+      })) {
         expect(run).toBeDefined();
         runsArr.push(run);
         iters += 1;

@@ -5,7 +5,7 @@ import { jest } from "@jest/globals";
 import { randomUUID } from "node:crypto";
 import { Client } from "../../../client.js";
 import { LangSmithTelemetry } from "../../../experimental/vercel/telemetry.js";
-import { toArray, waitUntil } from "../../utils.js";
+import { toArray, waitUntil, testRunStart } from "../../utils.js";
 import { getAssumedTreeFromCalls } from "../../utils/tree.js";
 
 const PROJECT_NAME = "js-ai-sdk-harness-claude-code-integration";
@@ -177,6 +177,7 @@ test.skip(
       const readTrace = () =>
         toArray(
           client.listRuns({
+            startTime: testRunStart,
             projectName: PROJECT_NAME,
             traceId: root.trace_id,
           }),

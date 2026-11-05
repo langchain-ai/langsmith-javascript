@@ -7,7 +7,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { Client } from "../../../client.js";
 import { LangSmithTelemetry } from "../../../experimental/vercel/telemetry.js";
-import { toArray, waitUntil } from "../../utils.js";
+import { toArray, waitUntil, testRunStart } from "../../utils.js";
 import { getAssumedTreeFromCalls } from "../../utils/tree.js";
 
 const PROJECT_NAME = "js-ai-sdk-harness-pi-integration";
@@ -261,6 +261,7 @@ test.skip("uploads a real HarnessAgent and Pi trace", async () => {
     const readPersistedRuns = () =>
       toArray(
         client.listRuns({
+          startTime: testRunStart,
           projectName: PROJECT_NAME,
           traceId: harnessRoot.trace_id,
         }),
@@ -600,8 +601,7 @@ test.skip("uploads a nested HarnessAgent and Pi coordinator/subagent trace", asy
     );
     if (!subagentLlm) throw new Error("Expected a completed subagent LLM run");
     const subagentUsage = subagentLlm.extra?.metadata?.usage_metadata as
-      | { total_tokens?: unknown }
-      | undefined;
+      { total_tokens?: unknown } | undefined;
     expect(subagentUsage).toMatchObject({
       input_tokens: expect.any(Number),
       output_tokens: expect.any(Number),
@@ -641,6 +641,7 @@ test.skip("uploads a nested HarnessAgent and Pi coordinator/subagent trace", asy
     const readTrace = () =>
       toArray(
         client.listRuns({
+          startTime: testRunStart,
           projectName: PROJECT_NAME,
           traceId: coordinatorTraceId,
         }),
