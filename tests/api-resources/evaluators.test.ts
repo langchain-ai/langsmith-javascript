@@ -75,6 +75,7 @@ describe('resource evaluators', () => {
       base_url: 'base_url',
       dataset_id: '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
       filter: 'filter',
+      group_by: 'thread_id',
       max_retries: 0,
       model: 'model',
       model_headers: { foo: 'string' },

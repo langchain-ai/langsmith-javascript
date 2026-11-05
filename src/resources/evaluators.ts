@@ -282,6 +282,12 @@ export interface EvaluatorCreateDecisionModelParams {
   filter?: string | null;
 
   /**
+   * Set to thread_id to evaluate each thread once it goes idle, instead of each run.
+   * Requires session_id. Decision models don't support trajectory_id.
+   */
+  group_by?: 'thread_id' | null;
+
+  /**
    * How many times to retry a failed model call. openai_decisions only.
    */
   max_retries?: number | null;
