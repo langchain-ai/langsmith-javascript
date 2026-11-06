@@ -601,7 +601,8 @@ test.skip("uploads a nested HarnessAgent and Pi coordinator/subagent trace", asy
     );
     if (!subagentLlm) throw new Error("Expected a completed subagent LLM run");
     const subagentUsage = subagentLlm.extra?.metadata?.usage_metadata as
-      { total_tokens?: unknown } | undefined;
+      | { total_tokens?: unknown }
+      | undefined;
     expect(subagentUsage).toMatchObject({
       input_tokens: expect.any(Number),
       output_tokens: expect.any(Number),
