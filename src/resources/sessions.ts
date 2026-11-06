@@ -1413,6 +1413,14 @@ export interface Session {
 
   latency_p99?: number | null;
 
+  /**
+   * Retention in days for traces while trace_tier is longlived. One of 30, 60, 90,
+   * 120, 150, 180, 240, 300, 365 or 400, up to the maximum of the deployment.
+   * Self-hosted also accepts its configured retention. The value is kept while
+   * trace_tier is shortlived. Null means the project uses the workspace retention.
+   */
+  longlived_ttl_days?: number | null;
+
   prompt_cost?: number | null;
 
   prompt_tokens?: number | null;
@@ -1563,6 +1571,14 @@ export interface TracerSession {
 
   latency_p99?: number | null;
 
+  /**
+   * Retention in days for traces while trace_tier is longlived. One of 30, 60, 90,
+   * 120, 150, 180, 240, 300, 365 or 400, up to the maximum of the deployment.
+   * Self-hosted also accepts its configured retention. The value is kept while
+   * trace_tier is shortlived. Null means the project uses the workspace retention.
+   */
+  longlived_ttl_days?: number | null;
+
   name?: string;
 
   prompt_cost?: number | null;
@@ -1618,6 +1634,14 @@ export interface TracerSessionWithoutVirtualFields {
   extra?: { [key: string]: unknown } | null;
 
   last_run_start_time_live?: string | null;
+
+  /**
+   * Retention in days for traces while trace_tier is longlived. One of 30, 60, 90,
+   * 120, 150, 180, 240, 300, 365 or 400, up to the maximum of the deployment.
+   * Self-hosted also accepts its configured retention. The value is kept while
+   * trace_tier is shortlived. Null means the project uses the workspace retention.
+   */
+  longlived_ttl_days?: number | null;
 
   name?: string;
 
@@ -1675,6 +1699,15 @@ export interface SessionCreateParams {
    * Body param
    */
   kicked_off_by?: string | null;
+
+  /**
+   * Body param: Retention in days for traces while trace_tier is longlived. One of
+   * 30, 60, 90, 120, 150, 180, 240, 300, 365 or 400, up to the maximum of the
+   * deployment. Self-hosted also accepts its configured retention. The value is kept
+   * while trace_tier is shortlived. Null means the project uses the workspace
+   * retention.
+   */
+  longlived_ttl_days?: number | null;
 
   /**
    * Body param
@@ -1737,6 +1770,15 @@ export interface SessionUpdateParams {
   end_time?: string | null;
 
   extra?: { [key: string]: unknown } | null;
+
+  /**
+   * Retention in days for traces while trace_tier is longlived. One of 30, 60, 90,
+   * 120, 150, 180, 240, 300, 365 or 400, up to the maximum of the deployment.
+   * Self-hosted also accepts its configured retention. The value is kept while
+   * trace_tier is shortlived. Null means the project uses the workspace retention.
+   * Omit the field to keep the current value.
+   */
+  longlived_ttl_days?: number | null;
 
   name?: string | null;
 
