@@ -159,9 +159,11 @@ import {
 import {
   DataType,
   Dataset,
+  DatasetListV2Params,
   DatasetTransformation,
   DatasetVersion,
   Datasets,
+  DatasetsItemsCursorGetPagination,
   FeedbackCreateCoreSchema,
   Missing,
   SortByDatasetColumn,
@@ -1131,6 +1133,8 @@ export declare namespace Langsmith {
     type FeedbackCreateCoreSchema as FeedbackCreateCoreSchema,
     type Missing as Missing,
     type SortByDatasetColumn as SortByDatasetColumn,
+    type DatasetsItemsCursorGetPagination as DatasetsItemsCursorGetPagination,
+    type DatasetListV2Params as DatasetListV2Params,
   };
 
   export {

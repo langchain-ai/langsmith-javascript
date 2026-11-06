@@ -80,6 +80,10 @@ Types:
 - <code><a href="./src/resources/datasets/datasets.ts">Missing</a></code>
 - <code><a href="./src/resources/datasets/datasets.ts">SortByDatasetColumn</a></code>
 
+Methods:
+
+- <code title="get /api/v2/datasets">client.datasets.<a href="./src/resources/datasets/datasets.ts">listV2</a>({ ...params }) -> DatasetsItemsCursorGetPagination</code>
+
 ## Examples
 
 Types:

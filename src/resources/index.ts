@@ -44,6 +44,8 @@ export {
   type FeedbackCreateCoreSchema,
   type Missing,
   type SortByDatasetColumn,
+  type DatasetListV2Params,
+  type DatasetsItemsCursorGetPagination,
 } from './datasets/datasets';
 export {
   Evaluators,

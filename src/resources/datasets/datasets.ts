@@ -15,11 +15,34 @@ import {
   ExperimentRunQueryResponsesItemsCursorPostPagination,
   ExperimentRuns,
 } from './experiment-runs';
+import {
+  ItemsCursorGetPagination,
+  type ItemsCursorGetPaginationParams,
+  PagePromise,
+} from '../../core/pagination';
+import { RequestOptions } from '../../internal/request-options';
 
 export class Datasets extends APIResource {
   examples: ExamplesAPI.Examples = new ExamplesAPI.Examples(this._client);
   experimentRuns: ExperimentRunsAPI.ExperimentRuns = new ExperimentRunsAPI.ExperimentRuns(this._client);
+
+  /**
+   * Returns one page of the datasets in the workspace, filtered and sorted by the
+   * query parameters. Pass the next_cursor of a response as cursor, with the same
+   * filters and sort, to get the next page. next_cursor is null on the last page.
+   */
+  listV2(
+    query: DatasetListV2Params | null | undefined = {},
+    options?: RequestOptions,
+  ): PagePromise<DatasetsItemsCursorGetPagination, Dataset> {
+    return this._client.getAPIList('/api/v2/datasets', ItemsCursorGetPagination<Dataset>, {
+      query,
+      ...options,
+    });
+  }
 }
+
+export type DatasetsItemsCursorGetPagination = ItemsCursorGetPagination<Dataset>;
 
 /**
  * Enum for dataset data types.
@@ -212,6 +235,64 @@ export type SortByDatasetColumn =
   | 'session_count'
   | 'modified_at';
 
+export interface DatasetListV2Params extends ItemsCursorGetPaginationParams {
+  /**
+   * Return only the datasets with these IDs. Repeat the parameter for several IDs.
+   */
+  id?: Array<string>;
+
+  /**
+   * Return only datasets of these data types. Repeat the parameter for several
+   * types.
+   */
+  data_type?: Array<DataType>;
+
+  /**
+   * Fields to leave out of each dataset. An excluded example_count is returned as
+   * null and makes the response faster.
+   */
+  exclude?: Array<'example_count'>;
+
+  /**
+   * Leave out datasets that store corrections for an evaluator.
+   */
+  exclude_corrections_datasets?: boolean;
+
+  /**
+   * A JSON object. Return only datasets whose metadata contains every key and value
+   * in it.
+   */
+  metadata?: string;
+
+  /**
+   * Return only the dataset with exactly this name.
+   */
+  name?: string;
+
+  /**
+   * Return only datasets whose name contains this text, ignoring case.
+   */
+  name_contains?: string;
+
+  /**
+   * Field to sort by. last_session_start_time is the start time of the most recent
+   * experiment on the dataset. Datasets without a value come last in both orders.
+   * While a sort value changes, for example when an experiment starts, a dataset can
+   * be skipped or listed twice across pages. Sort by created_at for a stable walk.
+   */
+  sort_by?: SortByDatasetColumn;
+
+  /**
+   * Sort direction.
+   */
+  sort_order?: 'asc' | 'desc';
+
+  /**
+   * Return only datasets tagged with all of these tag value IDs.
+   */
+  tag_value_id?: Array<string>;
+}
+
 Datasets.Examples = Examples;
 Datasets.ExperimentRuns = ExperimentRuns;
 
@@ -224,6 +305,8 @@ export declare namespace Datasets {
     type FeedbackCreateCoreSchema as FeedbackCreateCoreSchema,
     type Missing as Missing,
     type SortByDatasetColumn as SortByDatasetColumn,
+    type DatasetsItemsCursorGetPagination as DatasetsItemsCursorGetPagination,
+    type DatasetListV2Params as DatasetListV2Params,
   };
 
   export {
