@@ -87,7 +87,6 @@ Types:
 - <code><a href="./src/resources/datasets/datasets.ts">DatasetTransformation</a></code>
 - <code><a href="./src/resources/datasets/datasets.ts">DatasetVersion</a></code>
 - <code><a href="./src/resources/datasets/datasets.ts">FeedbackCreateCoreSchema</a></code>
-- <code><a href="./src/resources/datasets/datasets.ts">Missing</a></code>
 - <code><a href="./src/resources/datasets/datasets.ts">SortByDatasetColumn</a></code>
 
 Methods:

@@ -166,7 +166,6 @@ import {
   Datasets,
   DatasetsItemsCursorGetPagination,
   FeedbackCreateCoreSchema,
-  Missing,
   SortByDatasetColumn,
 } from './resources/datasets/datasets';
 import { Fleet } from './resources/fleet/fleet';
@@ -1136,7 +1135,6 @@ export declare namespace Langsmith {
     type DatasetTransformation as DatasetTransformation,
     type DatasetVersion as DatasetVersion,
     type FeedbackCreateCoreSchema as FeedbackCreateCoreSchema,
-    type Missing as Missing,
     type SortByDatasetColumn as SortByDatasetColumn,
     type DatasetsItemsCursorGetPagination as DatasetsItemsCursorGetPagination,
     type DatasetListV2Params as DatasetListV2Params,

@@ -36,7 +36,6 @@ import {
   RunUpdateResponse,
   Runs,
 } from './runs';
-import * as DatasetsAPI from '../datasets/datasets';
 import { APIPromise } from '../../core/api-promise';
 import {
   OffsetPaginationTopLevelArray,
@@ -202,7 +201,7 @@ export interface AnnotationQueueRubricItemSchema {
 
   is_required?: boolean | null;
 
-  regex_validator?: string | DatasetsAPI.Missing | null;
+  regex_validator?: string | null;
 
   required_if?: AnnotationQueueRubricItemSchema.RequiredIf | null;
 
@@ -619,12 +618,12 @@ export interface AnnotationQueueUpdateParams {
   /**
    * Whether a reviewer reserves a run while reviewing it, so others skip it.
    */
-  enable_reservations?: boolean | DatasetsAPI.Missing;
+  enable_reservations?: boolean;
 
   /**
    * Metadata to store on the queue. Replaces the existing metadata.
    */
-  metadata?: { [key: string]: unknown } | DatasetsAPI.Missing | null;
+  metadata?: { [key: string]: unknown } | null;
 
   /**
    * New name for the queue.
@@ -634,12 +633,12 @@ export interface AnnotationQueueUpdateParams {
   /**
    * How many reviewers must review each run.
    */
-  num_reviewers_per_item?: number | DatasetsAPI.Missing | null;
+  num_reviewers_per_item?: number | null;
 
   /**
    * How long a reservation lasts, in minutes.
    */
-  reservation_minutes?: number | DatasetsAPI.Missing | null;
+  reservation_minutes?: number | null;
 
   /**
    * Who completes a run: any (one reviewer is enough) or assigned (every assigned

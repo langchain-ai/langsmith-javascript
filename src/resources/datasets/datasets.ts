@@ -220,10 +220,6 @@ export namespace FeedbackCreateCoreSchema {
   }
 }
 
-export interface Missing {
-  __missing__: '__missing__';
-}
-
 /**
  * Enum for available dataset columns to sort by.
  */
@@ -303,7 +299,6 @@ export declare namespace Datasets {
     type DatasetTransformation as DatasetTransformation,
     type DatasetVersion as DatasetVersion,
     type FeedbackCreateCoreSchema as FeedbackCreateCoreSchema,
-    type Missing as Missing,
     type SortByDatasetColumn as SortByDatasetColumn,
     type DatasetsItemsCursorGetPagination as DatasetsItemsCursorGetPagination,
     type DatasetListV2Params as DatasetListV2Params,
