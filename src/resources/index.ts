@@ -166,6 +166,7 @@ export {
   type SessionResolveParams,
   type SessionsItemsCursorGetPagination,
 } from './sessions';
+export { Sql, type SqlQueryResponse, type SqlQueryParams } from './sql';
 export {
   Threads,
   type Thread,

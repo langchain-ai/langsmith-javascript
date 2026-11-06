@@ -131,6 +131,7 @@ import {
   TracerSession,
   TracerSessionWithoutVirtualFields,
 } from './resources/sessions';
+import { Sql, SqlQueryParams, SqlQueryResponse } from './resources/sql';
 import {
   AnnotationQueueAnnotationQueuesParams,
   AnnotationQueueCreateRunStatusParams,
@@ -992,6 +993,7 @@ export class Langsmith {
 
   static toFile = Uploads.toFile;
 
+  sql: API.Sql = new API.Sql(this);
   productFeedback: API.ProductFeedback = new API.ProductFeedback(this);
   agents: API.Agents = new API.Agents(this);
   fleet: API.Fleet = new API.Fleet(this);
@@ -1010,6 +1012,7 @@ export class Langsmith {
   sandboxes: API.Sandboxes = new API.Sandboxes(this);
 }
 
+Langsmith.Sql = Sql;
 Langsmith.ProductFeedback = ProductFeedback;
 Langsmith.Agents = Agents;
 Langsmith.Fleet = Fleet;
@@ -1083,6 +1086,8 @@ export declare namespace Langsmith {
     type ItemsCursorGetPaginationParams as ItemsCursorGetPaginationParams,
     type ItemsCursorGetPaginationResponse as ItemsCursorGetPaginationResponse,
   };
+
+  export { Sql as Sql, type SqlQueryResponse as SqlQueryResponse, type SqlQueryParams as SqlQueryParams };
 
   export {
     ProductFeedback as ProductFeedback,

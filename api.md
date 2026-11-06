@@ -5,6 +5,16 @@ Types:
 - <code><a href="./src/resources/shared.ts">QueryPatchEvent</a></code>
 - <code><a href="./src/resources/shared.ts">QueryPatchOperation</a></code>
 
+# Sql
+
+Types:
+
+- <code><a href="./src/resources/sql.ts">SqlQueryResponse</a></code>
+
+Methods:
+
+- <code title="post /v2/sql/query">client.sql.<a href="./src/resources/sql.ts">query</a>({ ...params }) -> SqlQueryResponse</code>
+
 # ProductFeedback
 
 Types:
