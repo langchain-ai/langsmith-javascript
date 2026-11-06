@@ -1380,6 +1380,12 @@ export interface Session {
 
   tenant_id: string;
 
+  /**
+   * `PROJECT` for a tracing project, `AGENT` for an Agent's tracing project, or
+   * `EXPERIMENT` for an evaluation run against a dataset.
+   */
+  type: 'PROJECT' | 'AGENT' | 'EXPERIMENT';
+
   completion_cost?: number | null;
 
   completion_tokens?: number | null;
@@ -1833,7 +1839,7 @@ export interface SessionListV2Params extends ItemsCursorGetPaginationParams {
   dataset_version?: string;
 
   /**
-   * Filter expression, for example eq(name, \
+   * Filter expression, for example eq(name, 'my-project')
    */
   filter?: string;
 
@@ -1866,11 +1872,6 @@ export interface SessionListV2Params extends ItemsCursorGetPaginationParams {
    * Only return experiments run against these dataset IDs
    */
   reference_dataset_id?: Array<string>;
-
-  /**
-   * true for tracing projects only, false for experiments only
-   */
-  reference_free?: boolean;
 
   /**
    * Sort column. FEEDBACK requires reference_dataset_id
@@ -1918,6 +1919,11 @@ export interface SessionListV2Params extends ItemsCursorGetPaginationParams {
    * Only return projects tagged with all of these tag value IDs
    */
   tag_value_id?: Array<string>;
+
+  /**
+   * Only return projects of these types
+   */
+  type?: Array<'PROJECT' | 'AGENT' | 'EXPERIMENT'>;
 
   /**
    * Compute statistics from pre-aggregated data, which is faster but up to an hour
