@@ -87,6 +87,12 @@ export interface Agent {
 
   agent_type: 'CUSTOM' | 'CODING';
 
+  /**
+   * The agent's permanent identifier, assigned by LangSmith and never reused;
+   * workload identity subjects name the agent by it.
+   */
+  agent_uuid: string;
+
   created_at: string;
 
   environments: Array<Agent.Environment>;
