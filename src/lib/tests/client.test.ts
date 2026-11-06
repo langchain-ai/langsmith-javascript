@@ -331,6 +331,135 @@ describe("Client", () => {
     });
   });
 
+  describe("updateDatasetSplits", () => {
+    const datasetId = "550e8400-e29b-41d4-a716-446655440000";
+    const makeIds = (n: number) => Array.from({ length: n }, () => uuid());
+    const multiStatus = () => Response.json({ statuses: [] }, { status: 207 });
+    const makeClient = (
+      mockFetch: typeof fetch,
+      apiUrl = "http://localhost:1984",
+    ) =>
+      new Client({
+        apiUrl,
+        apiKey: "test-api-key",
+        fetchImplementation: mockFetch,
+        callerOptions: { maxRetries: 0 },
+      });
+
+    it.each([
+      [
+        false,
+        "array_add",
+        "http://localhost:1984",
+        "http://localhost:1984/v1/platform",
+      ],
+      [
+        true,
+        "array_remove",
+        "http://localhost:1984/api/v1",
+        "http://localhost:1984/api/v1/platform",
+      ],
+    ] as const)(
+      "sends remove=%s as %s to the bulk metadata endpoint",
+      async (remove, operation, apiUrl, platformUrl) => {
+        const exampleIds = makeIds(2);
+        const mockFetch = jest
+          .fn<typeof fetch>()
+          .mockResolvedValue(multiStatus());
+        await makeClient(mockFetch, apiUrl).updateDatasetSplits({
+          datasetId,
+          splitName: "test",
+          exampleIds,
+          remove,
+        });
+
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        const [url, init] = mockFetch.mock.calls[0];
+        expect(url).toBe(
+          `${platformUrl}/datasets/${datasetId}/examples/metadata`,
+        );
+        expect(init?.method).toBe("PATCH");
+        expect(JSON.parse(init?.body as string)).toEqual({
+          example_ids: exampleIds,
+          operations: [{ key: "dataset_split", operation, values: ["test"] }],
+        });
+      },
+    );
+
+    it("sends at most 10,000 example IDs per request", async () => {
+      const exampleIds = makeIds(10_001);
+      const mockFetch = jest
+        .fn<typeof fetch>()
+        .mockImplementation(async () => multiStatus());
+      await makeClient(mockFetch).updateDatasetSplits({
+        datasetId,
+        splitName: "test",
+        exampleIds,
+      });
+
+      const batches = mockFetch.mock.calls.map(
+        ([, init]) => JSON.parse(init?.body as string).example_ids,
+      );
+      expect(batches.map((b) => b.length)).toEqual([10_000, 1]);
+      expect(batches.flat()).toEqual(exampleIds);
+    });
+
+    it.each([
+      [404, "404 page not found"],
+      [
+        404,
+        JSON.stringify({
+          status: 404,
+          detail: "The requested path does not exist.",
+        }),
+      ],
+      [405, JSON.stringify({ status: 405, title: "Method Not Allowed" })],
+    ])("falls back to the old endpoint on %s %s", async (status, body) => {
+      const exampleIds = makeIds(10_001);
+      const mockFetch = jest
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(multiStatus())
+        .mockResolvedValueOnce(new Response(body, { status }))
+        .mockResolvedValueOnce(Response.json({}));
+      await makeClient(mockFetch).updateDatasetSplits({
+        datasetId,
+        splitName: "test",
+        exampleIds,
+        remove: true,
+      });
+
+      expect(mockFetch).toHaveBeenCalledTimes(3);
+      const [url, init] = mockFetch.mock.calls[2];
+      expect(url).toBe(`http://localhost:1984/datasets/${datasetId}/splits`);
+      expect(init?.method).toBe("PUT");
+      // The old endpoint has no size limit, so it takes the rest in one request.
+      expect(JSON.parse(init?.body as string)).toEqual({
+        split_name: "test",
+        examples: exampleIds.slice(10_000),
+        remove: true,
+      });
+    });
+
+    it.each([
+      [404, JSON.stringify({ status: 404, detail: "dataset not found" })],
+      [403, JSON.stringify({ status: 403, title: "Forbidden" })],
+    ])("does not fall back on %s %s", async (status, body) => {
+      const mockFetch = jest
+        .fn<typeof fetch>()
+        .mockImplementation(async () => new Response(body, { status }));
+      await expect(
+        makeClient(mockFetch).updateDatasetSplits({
+          datasetId,
+          splitName: "test",
+          exampleIds: makeIds(1),
+        }),
+      ).rejects.toThrow(`Received status [${status}]`);
+      for (const [, init] of mockFetch.mock.calls) {
+        expect(init?.method).toBe("PATCH");
+      }
+    });
+  });
+
   describe("createFeedback", () => {
     it("can opt out of extending trace retention", async () => {
       const mockFetch = jest.fn<typeof fetch>().mockResolvedValue(
@@ -1451,16 +1580,22 @@ describe("Client", () => {
       // eslint-disable-next-line no-process-env
       process.env.LANGCHAIN_REVISION_ID = "test_revision_id";
       // eslint-disable-next-line no-process-env
+
       process.env.LANGCHAIN_API_KEY = "fake_api_key";
       // eslint-disable-next-line no-process-env
+
       process.env.LANGCHAIN_OTHER_KEY = "test_other_key";
       // eslint-disable-next-line no-process-env
+
       process.env.LANGCHAIN_OTHER_NON_SENSITIVE_METADATA = "test_some_metadata";
       // eslint-disable-next-line no-process-env
+
       process.env.LANGCHAIN_ENDPOINT = "https://example.com";
       // eslint-disable-next-line no-process-env
+
       process.env.SOME_RANDOM_THING = "random";
       // eslint-disable-next-line no-process-env
+
       process.env.LANGSMITH_ADMIN_PASSWORD = "hunter2hunter2";
 
       const envVars = getLangSmithEnvironmentVariables();
@@ -1499,6 +1634,7 @@ describe("Client", () => {
       (env: Record<string, string>, expected: string) => {
         const names = ["LANGSMITH_REVISION_ID", "LANGCHAIN_REVISION_ID"];
         // eslint-disable-next-line no-process-env
+
         const previous = names.map((name) => process.env[name]);
         try {
           for (const name of names) {
@@ -1506,6 +1642,7 @@ describe("Client", () => {
             delete process.env[name];
           }
           // eslint-disable-next-line no-process-env
+
           Object.assign(process.env, env);
 
           const metadata = getLangSmithEnvVarsMetadata();
@@ -1995,6 +2132,7 @@ describe("Client", () => {
     beforeEach(() => {
       jest.resetModules();
       // eslint-disable-next-line no-process-env
+
       process.env = { ...originalEnv };
     });
 
@@ -2021,8 +2159,10 @@ describe("Client", () => {
       it("should include workspace ID in headers when making API calls", async () => {
         // set env vars
         // eslint-disable-next-line no-process-env
+
         process.env.LANGSMITH_API_KEY = "test-api-key";
         // eslint-disable-next-line no-process-env
+
         process.env.LANGSMITH_WORKSPACE_ID = "test-workspace-id";
 
         // Create mock fetch function
@@ -2060,6 +2200,7 @@ describe("Client", () => {
         // eslint-disable-next-line no-process-env
         delete process.env.LANGSMITH_API_KEY;
         // eslint-disable-next-line no-process-env
+
         delete process.env.LANGSMITH_WORKSPACE_ID;
       });
 

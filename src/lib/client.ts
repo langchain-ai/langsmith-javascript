@@ -908,6 +908,24 @@ const SERVER_INFO_REQUEST_TIMEOUT_MS = 10000;
 /** Maximum number of operations to batch in a single request. */
 const DEFAULT_BATCH_SIZE_LIMIT = 100;
 
+// The most example IDs the bulk metadata endpoint accepts in one request.
+const BULK_METADATA_MAX_EXAMPLE_IDS = 10_000;
+
+/**
+ * Whether a bulk metadata response means the server lacks the route. A missing
+ * dataset is also a 404, but its problem details say "dataset not found".
+ */
+async function isBulkMetadataRouteMissing(res: Response): Promise<boolean> {
+  if (res.status === 405) {
+    return true;
+  }
+  if (res.status !== 404) {
+    return false;
+  }
+  const text = await res.clone().text();
+  return !text.toLowerCase().includes("dataset not found");
+}
+
 /**
  * Reject header names or values that could alter a request's framing.
  *
@@ -5980,20 +5998,71 @@ export class Client implements LangSmithTracingClientInterface {
     }
 
     assertUuid(datasetId_);
+    exampleIds.forEach((id) => assertUuid(id));
 
-    const data = {
+    const url = `${this.apiUrl}${this._getPlatformEndpointPath(
+      `datasets/${datasetId_}/examples/metadata`,
+    )}`;
+    // Lowercase, because the endpoint first shipped accepting only lowercase
+    // names and BYOC data planes on that version still do; later servers
+    // accept either case.
+    const operation = remove ? "array_remove" : "array_add";
+    for (
+      let start = 0;
+      start < exampleIds.length;
+      start += BULK_METADATA_MAX_EXAMPLE_IDS
+    ) {
+      const body = JSON.stringify({
+        example_ids: exampleIds.slice(
+          start,
+          start + BULK_METADATA_MAX_EXAMPLE_IDS,
+        ),
+        operations: [{ key: "dataset_split", operation, values: [splitName] }],
+      });
+      const routeMissing = await this.caller.call(async () => {
+        const res = await this._fetch(url, {
+          method: "PATCH",
+          headers: {
+            ...this._mergedHeaders,
+            "Content-Type": "application/json",
+          },
+          signal: AbortSignal.timeout(this.timeout_ms),
+          ...this.fetchOptions,
+          body,
+        });
+        if (await isBulkMetadataRouteMissing(res)) {
+          return true;
+        }
+        await raiseForStatus(res, "update dataset splits", true);
+        return false;
+      });
+      if (routeMissing) {
+        // Older self-hosted servers lack the bulk metadata endpoint.
+        await this._updateDatasetSplitsLegacy(
+          datasetId_,
+          splitName,
+          exampleIds.slice(start),
+          remove,
+        );
+        return;
+      }
+    }
+  }
+
+  private async _updateDatasetSplitsLegacy(
+    datasetId: string,
+    splitName: string,
+    exampleIds: string[],
+    remove: boolean,
+  ): Promise<void> {
+    const body = JSON.stringify({
       split_name: splitName,
-      examples: exampleIds.map((id) => {
-        assertUuid(id);
-        return id;
-      }),
+      examples: exampleIds,
       remove,
-    };
-
-    const body = JSON.stringify(data);
+    });
     await this.caller.call(async () => {
       const res = await this._fetch(
-        `${this.apiUrl}/datasets/${datasetId_}/splits`,
+        `${this.apiUrl}/datasets/${datasetId}/splits`,
         {
           method: "PUT",
           headers: {
