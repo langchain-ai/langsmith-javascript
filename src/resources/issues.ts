@@ -119,6 +119,12 @@ export interface Issue {
 
   traces?: unknown;
 
+  /**
+   * "actionable" (there is something to do; it may carry PRs or LangSmith assets) or
+   * "finding" (an observation only). Defaults to "actionable".
+   */
+  type?: 'actionable' | 'finding';
+
   updated_at?: string;
 
   validation_result?: Issue.ValidationResult;
