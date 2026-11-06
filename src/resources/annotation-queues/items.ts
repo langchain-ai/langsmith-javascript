@@ -247,7 +247,8 @@ export interface ItemRetrievePlacementResponse {
 
 export interface ItemCreateParams {
   /**
-   * Query param: Extend trace retention for added run items
+   * Query param: Defaults to false. When true, upgrade the traces of added runs from
+   * base to extended retention. Thread items are not upgraded.
    */
   extend_trace_retention?: boolean;
 
