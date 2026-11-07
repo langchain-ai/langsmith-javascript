@@ -12,5 +12,10 @@
   "devDependencies": {
     "@react-native/babel-preset": "^0.87.1",
     "metro": "^0.87.1"
+  },
+  "pnpm": {
+    "overrides": {
+      "zod": "4.6.7"
+    }
   }
 }
