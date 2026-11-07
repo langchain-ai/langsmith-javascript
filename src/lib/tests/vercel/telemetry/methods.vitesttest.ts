@@ -1781,3 +1781,41 @@ describe("integration reuse", () => {
     expect(secondTree.data["test-provider:0"].trace_id).not.toBe(firstTraceId);
   });
 });
+
+describe("first token event", () => {
+  it("should add a new_token event to a streamed LLM step", async () => {
+    const trace = createTrace();
+
+    await streamText({
+      model: new MockLanguageModelV4({
+        doStream: async () => ({
+          stream: simulateReadableStream({
+            chunks: [
+              { type: "text-start", id: "text-1" },
+              { type: "text-delta", id: "text-1", delta: "Hello" },
+              { type: "text-end", id: "text-1" },
+              {
+                type: "finish",
+                finishReason: { unified: "stop" as const, raw: "stop" },
+                usage: usage({ input: 5, output: 3 }),
+              },
+            ],
+            initialDelayInMs: 100,
+            chunkDelayInMs: 1,
+          }),
+        }),
+      }),
+      prompt: "Test prompt",
+      telemetry: { integrations: [trace.integration] },
+    }).consumeStream();
+
+    const tree = await expectTree(trace);
+    const llmRun = Object.values(tree.data).find((r) => r.run_type === "llm");
+    const newToken = llmRun?.events?.find((e) => e.name === "new_token");
+
+    expect(newToken).toBeDefined();
+    const startMs = new Date(String(llmRun?.start_time)).getTime();
+    const tokenMs = new Date(String(newToken?.time)).getTime();
+    expect(tokenMs - startMs).toBeGreaterThanOrEqual(90);
+  });
+});
