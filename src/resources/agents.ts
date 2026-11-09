@@ -211,12 +211,19 @@ export interface AgentListParams extends ItemsCursorGetPaginationParams {
   id?: Array<string>;
 
   /**
-   * Case-insensitive partial Agent name
+   * Deprecated: use search. Case-insensitive partial Agent name. Ignored when search
+   * is provided.
    */
   name?: string;
 
   /**
-   * Field to sort by. When name is set, exact name matches still come first.
+   * Case-insensitive partial Agent name or ID, ignoring hyphens and spaces. When
+   * provided, name is ignored.
+   */
+  search?: string;
+
+  /**
+   * Field to sort by. When name or search is set, exact matches still come first.
    */
   sort_by?: 'last_run_start_time' | 'name' | 'created_at';
 

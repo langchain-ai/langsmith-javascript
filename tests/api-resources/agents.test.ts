@@ -90,6 +90,7 @@ describe('resource agents', () => {
           cursor: 'cursor',
           name: 'name',
           page_size: 1,
+          search: 'search',
           sort_by: 'last_run_start_time',
           sort_order: 'asc',
           source_type: 'LSD',
