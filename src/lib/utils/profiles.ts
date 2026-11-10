@@ -27,6 +27,9 @@ type LangSmithProfile = {
   api_key?: string;
   api_key_env?: string;
   api_key_cmd?: string;
+  // "keychain" when the CLI or Go SDK keep the profile's secrets in the OS
+  // keychain. This SDK cannot read it yet and reports it instead.
+  secret_store?: string;
   api_url?: string;
   workspace_id?: string;
   oauth?: LangSmithProfileOAuth;
@@ -392,7 +395,8 @@ export function loadProfileClientConfig(
   const oauthRefreshToken = trimConfigValue(profile.oauth?.refresh_token);
   const apiKeyRef =
     trimConfigValue(profile.api_key_env) ||
-    trimConfigValue(profile.api_key_cmd);
+    trimConfigValue(profile.api_key_cmd) ||
+    profile.secret_store === "keychain";
   return {
     apiUrl: profile.api_url,
     apiKey,
@@ -628,6 +632,13 @@ function profileApiKey(
   const apiKey = trimConfigValue(profile.api_key);
   if (apiKey) {
     return apiKey;
+  }
+  if (profile.secret_store === "keychain") {
+    throw new ProfileApiKeyError(
+      `LangSmith profile "${profileName}" keeps its credentials in the OS keychain (secret_store), ` +
+        "which the JS SDK does not support yet. Set LANGSMITH_API_KEY, " +
+        "or recreate the profile without --keychain.",
+    );
   }
   const apiKeyEnv = trimConfigValue(profile.api_key_env);
   if (apiKeyEnv) {

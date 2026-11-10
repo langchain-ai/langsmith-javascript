@@ -1067,6 +1067,10 @@ describe("Client", () => {
         { api_key_cmd: "op read op://vault/langsmith/key" },
         'LangSmith profile "prod" gets its API key from a command (api_key_cmd), which the JS SDK does not support yet',
       ],
+      [
+        { secret_store: "keychain" },
+        'LangSmith profile "prod" keeps its credentials in the OS keychain (secret_store), which the JS SDK does not support yet',
+      ],
     ])(
       "fails requests whose profile API key cannot be resolved (%o)",
       async (profile, message) => {
