@@ -49,6 +49,17 @@ import {
   AgentsItemsCursorGetPagination,
 } from './resources/agents';
 import {
+  CommitCreateParams,
+  CommitCreateResponse,
+  CommitListParams,
+  CommitManifestResponse,
+  CommitRetrieveParams,
+  CommitRetrieveResponse,
+  CommitWithLookups,
+  CommitWithLookupsOffsetPaginationCommits,
+  Commits,
+} from './resources/commits';
+import {
   CodeEvaluatorTopLevel,
   Evaluator,
   EvaluatorCreateDecisionModelParams,
@@ -170,6 +181,22 @@ import {
 } from './resources/datasets/datasets';
 import { Fleet } from './resources/fleet/fleet';
 import { Public } from './resources/public/public';
+import {
+  CreateRepoResponse,
+  DemoConfig,
+  EPromptOptimizationAlgorithm,
+  GetRepoResponse,
+  PromptimConfig,
+  RepoCreateParams,
+  RepoDeleteParams,
+  RepoDeleteResponse,
+  RepoListParams,
+  RepoRetrieveParams,
+  RepoUpdateParams,
+  RepoWithLookups,
+  RepoWithLookupsOffsetPaginationRepos,
+  Repos,
+} from './resources/repos/repos';
 import {
   ResponseBodyForRunsGenerateQuery,
   Run,
@@ -1007,6 +1034,8 @@ export class Langsmith {
   annotationQueues: API.AnnotationQueues = new API.AnnotationQueues(this);
   promptWebhooks: API.PromptWebhooks = new API.PromptWebhooks(this);
   info: API.Info = new API.Info(this);
+  repos: API.Repos = new API.Repos(this);
+  commits: API.Commits = new API.Commits(this);
   issues: API.Issues = new API.Issues(this);
   sandboxes: API.Sandboxes = new API.Sandboxes(this);
 }
@@ -1026,6 +1055,8 @@ Langsmith.Public = Public;
 Langsmith.AnnotationQueues = AnnotationQueues;
 Langsmith.PromptWebhooks = PromptWebhooks;
 Langsmith.Info = Info;
+Langsmith.Repos = Repos;
+Langsmith.Commits = Commits;
 Langsmith.Issues = Issues;
 Langsmith.Sandboxes = Sandboxes;
 
@@ -1263,6 +1294,35 @@ export declare namespace Langsmith {
   };
 
   export { Info as Info, type InfoListResponse as InfoListResponse };
+
+  export {
+    Repos as Repos,
+    type CreateRepoResponse as CreateRepoResponse,
+    type DemoConfig as DemoConfig,
+    type EPromptOptimizationAlgorithm as EPromptOptimizationAlgorithm,
+    type GetRepoResponse as GetRepoResponse,
+    type PromptimConfig as PromptimConfig,
+    type RepoWithLookups as RepoWithLookups,
+    type RepoDeleteResponse as RepoDeleteResponse,
+    type RepoWithLookupsOffsetPaginationRepos as RepoWithLookupsOffsetPaginationRepos,
+    type RepoCreateParams as RepoCreateParams,
+    type RepoRetrieveParams as RepoRetrieveParams,
+    type RepoUpdateParams as RepoUpdateParams,
+    type RepoListParams as RepoListParams,
+    type RepoDeleteParams as RepoDeleteParams,
+  };
+
+  export {
+    Commits as Commits,
+    type CommitManifestResponse as CommitManifestResponse,
+    type CommitWithLookups as CommitWithLookups,
+    type CommitCreateResponse as CommitCreateResponse,
+    type CommitRetrieveResponse as CommitRetrieveResponse,
+    type CommitWithLookupsOffsetPaginationCommits as CommitWithLookupsOffsetPaginationCommits,
+    type CommitCreateParams as CommitCreateParams,
+    type CommitRetrieveParams as CommitRetrieveParams,
+    type CommitListParams as CommitListParams,
+  };
 
   export {
     Issues as Issues,

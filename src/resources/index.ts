@@ -36,6 +36,17 @@ export {
   type AnnotationQueueRetrieveAnnotationQueuesResponsesOffsetPaginationTopLevelArray,
 } from './annotation-queues/annotation-queues';
 export {
+  Commits,
+  type CommitManifestResponse,
+  type CommitWithLookups,
+  type CommitCreateResponse,
+  type CommitRetrieveResponse,
+  type CommitCreateParams,
+  type CommitRetrieveParams,
+  type CommitListParams,
+  type CommitWithLookupsOffsetPaginationCommits,
+} from './commits';
+export {
   Datasets,
   type DataType,
   type Dataset,
@@ -111,6 +122,22 @@ export {
   type PromptWebhookTestParams,
 } from './prompt-webhooks';
 export { Public } from './public/public';
+export {
+  Repos,
+  type CreateRepoResponse,
+  type DemoConfig,
+  type EPromptOptimizationAlgorithm,
+  type GetRepoResponse,
+  type PromptimConfig,
+  type RepoWithLookups,
+  type RepoDeleteResponse,
+  type RepoCreateParams,
+  type RepoRetrieveParams,
+  type RepoUpdateParams,
+  type RepoListParams,
+  type RepoDeleteParams,
+  type RepoWithLookupsOffsetPaginationRepos,
+} from './repos/repos';
 export {
   Runs,
   type ResponseBodyForRunsGenerateQuery,

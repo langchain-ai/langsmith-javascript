@@ -383,6 +383,56 @@ Methods:
 
 - <code title="get /api/v1/info">client.info.<a href="./src/resources/info.ts">list</a>() -> InfoListResponse</code>
 
+# Repos
+
+Types:
+
+- <code><a href="./src/resources/repos/repos.ts">CreateRepoResponse</a></code>
+- <code><a href="./src/resources/repos/repos.ts">DemoConfig</a></code>
+- <code><a href="./src/resources/repos/repos.ts">EPromptOptimizationAlgorithm</a></code>
+- <code><a href="./src/resources/repos/repos.ts">GetRepoResponse</a></code>
+- <code><a href="./src/resources/repos/repos.ts">PromptimConfig</a></code>
+- <code><a href="./src/resources/repos/repos.ts">RepoWithLookups</a></code>
+- <code><a href="./src/resources/repos/repos.ts">RepoDeleteResponse</a></code>
+
+Methods:
+
+- <code title="post /api/v1/repos">client.repos.<a href="./src/resources/repos/repos.ts">create</a>({ ...params }) -> CreateRepoResponse</code>
+- <code title="get /api/v1/repos/{owner}/{repo}">client.repos.<a href="./src/resources/repos/repos.ts">retrieve</a>(repo, { ...params }) -> GetRepoResponse</code>
+- <code title="patch /api/v1/repos/{owner}/{repo}">client.repos.<a href="./src/resources/repos/repos.ts">update</a>(repo, { ...params }) -> CreateRepoResponse</code>
+- <code title="get /api/v1/repos">client.repos.<a href="./src/resources/repos/repos.ts">list</a>({ ...params }) -> RepoWithLookupsOffsetPaginationRepos</code>
+- <code title="delete /api/v1/repos/{owner}/{repo}">client.repos.<a href="./src/resources/repos/repos.ts">delete</a>(repo, { ...params }) -> unknown</code>
+
+## Directories
+
+Types:
+
+- <code><a href="./src/resources/repos/directories.ts">DirectorySelector</a></code>
+- <code><a href="./src/resources/repos/directories.ts">FileEntry</a></code>
+- <code><a href="./src/resources/repos/directories.ts">DirectoryListResponse</a></code>
+- <code><a href="./src/resources/repos/directories.ts">DirectoryCommitResponse</a></code>
+
+Methods:
+
+- <code title="get /api/v1/platform/hub/repos/{owner}/{repo}/directories">client.repos.directories.<a href="./src/resources/repos/directories.ts">list</a>(repo, { ...params }) -> DirectoryListResponse</code>
+- <code title="delete /api/v1/platform/hub/repos/{owner}/{repo}/directories">client.repos.directories.<a href="./src/resources/repos/directories.ts">delete</a>(repo, { ...params }) -> void</code>
+- <code title="post /api/v1/platform/hub/repos/{owner}/{repo}/directories/commits">client.repos.directories.<a href="./src/resources/repos/directories.ts">commit</a>(repo, { ...params }) -> DirectoryCommitResponse</code>
+
+# Commits
+
+Types:
+
+- <code><a href="./src/resources/commits.ts">CommitManifestResponse</a></code>
+- <code><a href="./src/resources/commits.ts">CommitWithLookups</a></code>
+- <code><a href="./src/resources/commits.ts">CommitCreateResponse</a></code>
+- <code><a href="./src/resources/commits.ts">CommitRetrieveResponse</a></code>
+
+Methods:
+
+- <code title="post /api/v1/commits/{owner}/{repo}">client.commits.<a href="./src/resources/commits.ts">create</a>(repo, { ...params }) -> CommitCreateResponse</code>
+- <code title="get /api/v1/commits/{owner}/{repo}/{commit}">client.commits.<a href="./src/resources/commits.ts">retrieve</a>(commit, { ...params }) -> CommitRetrieveResponse</code>
+- <code title="get /api/v1/commits/{owner}/{repo}">client.commits.<a href="./src/resources/commits.ts">list</a>(repo, { ...params }) -> CommitWithLookupsOffsetPaginationCommits</code>
+
 # Issues
 
 Types:
