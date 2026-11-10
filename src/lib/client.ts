@@ -93,6 +93,7 @@ import { Public } from "../resources/public/public.js";
 import { assertUuid } from "./utils/_uuid.js";
 import {
   CompressedRunBuffer,
+  RunEncoding,
   SerializedPart,
 } from "./utils/compressed_runs.js";
 import { isSampledById } from "./utils/sampling.js";
@@ -2539,7 +2540,7 @@ export class Client implements LangSmithTracingClientInterface {
     }
     const sizeLimitBytes = await this._getBatchSizeLimitBytes();
     const sizeLimit = await this._getBatchSizeLimit();
-    if (this._shouldCompressOnQueue()) {
+    if (this._queueEncoding() !== undefined) {
       this._moveQueueToCompressed();
       return itemPromise;
     }
@@ -2662,18 +2663,28 @@ export class Client implements LangSmithTracingClientInterface {
     return await this.settings;
   }
 
-  /** OTel and JSON batch need run objects, so they keep the queue. */
-  private _shouldCompressOnQueue(): boolean {
+  /**
+   * zstd or gzip when runs are compressed as queued. Undefined keeps the
+   * queue: OTel and JSON batch need run objects.
+   */
+  private _queueEncoding(): RunEncoding | undefined {
     const serverInfo = this._serverInfo;
-    return (
-      serverInfo !== undefined &&
-      this.langSmithToOTELTranslator === undefined &&
-      !this._runCompressionDisabled &&
-      !this._multipartDisabled &&
-      CompressedRunBuffer.isSupported() &&
-      (serverInfo.batch_ingest_config?.use_multipart_endpoint ?? true) &&
-      serverInfo.instance_flags?.gzip_body_enabled === true
+    if (
+      serverInfo === undefined ||
+      this.langSmithToOTELTranslator !== undefined ||
+      this._runCompressionDisabled ||
+      this._multipartDisabled ||
+      !(serverInfo.batch_ingest_config?.use_multipart_endpoint ?? true)
+    ) {
+      return undefined;
+    }
+    const encoding = CompressedRunBuffer.pickEncoding(
+      serverInfo.instance_flags?.zstd_compression_enabled === true,
     );
+    if (encoding === "gzip" && !serverInfo.instance_flags?.gzip_body_enabled) {
+      return undefined;
+    }
+    return encoding;
   }
 
   /** Move queued runs into the gzip buffers, oldest first. */
@@ -2722,7 +2733,7 @@ export class Client implements LangSmithTracingClientInterface {
     };
   }
 
-  /** Gzip an operation into its destination's buffer. Resolves once sent. */
+  /** Compress an operation into its destination's buffer. Resolves once sent. */
   private _enqueueCompressed(
     queuedSize: number,
     item: AutoBatchQueueItem,
@@ -2765,7 +2776,7 @@ export class Client implements LangSmithTracingClientInterface {
       }
       if (entry === undefined) {
         entry = {
-          buffer: new CompressedRunBuffer(),
+          buffer: new CompressedRunBuffer(this._queueEncoding() ?? "gzip"),
           apiKey: isDefault ? undefined : item.apiKey ?? this.apiKey,
           apiUrl: isDefault ? undefined : item.apiUrl ?? this.apiUrl,
           workspaceId: isDefault
@@ -2842,7 +2853,7 @@ export class Client implements LangSmithTracingClientInterface {
     const headers: Record<string, string> = {
       ...this._mergedHeaders,
       "Content-Type": `multipart/form-data; boundary=${buffer.boundary}`,
-      "Content-Encoding": "gzip",
+      "Content-Encoding": buffer.encoding,
     };
     if (options.apiKey !== undefined) {
       headers["x-api-key"] = options.apiKey;
@@ -2886,7 +2897,7 @@ export class Client implements LangSmithTracingClientInterface {
           body.buffer,
           {
             "Content-Type": `multipart/form-data; boundary=${buffer.boundary}`,
-            "Content-Encoding": "gzip",
+            "Content-Encoding": buffer.encoding,
           },
           "runs/multipart",
           this.failedTracesMaxBytes,

@@ -1,11 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-process-env */
 import { jest, describe, expect, it, afterEach } from "@jest/globals";
-import { gunzipSync } from "node:zlib";
+import * as zlib from "node:zlib";
 import { v4 as uuidv4 } from "../utils/uuid/src/index.js";
 import { Client } from "../client.js";
 import { convertToDottedOrderFormat } from "../run_trees.js";
 import { CompressedRunBuffer } from "../utils/compressed_runs.js";
+import { ZSTD_AVAILABLE } from "../utils/zstd.js";
+import { _resetWarnedMessages } from "../utils/warn.js";
 
 const SERVER_INFO = {
   version: "foo",
@@ -15,8 +17,10 @@ const SERVER_INFO = {
 
 type Call = { url: string; init: RequestInit };
 
-const partNames = (body: Uint8Array) => {
-  const text = gunzipSync(body).toString("utf8");
+const partNames = (body: Uint8Array, encoding = "gzip") => {
+  const text = (
+    encoding === "zstd" ? zlib.zstdDecompressSync(body) : zlib.gunzipSync(body)
+  ).toString("utf8");
   const boundary = text.split("\r\n")[0];
   expect(text.endsWith(`${boundary}--\r\n`)).toBe(true);
   return [...text.matchAll(/name="([^"]+)"/g)].map((m) => m[1]);
@@ -96,6 +100,32 @@ describe("runs are gzipped as they are queued", () => {
     const headers = calls[0].init.headers as Record<string, string>;
     expect(headers["Content-Encoding"]).toBe("gzip");
     expect(partNames(calls[0].init.body as Uint8Array)).toEqual([
+      `post.${id}`,
+      `post.${id}.inputs`,
+      `post.${id}.extra`,
+      `patch.${id}`,
+      `patch.${id}.outputs`,
+      `patch.${id}.extra`,
+    ]);
+  });
+
+  it("uses zstd when the server allows it, gzip on Node without zstd", async () => {
+    const encoding = ZSTD_AVAILABLE ? "zstd" : "gzip";
+    const { client, calls } = await createClient();
+    jest.spyOn(client as any, "_getServerInfo").mockResolvedValue({
+      ...SERVER_INFO,
+      instance_flags: {
+        gzip_body_enabled: true,
+        zstd_compression_enabled: true,
+      },
+    });
+    const id = await createAndEndRun(client, { text: "hello" });
+    await client.awaitPendingTraceBatches();
+
+    expect(calls).toHaveLength(1);
+    const headers = calls[0].init.headers as Record<string, string>;
+    expect(headers["Content-Encoding"]).toBe(encoding);
+    expect(partNames(calls[0].init.body as Uint8Array, encoding)).toEqual([
       `post.${id}`,
       `post.${id}.inputs`,
       `post.${id}.extra`,
@@ -266,7 +296,7 @@ describe("CompressedRunBuffer", () => {
     );
     expect(write).toHaveBeenCalledTimes(1);
     const body = await buffer.close();
-    const text = gunzipSync(body).toString("utf8");
+    const text = zlib.gunzipSync(body).toString("utf8");
 
     expect(text).toBe(
       `--${buffer.boundary}\r\n` +
@@ -282,4 +312,32 @@ describe("CompressedRunBuffer", () => {
     expect(buffer.count).toBe(1);
     expect(body.byteLength).toBeLessThan(buffer.uncompressedSize + 30);
   });
+
+  (ZSTD_AVAILABLE ? it : it.skip)(
+    "clamps an out-of-range zstd window instead of throwing",
+    async () => {
+      process.env.LANGSMITH_RUN_COMPRESSION_WINDOW_LOG = "99";
+      _resetWarnedMessages();
+      const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        const buffer = new CompressedRunBuffer("zstd");
+        const data = new TextEncoder().encode('{"a":1}');
+        await buffer.writeParts(
+          [{ name: "post.1", contentType: "application/json", data }],
+          "trace=1,id=1",
+          () => undefined,
+        );
+        const body = await buffer.close();
+        expect(zlib.zstdDecompressSync(body).toString("utf8")).toContain(
+          '{"a":1}',
+        );
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining("is outside 10-27, using 27"),
+        );
+      } finally {
+        delete process.env.LANGSMITH_RUN_COMPRESSION_WINDOW_LOG;
+        warn.mockRestore();
+      }
+    },
+  );
 });

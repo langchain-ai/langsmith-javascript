@@ -1,3 +1,5 @@
+import { createZstdStream, ZSTD_AVAILABLE } from "./zstd.js";
+
 const encoder = new TextEncoder();
 
 const concat = (chunks: Uint8Array[]) => {
@@ -16,9 +18,11 @@ export type SerializedPart = {
   data: Uint8Array;
 };
 
+export type RunEncoding = "zstd" | "gzip";
+
 /**
- * A multipart body gzipped as parts are written, so a batch waiting to upload
- * holds compressed bytes, not run objects.
+ * A multipart body compressed as runs are written, so a batch waiting to
+ * upload holds compressed bytes, not run objects.
  */
 export class CompressedRunBuffer {
   readonly boundary =
@@ -41,8 +45,9 @@ export class CompressedRunBuffer {
 
   private readDone: Promise<void>;
 
-  constructor() {
-    const stream = new CompressionStream("gzip");
+  constructor(readonly encoding: RunEncoding = "gzip") {
+    const stream =
+      encoding === "zstd" ? createZstdStream() : new CompressionStream("gzip");
     this.writer = stream.writable.getWriter();
     const reader = stream.readable.getReader();
     this.readDone = (async () => {
@@ -54,11 +59,13 @@ export class CompressedRunBuffer {
     })();
   }
 
-  static isSupported(): boolean {
-    return typeof CompressionStream !== "undefined";
+  /** zstd if the server takes it and this runtime has it, else gzip. */
+  static pickEncoding(serverAllowsZstd: boolean): RunEncoding | undefined {
+    if (serverAllowsZstd && ZSTD_AVAILABLE) return "zstd";
+    return typeof CompressionStream !== "undefined" ? "gzip" : undefined;
   }
 
-  /** Resolves once gzip has taken the bytes, so the caller can drop them. */
+  /** Resolves once the compressor has taken the bytes, so the caller can drop them. */
   async writeParts(
     parts: SerializedPart[],
     context: string,
@@ -83,7 +90,7 @@ export class CompressedRunBuffer {
     );
   }
 
-  /** Close the multipart body and return the gzipped bytes. */
+  /** Close the multipart body and return the compressed bytes. */
   async close(): Promise<Uint8Array<ArrayBuffer>> {
     await this._write(encoder.encode(`--${this.boundary}--\r\n`));
     await this.writer.close();
