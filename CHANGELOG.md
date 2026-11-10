@@ -1,5 +1,63 @@
 # Changelog
 
+## [0.12.0](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.8...v0.12.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sessions:** filter GET /api/v2/sessions by session type
+* **api:** hide the Missing sentinel from annotation queue and chart PATCH schemas
+* **sdk:** feedback rubric parity in the Python and JS clients
+* **sessions:** document project costs as numbers
+
+### Features
+
+* add evaluator metadata field ([1e69df1](https://github.com/langchain-ai/langsmith-javascript/commit/1e69df15aca931fe44663a8e2c97933138f8a089))
+* **agent-platform:** expose the agent's UUID on agent responses ([c9337eb](https://github.com/langchain-ai/langsmith-javascript/commit/c9337eb0ff3c2630fdaeab389dcb3d7a62fb423f))
+* **engine:** add issue type (actionable | finding) ([6a221b2](https://github.com/langchain-ai/langsmith-javascript/commit/6a221b2fa6ce62c1c55edf13c41cab2b7fc67655))
+* filter evaluators by metadata ([8997a89](https://github.com/langchain-ai/langsmith-javascript/commit/8997a89bddd6afa25926d06d8ac2277f2807fb93))
+* generate SQL query SDK clients ([3b6c54a](https://github.com/langchain-ai/langsmith-javascript/commit/3b6c54aa2affd14d152630f771a39d1056a24915))
+* **js:** compress queued runs with zstd when the server allows it ([219c82c](https://github.com/langchain-ai/langsmith-javascript/commit/219c82cab045976f2854ad6a918e640d98a89c4a))
+* **run-rules:** thread-level decision-model rules ([ec5ef92](https://github.com/langchain-ai/langsmith-javascript/commit/ec5ef929779454121efcef4c1c7d05e01c2e1cc0))
+* **sdk:** add bulk example metadata update to the SDKs ([ed99c7d](https://github.com/langchain-ai/langsmith-javascript/commit/ed99c7de8be5f75cb52d269de0934465f343c011))
+* **sdk:** add datasets.listV2 for GET /api/v2/datasets ([f1ccca3](https://github.com/langchain-ai/langsmith-javascript/commit/f1ccca3b81b46c1372359e6dad4e966525870d38))
+* **sdk:** feedback rubric parity in the Python and JS clients ([fe2aaa1](https://github.com/langchain-ai/langsmith-javascript/commit/fe2aaa19418cd6f3b21af76408d075dfc4fd29a9))
+* search agents by normalized name or ID ([6e20753](https://github.com/langchain-ai/langsmith-javascript/commit/6e207539b401da2feb4fcf132cec53d6538c71ce))
+* **sessions:** accept longlived_ttl_days on POST and PATCH /sessions ([6d11159](https://github.com/langchain-ai/langsmith-javascript/commit/6d11159cf8a67a49cb2710cb63a0af26e1c9f7e9))
+* **sessions:** add cursor-paginated GET /api/v2/sessions ([ab249d0](https://github.com/langchain-ai/langsmith-javascript/commit/ab249d000f346f0fb4cfabecc8fe481f8e1f4777))
+* **sessions:** filter GET /api/v2/sessions by session type ([4fdb01f](https://github.com/langchain-ai/langsmith-javascript/commit/4fdb01fa8684ac17432639cb7a0996ec2f8de756))
+* **ttl:** make the allowed long-lived retention days configurable ([3c22ee5](https://github.com/langchain-ai/langsmith-javascript/commit/3c22ee5d7ef37ca6975ad289172c04635e8868cc))
+
+
+### Bug Fixes
+
+* **api:** hide the Missing sentinel from annotation queue and chart PATCH schemas ([6655cf0](https://github.com/langchain-ai/langsmith-javascript/commit/6655cf0481f161f077d48a725e29c6a61cf67121))
+* enable changing Studio no-code agent owners ([e169f8e](https://github.com/langchain-ai/langsmith-javascript/commit/e169f8e44f1d868f39c86cca9aa2e1bc019b7412))
+* **sdk:** update dataset splits via the bulk metadata endpoint ([43aca05](https://github.com/langchain-ai/langsmith-javascript/commit/43aca056b581c64fcdba5f1b73364bbd32328b2d))
+* **sessions:** document project costs as numbers ([c888239](https://github.com/langchain-ai/langsmith-javascript/commit/c888239c8e790b2a48727def5b11533b1cf7280f))
+* **sessions:** generate sessions.delete for the Python and TypeScript SDKs ([9304dd0](https://github.com/langchain-ai/langsmith-javascript/commit/9304dd01c262099b602019358f60225cadb04924))
+* **sessions:** generate sessions.retrieve for the Python and TypeScript SDKs ([e6a5de3](https://github.com/langchain-ai/langsmith-javascript/commit/e6a5de388fefe993086abaec0b1504806562c3f0))
+
+
+### Chores
+
+* **js:** bump systeminformation, undici and zod for security fixes ([290ec6f](https://github.com/langchain-ai/langsmith-javascript/commit/290ec6f5c9b80c0115db6466b48721013978f7c5))
+
+
+### Documentation
+
+* **annotation-queues:** document extend_trace_retention default on add items ([a622c88](https://github.com/langchain-ai/langsmith-javascript/commit/a622c880a970a58fa53dd4ba3f4f400e9ab9c9e3))
+
+
+### Styles
+
+* **sdk:** format harness-agent integration test ([e83213b](https://github.com/langchain-ai/langsmith-javascript/commit/e83213b43d5d476a336b4316ae088baf77b625bf))
+
+
+### Build System
+
+* **deps:** bump vulnerable JS and Python dependencies ([8176ec8](https://github.com/langchain-ai/langsmith-javascript/commit/8176ec8268094501c1cd3b02ca900b9b076d91d1))
+
 ## [0.11.8](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.7...v0.11.8) (2026-11-03)
 
 
