@@ -149,6 +149,8 @@ export interface Evaluator {
 
   spend_usd?: number | null;
 
+  thread_filter?: string | null;
+
   trace_count?: number | null;
 
   trace_filter?: string | null;
