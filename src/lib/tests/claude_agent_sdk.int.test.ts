@@ -574,7 +574,8 @@ describe("wrapClaudeAgentSDK - Real API Integration", () => {
         childRun.run_type === "tool"
       );
     });
-    expect(bashChildren.length).toBeGreaterThanOrEqual(2);
+    // The model sometimes merges both echoes into one Bash call.
+    expect(bashChildren.length).toBeGreaterThanOrEqual(1);
 
     const subagentLlmChildren = tree.edges.filter(([parent, child]) => {
       const childRun = tree.data[child];
