@@ -399,7 +399,7 @@ Methods:
 
 - <code title="post /api/v1/repos">client.repos.<a href="./src/resources/repos/repos.ts">create</a>({ ...params }) -> CreateRepoResponse</code>
 - <code title="get /api/v1/repos/{owner}/{repo}">client.repos.<a href="./src/resources/repos/repos.ts">retrieve</a>(repo, { ...params }) -> GetRepoResponse</code>
-- <code title="patch /api/v1/repos/{owner}/{repo}">client.repos.<a href="./src/resources/repos/repos.ts">update</a>(repo, { ...params }) -> CreateRepoResponse</code>
+- <code title="patch /api/v1/repos/{owner}/{repo}">client.repos.<a href="./src/resources/repos/repos.ts">update</a>(repo, { ...params }) -> GetRepoResponse</code>
 - <code title="get /api/v1/repos">client.repos.<a href="./src/resources/repos/repos.ts">list</a>({ ...params }) -> RepoWithLookupsOffsetPaginationRepos</code>
 - <code title="delete /api/v1/repos/{owner}/{repo}">client.repos.<a href="./src/resources/repos/repos.ts">delete</a>(repo, { ...params }) -> unknown</code>
 

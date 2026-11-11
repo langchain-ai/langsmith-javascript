@@ -57,13 +57,12 @@ export class Repos extends APIResource {
    *
    * @example
    * ```ts
-   * const createRepoResponse = await client.repos.update(
-   *   'repo',
-   *   { owner: 'owner' },
-   * );
+   * const getRepoResponse = await client.repos.update('repo', {
+   *   owner: 'owner',
+   * });
    * ```
    */
-  update(repo: string, params: RepoUpdateParams, options?: RequestOptions): APIPromise<CreateRepoResponse> {
+  update(repo: string, params: RepoUpdateParams, options?: RequestOptions): APIPromise<GetRepoResponse> {
     const { owner, ...body } = params;
     return this._client.patch(path`/api/v1/repos/${owner}/${repo}`, { body, ...options });
   }
