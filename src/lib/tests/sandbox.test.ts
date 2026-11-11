@@ -8,6 +8,7 @@ import { SandboxClient } from "../sandbox/client.js";
 import { Sandbox } from "../sandbox/sandbox.js";
 import { CommandHandle } from "../sandbox/command_handle.js";
 import {
+  attribution,
   awsAuth,
   contextHubMount,
   gitMount,
@@ -44,6 +45,7 @@ import type {
   WsMessage,
   OutputChunk,
   CreateSandboxOptions,
+  SandboxProxyConfig,
 } from "../sandbox/types.js";
 import { validateTtl } from "../sandbox/helpers.js";
 
@@ -202,16 +204,39 @@ describe("sandbox proxy config helpers", () => {
       scopes: ["https://www.googleapis.com/auth/devstorage.read_write"],
     });
 
+    const attributionRule = attribution({
+      headers: { "X-Cost-Center": "engineering" },
+    });
     expect(
       proxyConfig({
-        rules: [awsRule, gcpRule],
+        rules: [awsRule, gcpRule, attributionRule],
         accessControl: { allow_list: ["*.googleapis.com", "*.amazonaws.com"] },
       }),
     ).toEqual({
-      rules: [awsRule, gcpRule],
+      rules: [awsRule, gcpRule, attributionRule],
       access_control: { allow_list: ["*.googleapis.com", "*.amazonaws.com"] },
     });
   });
+
+  it.each([true, false])(
+    "attribution builds a reusable literal rule with enabled %p",
+    (enabled) => {
+      expect(
+        attribution({
+          headers: { "X-Cost-Center": "engineering" },
+          name: "project",
+          enabled,
+        }),
+      ).toEqual({
+        name: "project",
+        type: "attribution",
+        enabled,
+        headers: [
+          { name: "X-Cost-Center", type: "plaintext", value: "engineering" },
+        ],
+      });
+    },
+  );
 
   it("proxyConfig ignores the deprecated noProxy option", () => {
     expect(
@@ -1064,6 +1089,7 @@ describe("SandboxClient - createSandbox", () => {
           accessKeyId: workspaceSecret("AWS_KEY_ID_REF"),
           secretAccessKey: workspaceSecret("AWS_KEY_VALUE_REF"),
         }),
+        attribution({ headers: { "X-Cost-Center": "engineering" } }),
       ],
     });
     await client.createSandbox("snap-123", { proxyConfig: config });
@@ -1362,11 +1388,36 @@ describe("SandboxClient - updateSandbox", () => {
             { name: "Authorization", type: "opaque", value: "Basic rotated" },
           ],
         },
+        attribution({ headers: { "X-Cost-Center": "engineering" } }),
       ],
     });
 
     const client = createClientWithMock(mockFetch);
     await client.updateSandbox("sb-1", { proxyConfig: config });
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body as string)).toEqual({ proxy_config: config });
+  });
+
+  it("should PATCH attribution callbacks without match_hosts", async () => {
+    const mockFetch = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({ name: "sb-1", status: "ready" }),
+    } as Response);
+    const config: SandboxProxyConfig = {
+      callbacks: [
+        {
+          url: "https://metadata.example.com/attribution",
+          ttl_seconds: 300,
+          attribution_headers: ["X-Cost-Center"],
+        },
+      ],
+    };
+
+    await createClientWithMock(mockFetch).updateSandbox("sb-1", {
+      proxyConfig: config,
+    });
 
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     expect(init.method).toBe("PATCH");

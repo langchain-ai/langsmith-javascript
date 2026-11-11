@@ -106,13 +106,20 @@ export namespace ProxyConfig {
   }
 
   export interface Callback {
-    match_hosts: Array<string>;
-
     ttl_seconds: number;
 
     url: string;
 
+    /**
+     * AttributionHeaders selects required all-egress response headers instead of
+     * destination credentials; omit match_hosts and full_request, and return
+     * expires_at with the headers.
+     */
+    attribution_headers?: Array<string>;
+
     full_request?: boolean;
+
+    match_hosts?: Array<string>;
 
     request_headers?: Array<Callback.RequestHeader>;
   }
@@ -208,6 +215,12 @@ export namespace ProxyConfig {
 
     rewrite?: Rule.Rewrite;
 
+    /**
+     * Type selects the rule action; attribution adds up to 16 literal plaintext X-
+     * metadata headers to every proxy-handled HTTP(S) destination, independently of
+     * credential rules. At most one attribution rule is allowed, without matching,
+     * provider, relay, rewrite or environment fields.
+     */
     type?: string;
   }
 

@@ -4,6 +4,7 @@
  * Field names use snake_case to match API response format.
  */
 
+import type { ProxyConfig } from "../../resources/sandboxes/sandboxes.js";
 import type { AccessDelegation } from "./access_delegation.js";
 
 /**
@@ -562,8 +563,17 @@ export interface SandboxGcpAuthRule {
   };
 }
 
+/** Literal, non-sensitive metadata disclosed to every proxy-handled destination. */
+export interface SandboxAttributionRule {
+  name: string;
+  type: "attribution";
+  enabled?: boolean;
+  headers: { name: string; type: "plaintext"; value: string }[];
+}
+
 /** Proxy rule accepted by the sandbox proxy config. */
 export type SandboxProxyRule =
+  | SandboxAttributionRule
   | SandboxAwsAuthRule
   | SandboxGcpAuthRule
   | Record<string, unknown>;
@@ -574,6 +584,7 @@ export type SandboxProxyRule =
  * `ProxyConfig` type.
  */
 export interface SandboxProxyConfig {
+  callbacks?: ProxyConfig.Callback[];
   /** Header-injection rules keyed by host pattern. */
   rules?: SandboxProxyRule[];
   /** @deprecated Ignored by the server. The sandbox runtime has no proxy bypass list. */

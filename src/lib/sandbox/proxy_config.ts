@@ -1,5 +1,6 @@
 import type {
   SandboxAccessControl,
+  SandboxAttributionRule,
   SandboxAwsAuthRule,
   SandboxGcpAuthRule,
   SandboxProxyConfig,
@@ -178,6 +179,28 @@ export function proxyConfig({
     config.access_control = { ...accessControl };
   }
   return config;
+}
+
+/** Build a rule disclosing literal, non-sensitive metadata to every proxy-handled destination. */
+export function attribution({
+  headers,
+  name = "attribution",
+  enabled = true,
+}: {
+  headers: Record<string, string>;
+  name?: string;
+  enabled?: boolean;
+}): SandboxAttributionRule {
+  return {
+    name: requireNonEmptyString(name, "name"),
+    type: "attribution",
+    enabled,
+    headers: Object.entries(headers).map(([key, value]) => ({
+      name: key,
+      type: "plaintext",
+      value,
+    })),
+  };
 }
 
 interface AwsAuthCommonOptions {

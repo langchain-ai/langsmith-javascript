@@ -33,6 +33,7 @@ export { SandboxClient } from "./client.js";
 export { Sandbox } from "./sandbox.js";
 export { CommandHandle } from "./command_handle.js";
 export {
+  attribution,
   awsAuth,
   gcpAuth,
   opaqueSecret,
@@ -96,6 +97,7 @@ export type {
   RunOptions,
   CreateSandboxOptions,
   SandboxAccessControl,
+  SandboxAttributionRule,
   SandboxAwsAuthRule,
   SandboxAwsMountAuthConfig,
   SandboxGcpAuthRule,
