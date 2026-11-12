@@ -65,10 +65,14 @@ import {
   EvaluatorCreateDecisionModelParams,
   EvaluatorListParams,
   EvaluatorListResponse,
+  EvaluatorListV1Params,
+  EvaluatorListV2Params,
   EvaluatorPagerdutyAlert,
   EvaluatorTopLevel,
   EvaluatorWebhook,
   Evaluators,
+  Rule,
+  RulesItemsCursorGetPagination,
 } from './resources/evaluators';
 import { Info, InfoListResponse } from './resources/info';
 import {
@@ -1220,9 +1224,13 @@ export declare namespace Langsmith {
     type EvaluatorPagerdutyAlert as EvaluatorPagerdutyAlert,
     type EvaluatorTopLevel as EvaluatorTopLevel,
     type EvaluatorWebhook as EvaluatorWebhook,
+    type Rule as Rule,
     type EvaluatorListResponse as EvaluatorListResponse,
+    type RulesItemsCursorGetPagination as RulesItemsCursorGetPagination,
     type EvaluatorListParams as EvaluatorListParams,
     type EvaluatorCreateDecisionModelParams as EvaluatorCreateDecisionModelParams,
+    type EvaluatorListV2Params as EvaluatorListV2Params,
+    type EvaluatorListV1Params as EvaluatorListV1Params,
   };
 
   export {

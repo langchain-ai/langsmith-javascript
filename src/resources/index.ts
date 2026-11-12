@@ -64,9 +64,13 @@ export {
   type EvaluatorPagerdutyAlert,
   type EvaluatorTopLevel,
   type EvaluatorWebhook,
+  type Rule,
   type EvaluatorListResponse,
   type EvaluatorListParams,
   type EvaluatorCreateDecisionModelParams,
+  type EvaluatorListV2Params,
+  type EvaluatorListV1Params,
+  type RulesItemsCursorGetPagination,
 } from './evaluators';
 export { Fleet } from './fleet/fleet';
 export { Info, type InfoListResponse } from './info';

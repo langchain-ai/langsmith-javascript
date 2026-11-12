@@ -87,7 +87,7 @@ test("telemetry generateText basic", async () => {
   expect(runs.data["openai.responses:0"].extra?.metadata).not.toHaveProperty(
     "usage_metadata",
   );
-}, 30_000);
+});
 
 test("telemetry generateText with tools", async () => {
   const callSpy = jest.fn(fetch);
@@ -219,7 +219,7 @@ test("telemetry generateText with tools", async () => {
     tree.data["openai.responses:3"].extra?.metadata?.usage_metadata
       ?.total_tokens,
   ).toBeGreaterThan(0);
-}, 30_000);
+});
 
 test("telemetry streamText", async () => {
   const callSpy = jest.fn(fetch);
@@ -332,7 +332,7 @@ test("telemetry streamText", async () => {
   expect(
     runs.data["openai.responses:1"].extra?.invocation_params?.tools?.[0],
   ).not.toHaveProperty("inputSchema");
-}, 30_000);
+});
 
 test("telemetry generateText with flex service tier", async () => {
   const callSpy = jest.fn(fetch);
@@ -399,7 +399,7 @@ test("telemetry generateText with flex service tier", async () => {
       },
     },
   });
-}, 30_000);
+});
 
 test("telemetry generateObject", async () => {
   const callSpy = jest.fn(fetch);
@@ -459,7 +459,7 @@ test("telemetry generateObject", async () => {
       },
     },
   });
-}, 30_000);
+});
 
 test("telemetry streamObject via streamText with output", async () => {
   const callSpy = jest.fn(fetch);
@@ -523,7 +523,7 @@ test("telemetry streamObject via streamText with output", async () => {
       },
     },
   });
-}, 30_000);
+});
 
 test("telemetry stream cancellation should finish spans cleanly", async () => {
   const callSpy = jest.fn(fetch);
@@ -586,7 +586,7 @@ test("telemetry stream cancellation should finish spans cleanly", async () => {
     expect(runs.data["openai.responses:0"].end_time).toBeUndefined();
     expect(runs.data["openai.responses:1"].end_time).toBeUndefined();
   }
-}, 30_000);
+});
 
 test("telemetry processInputs and processOutputs", async () => {
   const callSpy = jest.fn(fetch);
@@ -651,7 +651,7 @@ test("telemetry processInputs and processOutputs", async () => {
       },
     },
   });
-}, 30_000);
+});
 
 test("telemetry nested under traceable parent", async () => {
   const callSpy = jest.fn(fetch);
@@ -706,7 +706,7 @@ test("telemetry nested under traceable parent", async () => {
       }),
     },
   });
-}, 30_000);
+});
 
 test("telemetry tool with nested traceable (sub-agent pattern)", async () => {
   const callSpy = jest.fn(fetch);
@@ -842,7 +842,7 @@ test("telemetry tool with nested traceable (sub-agent pattern)", async () => {
       },
     },
   });
-}, 30_000);
+});
 
 test("telemetry tool error handling", async () => {
   const callSpy = jest.fn(fetch);
@@ -900,7 +900,7 @@ test("telemetry tool error handling", async () => {
       },
     },
   });
-}, 30_000);
+});
 
 test("telemetry reuse across sequential generateText calls", async () => {
   const callSpy = jest.fn(fetch);
@@ -988,4 +988,4 @@ test("telemetry reuse across sequential generateText calls", async () => {
     (call) => (call[1] as { method?: string })?.method === "POST",
   );
   expect(secondPosts.length).toBe(2);
-}, 30_000);
+});

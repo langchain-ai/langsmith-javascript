@@ -2,6 +2,11 @@
 
 import { APIResource } from '../core/resource';
 import { APIPromise } from '../core/api-promise';
+import {
+  ItemsCursorGetPagination,
+  type ItemsCursorGetPaginationParams,
+  PagePromise,
+} from '../core/pagination';
 import { RequestOptions } from '../internal/request-options';
 
 export class Evaluators extends APIResource {
@@ -26,7 +31,26 @@ export class Evaluators extends APIResource {
   ): APIPromise<Evaluator> {
     return this._client.post('/api/v1/runs/rules/decision-models', { body, ...options });
   }
+
+  /**
+   * List workspace rules in descending updated_at and id order. Filters combine with
+   * AND. Pass next_cursor unchanged with the same filters to continue; concurrent
+   * changes can affect later pages.
+   */
+  listV2(
+    query: EvaluatorListV2Params | null | undefined = {},
+    options?: RequestOptions,
+  ): PagePromise<RulesItemsCursorGetPagination, Rule> {
+    return this._client.getAPIList('/api/v2/runs/rules', ItemsCursorGetPagination<Rule>, {
+      query,
+      ...options,
+    });
+  }
+
+  listV1 = this.list;
 }
+
+export type RulesItemsCursorGetPagination = ItemsCursorGetPagination<Rule>;
 
 export interface CodeEvaluatorTopLevel {
   code: string;
@@ -230,6 +254,181 @@ export interface EvaluatorWebhook {
   headers?: { [key: string]: string } | null;
 }
 
+export interface Rule {
+  id: string;
+
+  add_to_dataset_prefer_correction: boolean;
+
+  created_at: string;
+
+  display_name: string;
+
+  evaluator_version: number;
+
+  extend_only: boolean;
+
+  include_extended_stats: boolean;
+
+  is_enabled: boolean;
+
+  is_managed_evaluator: boolean;
+
+  is_tracing_disabled: boolean;
+
+  sampling_rate: number;
+
+  tenant_id: string;
+
+  transient: boolean;
+
+  updated_at: string;
+
+  use_corrections_dataset: boolean;
+
+  add_to_annotation_queue_id?: string;
+
+  add_to_annotation_queue_name?: string;
+
+  add_to_dataset_id?: string;
+
+  add_to_dataset_name?: string;
+
+  alerts?: Array<Rule.Alert>;
+
+  alignment_annotation_queue_id?: string;
+
+  backfill_completed_at?: string;
+
+  backfill_error?: string;
+
+  backfill_from?: string;
+
+  backfill_id?: string;
+
+  backfill_progress?: number;
+
+  backfill_status?: string;
+
+  code_evaluators?: Array<Rule.CodeEvaluator>;
+
+  corrections_dataset_id?: string;
+
+  dataset_id?: string;
+
+  dataset_name?: string;
+
+  effective_spend_limit?: Rule.EffectiveSpendLimit;
+
+  evaluator_id?: string;
+
+  evaluator_name?: string;
+
+  evaluator_type?: string;
+
+  evaluators?: Array<Rule.Evaluator>;
+
+  extend_annotation_queue_trace_retention?: boolean;
+
+  extend_dataset_trace_retention?: boolean;
+
+  extend_evaluator_trace_retention?: boolean;
+
+  extend_webhook_trace_retention?: boolean;
+
+  filter?: string;
+
+  group_by?: 'THREAD_ID' | 'TRAJECTORY_ID';
+
+  num_few_shot_examples?: number;
+
+  project_id?: string;
+
+  project_name?: string;
+
+  spend_limit?: Rule.SpendLimit;
+
+  spend_usd?: number;
+
+  thread_filter?: string;
+
+  trace_count?: number;
+
+  trace_filter?: string;
+
+  tree_filter?: string;
+
+  webhooks?: Array<Rule.Webhook>;
+}
+
+export namespace Rule {
+  export interface Alert {
+    routing_key: string;
+
+    severity?: 'CRITICAL' | 'WARNING' | 'ERROR' | 'INFO';
+
+    summary?: string;
+
+    type?: 'PAGERDUTY';
+  }
+
+  export interface CodeEvaluator {
+    code: string;
+
+    require_attachments: boolean;
+
+    advanced_features_enabled?: boolean;
+
+    code_evaluator_input?:
+      | 'THREAD'
+      | 'ALL_MESSAGES'
+      | 'HUMAN_AI_PAIRS'
+      | 'FIRST_HUMAN_LAST_AI'
+      | 'TRAJECTORY';
+
+    language?: 'PYTHON' | 'JAVASCRIPT';
+  }
+
+  export interface EffectiveSpendLimit {
+    limit_usd: string;
+
+    window: 'WEEKLY';
+  }
+
+  export interface Evaluator {
+    structured: Evaluator.Structured;
+  }
+
+  export namespace Evaluator {
+    export interface Structured {
+      hub_ref?: string;
+
+      model?: { [key: string]: unknown };
+
+      playground_settings_id?: string;
+
+      prompt?: Array<Array<string>>;
+
+      schema?: { [key: string]: unknown };
+
+      template_format?: string;
+
+      variable_mapping?: { [key: string]: string };
+    }
+  }
+
+  export interface SpendLimit {
+    limit_usd: string;
+
+    window: 'WEEKLY';
+  }
+
+  export interface Webhook {
+    url: string;
+
+    headers?: { [key: string]: string };
+  }
+}
+
 export type EvaluatorListResponse = Array<Evaluator>;
 
 export interface EvaluatorListParams {
@@ -376,6 +575,66 @@ export namespace EvaluatorCreateDecisionModelParams {
   }
 }
 
+export interface EvaluatorListV2Params extends ItemsCursorGetPaginationParams {
+  /**
+   * Rule UUIDs
+   */
+  id?: Array<string>;
+
+  /**
+   * Source dataset UUID
+   */
+  dataset_id?: string;
+
+  /**
+   * Linked evaluator UUID
+   */
+  evaluator_id?: string;
+
+  /**
+   * Include backfill progress
+   */
+  include_backfill_progress?: boolean;
+
+  /**
+   * Case-insensitive display-name pattern
+   */
+  name_contains?: string;
+
+  /**
+   * Source project UUID
+   */
+  project_id?: string;
+
+  /**
+   * Source must have every tag UUID
+   */
+  tag_value_id?: Array<string>;
+
+  /**
+   * Rule source type
+   */
+  type?: 'PROJECT' | 'DATASET';
+}
+
+export interface EvaluatorListV1Params {
+  id?: Array<string> | null;
+
+  dataset_id?: string | null;
+
+  evaluator_id?: string | null;
+
+  include_backfill_progress?: boolean;
+
+  name_contains?: string | null;
+
+  session_id?: string | null;
+
+  tag_value_id?: Array<string> | null;
+
+  type?: 'session' | 'dataset' | null;
+}
+
 export declare namespace Evaluators {
   export {
     type CodeEvaluatorTopLevel as CodeEvaluatorTopLevel,
@@ -383,8 +642,12 @@ export declare namespace Evaluators {
     type EvaluatorPagerdutyAlert as EvaluatorPagerdutyAlert,
     type EvaluatorTopLevel as EvaluatorTopLevel,
     type EvaluatorWebhook as EvaluatorWebhook,
+    type Rule as Rule,
     type EvaluatorListResponse as EvaluatorListResponse,
+    type RulesItemsCursorGetPagination as RulesItemsCursorGetPagination,
     type EvaluatorListParams as EvaluatorListParams,
     type EvaluatorCreateDecisionModelParams as EvaluatorCreateDecisionModelParams,
+    type EvaluatorListV2Params as EvaluatorListV2Params,
+    type EvaluatorListV1Params as EvaluatorListV1Params,
   };
 }

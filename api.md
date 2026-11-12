@@ -227,12 +227,14 @@ Types:
 - <code><a href="./src/resources/evaluators.ts">EvaluatorPagerdutyAlert</a></code>
 - <code><a href="./src/resources/evaluators.ts">EvaluatorTopLevel</a></code>
 - <code><a href="./src/resources/evaluators.ts">EvaluatorWebhook</a></code>
+- <code><a href="./src/resources/evaluators.ts">Rule</a></code>
 - <code><a href="./src/resources/evaluators.ts">EvaluatorListResponse</a></code>
 
 Methods:
 
 - <code title="get /api/v1/runs/rules">client.evaluators.<a href="./src/resources/evaluators.ts">list</a>({ ...params }) -> EvaluatorListResponse</code>
 - <code title="post /api/v1/runs/rules/decision-models">client.evaluators.<a href="./src/resources/evaluators.ts">createDecisionModel</a>({ ...params }) -> Evaluator</code>
+- <code title="get /api/v2/runs/rules">client.evaluators.<a href="./src/resources/evaluators.ts">listV2</a>({ ...params }) -> RulesItemsCursorGetPagination</code>
 
 # OnlineEvaluators
 
