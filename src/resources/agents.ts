@@ -212,6 +212,12 @@ export interface AgentListParams extends ItemsCursorGetPaginationParams {
   id?: Array<string>;
 
   /**
+   * Include the total number of visible Agents matching the filters, independent of
+   * pagination
+   */
+  include_count?: boolean;
+
+  /**
    * Deprecated: use search. Case-insensitive partial Agent name. Ignored when search
    * is provided.
    */

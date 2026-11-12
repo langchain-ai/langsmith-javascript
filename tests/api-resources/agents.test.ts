@@ -88,6 +88,7 @@ describe('resource agents', () => {
         {
           id: ['string'],
           cursor: 'cursor',
+          include_count: true,
           name: 'name',
           page_size: 1,
           search: 'search',
