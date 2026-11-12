@@ -89,9 +89,14 @@ export class Threads extends APIResource {
    * project matching the query passed as the request payload. Results are filtered
    * by the given time range and optional filters, with cursor-based pagination.
    *
-   * When `ai_search` is set, `Accept: text/event-stream` is required; requests
-   * without it return 406. AI search is unavailable on deployments that route
-   * queries to the v1 backend and returns 501 there.
+   * `ai_search` cannot be combined with `sem_filter`. With full AI search enabled,
+   * `ai_search` translates natural language into query filters and time bounds and
+   * cannot be combined with explicit filter expressions. Otherwise, `ai_search`
+   * retains legacy semantic-only behavior. Use `sem_filter` for semantic-only
+   * matching combined with structured filters. AI search requires organization
+   * consent. When semantic matching is needed, `Accept: text/event-stream` is
+   * required; requests without it return 406. AI search is unavailable on
+   * deployments that route queries to the v1 backend and returns 501 there.
    *
    * Self-hosted deployments require LangSmith `v0.16` or later.
    *
@@ -1096,10 +1101,11 @@ export interface ThreadListTracesParams extends ItemsCursorGetPaginationParams {
 
 export interface ThreadQueryParams extends ItemsCursorPostPaginationParams {
   /**
-   * Body param: `ai_search` is a plain-language criterion evaluated against the
-   * messages from the agent trajectory scoped to the thread. AND-ed with the
-   * ordinary filters. Requires semantic filtering enabled for the deployment. Must
-   * contain nonempty text of at most 2000 UTF-8 bytes.
+   * Body param: `ai_search` translates natural language into structured filters,
+   * semantic criteria and time bounds. Cannot be combined with sem_filter. With full
+   * AI search enabled, also cannot be combined with explicit filter expressions;
+   * otherwise retains legacy semantic-only behavior. Must contain nonempty text of
+   * at most 2000 UTF-8 bytes.
    */
   ai_search?: string;
 
@@ -1128,6 +1134,12 @@ export interface ThreadQueryParams extends ItemsCursorPostPaginationParams {
    * Body param: `project_id` is the tracing project UUID.
    */
   project_id?: string;
+
+  /**
+   * Body param: SemFilter evaluates a plain-language criterion against trajectory
+   * messages, AND-ed with structured filters.
+   */
+  sem_filter?: string;
 
   /**
    * Body param: `thread_filter` narrows results using a LangSmith filter expression
@@ -1159,8 +1171,8 @@ export interface ThreadQueryParams extends ItemsCursorPostPaginationParams {
   tree_filter?: string;
 
   /**
-   * Header param: application/json, or text/event-stream (required when ai_search is
-   * set)
+   * Header param: application/json, or text/event-stream (required for semantic
+   * matching)
    */
   Accept?: string;
 }
