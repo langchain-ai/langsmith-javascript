@@ -204,6 +204,10 @@ export namespace ProxyConfig {
      */
     match_paths?: Array<string>;
 
+    match_port?: number;
+
+    match_scheme?: 'https';
+
     /**
      * RelayID is the ID of the LangSmith relay (a connection of kind relay) that
      * carries connections to match_hosts when type is relay. Those connections leave
