@@ -349,9 +349,9 @@ export namespace BoxCreateParams {
    * with at most the permissions granted here. Omit for no access.
    */
   export interface AccessDelegation {
-    mode: 'INHERIT' | 'EXPLICIT';
+    mode: 'EXPLICIT';
 
-    permissions?: Array<string>;
+    permissions: Array<string>;
   }
 
   /**

@@ -1233,9 +1233,9 @@ export namespace SandboxResponse {
    * it has none. It is reported exactly as it was requested at create.
    */
   export interface AccessDelegation {
-    mode: 'INHERIT' | 'EXPLICIT';
+    mode: 'EXPLICIT';
 
-    permissions?: Array<string>;
+    permissions: Array<string>;
   }
 
   /**

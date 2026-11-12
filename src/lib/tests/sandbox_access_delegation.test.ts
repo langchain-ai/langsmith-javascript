@@ -33,14 +33,6 @@ const sentBody = (mockFetch: any) => {
 };
 
 describe("access delegation on create", () => {
-  it("sends an INHERIT grant", async () => {
-    const { client, mockFetch } = clientWithMock();
-    await client.createSandbox("snap-1", {
-      accessDelegation: { mode: "INHERIT" },
-    });
-    expect(sentBody(mockFetch).access_delegation).toEqual({ mode: "INHERIT" });
-  });
-
   it("sends an EXPLICIT grant with its permissions", async () => {
     const { client, mockFetch } = clientWithMock();
     await client.createSandbox("snap-1", {
@@ -63,9 +55,10 @@ describe("access delegation on create", () => {
 
   // Rejected client-side so the caller does not pay a round trip for a 422.
   it.each([
-    [{ mode: "MAYBE" }, /"INHERIT" or "EXPLICIT"/],
-    [{ mode: "INHERIT", permissions: ["a"] }, /not allowed with mode/],
-    [{ mode: "EXPLICIT" }, /required with mode/],
+    [{ mode: "MAYBE" }, /must be "EXPLICIT"/],
+    [{ mode: "INHERIT" }, /must be "EXPLICIT"/],
+    [{ mode: "EXPLICIT" }, /is required/],
+    [{ mode: "EXPLICIT", permissions: [] }, /is required/],
     [{ mode: "EXPLICIT", permissions: "a" }, /array of strings/],
   ])("rejects %j", async (grant, message) => {
     const { client, mockFetch } = clientWithMock();
