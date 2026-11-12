@@ -14,6 +14,11 @@ import { path } from '../internal/utils/path';
 export class Sessions extends APIResource {
   /**
    * Create a new project.
+   *
+   * Deprecated: use POST /api/v2/sessions. The v1 endpoint is scheduled for removal
+   * on Jul 1, 2027.
+   *
+   * @deprecated Deprecated: use createV2 instead, which calls POST /api/v2/sessions. The v1 endpoint is scheduled for removal on Jul 1, 2027.
    */
   create(params: SessionCreateParams, options?: RequestOptions): APIPromise<TracerSession> {
     const { upsert, ...body } = params;
@@ -22,6 +27,11 @@ export class Sessions extends APIResource {
 
   /**
    * Get a specific project.
+   *
+   * Deprecated: use GET /api/v2/sessions/{session_id}. The v1 endpoint is scheduled
+   * for removal on Jul 1, 2027.
+   *
+   * @deprecated Deprecated: use retrieveV2 instead, which calls GET /api/v2/sessions/{session_id}. The v1 endpoint is scheduled for removal on Jul 1, 2027.
    */
   retrieve(
     project_id: string,
@@ -38,6 +48,11 @@ export class Sessions extends APIResource {
 
   /**
    * Update a project.
+   *
+   * Deprecated: use PATCH /api/v2/sessions/{session_id}. The v1 endpoint is
+   * scheduled for removal on Jul 1, 2027.
+   *
+   * @deprecated Deprecated: use updateV2 instead, which calls PATCH /api/v2/sessions/{session_id}. The v1 endpoint is scheduled for removal on Jul 1, 2027.
    */
   update(project_id: string, body: SessionUpdateParams, options?: RequestOptions): APIPromise<TracerSession> {
     return this._client.patch(path`/api/v1/sessions/${project_id}`, { body, ...options });
