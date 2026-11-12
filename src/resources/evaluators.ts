@@ -12,6 +12,10 @@ import { RequestOptions } from '../internal/request-options';
 export class Evaluators extends APIResource {
   /**
    * List all run rules.
+   *
+   * Deprecated: use GET /api/v2/runs/rules, which returns cursor-paginated results.
+   *
+   * @deprecated Use listV2 instead, which calls GET /api/v2/runs/rules and returns cursor-paginated results. Will be removed on Apr 1, 2027.
    */
   list(
     query: EvaluatorListParams | null | undefined = {},
@@ -46,8 +50,6 @@ export class Evaluators extends APIResource {
       ...options,
     });
   }
-
-  listV1 = this.list;
 }
 
 export type RulesItemsCursorGetPagination = ItemsCursorGetPagination<Rule>;
@@ -617,24 +619,6 @@ export interface EvaluatorListV2Params extends ItemsCursorGetPaginationParams {
   type?: 'PROJECT' | 'DATASET';
 }
 
-export interface EvaluatorListV1Params {
-  id?: Array<string> | null;
-
-  dataset_id?: string | null;
-
-  evaluator_id?: string | null;
-
-  include_backfill_progress?: boolean;
-
-  name_contains?: string | null;
-
-  session_id?: string | null;
-
-  tag_value_id?: Array<string> | null;
-
-  type?: 'session' | 'dataset' | null;
-}
-
 export declare namespace Evaluators {
   export {
     type CodeEvaluatorTopLevel as CodeEvaluatorTopLevel,
@@ -648,6 +632,5 @@ export declare namespace Evaluators {
     type EvaluatorListParams as EvaluatorListParams,
     type EvaluatorCreateDecisionModelParams as EvaluatorCreateDecisionModelParams,
     type EvaluatorListV2Params as EvaluatorListV2Params,
-    type EvaluatorListV1Params as EvaluatorListV1Params,
   };
 }

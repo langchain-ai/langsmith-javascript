@@ -69,7 +69,6 @@ export {
   type EvaluatorListParams,
   type EvaluatorCreateDecisionModelParams,
   type EvaluatorListV2Params,
-  type EvaluatorListV1Params,
   type RulesItemsCursorGetPagination,
 } from './evaluators';
 export { Fleet } from './fleet/fleet';

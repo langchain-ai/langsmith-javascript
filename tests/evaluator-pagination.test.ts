@@ -114,7 +114,7 @@ test.each(['pages', 'empty', 'failure'])('listV2 handles %s and preserves filter
   }
 });
 
-test.each(['list', 'listV1'] as const)('%s preserves the public V1 types and route', async (method) => {
+test('list preserves the public V1 types and route', async () => {
   let requests = 0;
   const sdk = client(async (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input));
@@ -142,7 +142,7 @@ test.each(['list', 'listV1'] as const)('%s preserves the public V1 types and rou
     });
   });
   const params: EvaluatorListParams = { session_id: project, id: [...ids] };
-  const response: EvaluatorListResponse = await sdk.evaluators[method](params);
+  const response: EvaluatorListResponse = await sdk.evaluators.list(params);
   const publicResponse: Langsmith.EvaluatorListResponse = response;
   expect(Array.isArray(publicResponse)).toBe(true);
   expect(publicResponse[0]?.session_id).toBe(project);

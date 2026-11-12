@@ -65,7 +65,6 @@ import {
   EvaluatorCreateDecisionModelParams,
   EvaluatorListParams,
   EvaluatorListResponse,
-  EvaluatorListV1Params,
   EvaluatorListV2Params,
   EvaluatorPagerdutyAlert,
   EvaluatorTopLevel,
@@ -1230,7 +1229,6 @@ export declare namespace Langsmith {
     type EvaluatorListParams as EvaluatorListParams,
     type EvaluatorCreateDecisionModelParams as EvaluatorCreateDecisionModelParams,
     type EvaluatorListV2Params as EvaluatorListV2Params,
-    type EvaluatorListV1Params as EvaluatorListV1Params,
   };
 
   export {
