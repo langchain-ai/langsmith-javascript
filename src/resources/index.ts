@@ -190,9 +190,12 @@ export {
   type SessionCreateParams,
   type SessionRetrieveParams,
   type SessionUpdateParams,
+  type SessionCreateV2Params,
   type SessionDashboardParams,
   type SessionListV2Params,
   type SessionResolveParams,
+  type SessionRetrieveV2Params,
+  type SessionUpdateV2Params,
   type SessionsItemsCursorGetPagination,
 } from './sessions';
 export { Sql, type SqlQueryResponse, type SqlQueryParams } from './sql';

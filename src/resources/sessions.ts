@@ -61,6 +61,16 @@ export class Sessions extends APIResource {
   }
 
   /**
+   * Create a session, or update an existing session with the same name when upsert
+   * is true. Returns the refreshed session representation without optional run
+   * statistics.
+   */
+  createV2(params: SessionCreateV2Params, options?: RequestOptions): APIPromise<Session> {
+    const { upsert, ...body } = params;
+    return this._client.post('/api/v2/sessions', { query: { upsert }, body, ...options });
+  }
+
+  /**
    * GET with body payload — no resources created. Returns the prebuilt dashboard for
    * the tracing project matching the query passed as the request payload.
    */
@@ -105,6 +115,28 @@ export class Sessions extends APIResource {
    */
   resolve(query: SessionResolveParams, options?: RequestOptions): APIPromise<SessionResolveResponse> {
     return this._client.get('/api/v1/sessions/resolutions', { query, ...options });
+  }
+
+  /**
+   * Returns one tracing project or experiment by ID. Pass include_stats=true to
+   * include run statistics.
+   */
+  retrieveV2(
+    sessionID: string,
+    query: SessionRetrieveV2Params | null | undefined = {},
+    options?: RequestOptions,
+  ): APIPromise<Session> {
+    return this._client.get(path`/api/v2/sessions/${sessionID}`, { query, ...options });
+  }
+
+  /**
+   * Updates supplied fields and returns the refreshed resource without optional run
+   * statistics. Omitted fields remain unchanged. Null clears description,
+   * default_dataset_id, end_time, or extra. Extra merges top-level keys; null values
+   * remove keys.
+   */
+  updateV2(sessionID: string, body: SessionUpdateV2Params, options?: RequestOptions): APIPromise<Session> {
+    return this._client.patch(path`/api/v2/sessions/${sessionID}`, { body, ...options });
   }
 }
 
@@ -1790,6 +1822,95 @@ export interface SessionUpdateParams {
   trace_tier?: 'longlived' | 'shortlived' | null;
 }
 
+export interface SessionCreateV2Params {
+  /**
+   * Body param: Type identifies a tracing project, Agent tracing project, or
+   * experiment.
+   */
+  type: 'PROJECT' | 'AGENT' | 'EXPERIMENT';
+
+  /**
+   * Query param: Update an existing session with the same name
+   */
+  upsert?: boolean;
+
+  /**
+   * Body param
+   */
+  id?: string;
+
+  /**
+   * Body param
+   */
+  default_dataset_id?: string;
+
+  /**
+   * Body param
+   */
+  description?: string;
+
+  /**
+   * Body param
+   */
+  end_time?: string;
+
+  /**
+   * Body param
+   */
+  evaluator_keys?: Array<string>;
+
+  /**
+   * Body param
+   */
+  extra?: { [key: string]: unknown };
+
+  /**
+   * Body param
+   */
+  kicked_off_by?: string;
+
+  /**
+   * Body param: LonglivedTTLDays overrides long-lived trace retention. Null restores
+   * the workspace default.
+   */
+  longlived_ttl_days?: number | null;
+
+  /**
+   * Body param
+   */
+  name?: string;
+
+  /**
+   * Body param
+   */
+  num_examples?: number;
+
+  /**
+   * Body param
+   */
+  num_repetitions?: number;
+
+  /**
+   * Body param
+   */
+  reference_dataset_id?: string;
+
+  /**
+   * Body param
+   */
+  start_time?: string;
+
+  /**
+   * Body param
+   */
+  tag_value_ids?: Array<string>;
+
+  /**
+   * Body param
+   */
+  trace_tier?: 'LONG_LIVED' | 'SHORT_LIVED';
+}
+
 export interface SessionDashboardParams {
   /**
    * Body param
@@ -1950,6 +2071,34 @@ export interface SessionResolveParams {
   environment?: 'LOCAL' | 'DEVELOPMENT' | 'STAGING' | 'PRODUCTION';
 }
 
+export interface SessionRetrieveV2Params {
+  /**
+   * Include run statistics
+   */
+  include_stats?: boolean;
+
+  /**
+   * Only aggregate statistics at or after this time, within the last 31 days
+   */
+  stats_start_time?: string;
+}
+
+export interface SessionUpdateV2Params {
+  default_dataset_id?: string | null;
+
+  description?: string | null;
+
+  end_time?: string | null;
+
+  extra?: unknown | null;
+
+  longlived_ttl_days?: number | null;
+
+  name?: string;
+
+  trace_tier?: 'LONG_LIVED' | 'SHORT_LIVED';
+}
+
 export declare namespace Sessions {
   export {
     type CustomChartsSection as CustomChartsSection,
@@ -1966,8 +2115,11 @@ export declare namespace Sessions {
     type SessionCreateParams as SessionCreateParams,
     type SessionRetrieveParams as SessionRetrieveParams,
     type SessionUpdateParams as SessionUpdateParams,
+    type SessionCreateV2Params as SessionCreateV2Params,
     type SessionDashboardParams as SessionDashboardParams,
     type SessionListV2Params as SessionListV2Params,
     type SessionResolveParams as SessionResolveParams,
+    type SessionRetrieveV2Params as SessionRetrieveV2Params,
+    type SessionUpdateV2Params as SessionUpdateV2Params,
   };
 }

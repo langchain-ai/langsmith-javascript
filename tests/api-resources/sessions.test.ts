@@ -74,6 +74,41 @@ describe('resource sessions', () => {
   });
 
   // Mock server tests are disabled
+  test.skip('createV2: only required params', async () => {
+    const responsePromise = client.sessions.createV2({ type: 'PROJECT' });
+    const rawResponse = await responsePromise.asResponse();
+    expect(rawResponse).toBeInstanceOf(Response);
+    const response = await responsePromise;
+    expect(response).not.toBeInstanceOf(Response);
+    const dataAndResponse = await responsePromise.withResponse();
+    expect(dataAndResponse.data).toBe(response);
+    expect(dataAndResponse.response).toBe(rawResponse);
+  });
+
+  // Mock server tests are disabled
+  test.skip('createV2: required and optional params', async () => {
+    const response = await client.sessions.createV2({
+      type: 'PROJECT',
+      upsert: true,
+      id: '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
+      default_dataset_id: '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
+      description: 'description',
+      end_time: '2019-12-27T18:11:19.117Z',
+      evaluator_keys: ['string'],
+      extra: { foo: 'bar' },
+      kicked_off_by: 'kicked_off_by',
+      longlived_ttl_days: 0,
+      name: 'name',
+      num_examples: 0,
+      num_repetitions: 0,
+      reference_dataset_id: '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
+      start_time: '2019-12-27T18:11:19.117Z',
+      tag_value_ids: ['string'],
+      trace_tier: 'LONG_LIVED',
+    });
+  });
+
+  // Mock server tests are disabled
   test.skip('dashboard', async () => {
     const responsePromise = client.sessions.dashboard('182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e', {});
     const rawResponse = await responsePromise.asResponse();
@@ -149,5 +184,41 @@ describe('resource sessions', () => {
       id: 'id',
       environment: 'LOCAL',
     });
+  });
+
+  // Mock server tests are disabled
+  test.skip('retrieveV2', async () => {
+    const responsePromise = client.sessions.retrieveV2('182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e');
+    const rawResponse = await responsePromise.asResponse();
+    expect(rawResponse).toBeInstanceOf(Response);
+    const response = await responsePromise;
+    expect(response).not.toBeInstanceOf(Response);
+    const dataAndResponse = await responsePromise.withResponse();
+    expect(dataAndResponse.data).toBe(response);
+    expect(dataAndResponse.response).toBe(rawResponse);
+  });
+
+  // Mock server tests are disabled
+  test.skip('retrieveV2: request options and params are passed correctly', async () => {
+    // ensure the request options are being passed correctly by passing an invalid HTTP method in order to cause an error
+    await expect(
+      client.sessions.retrieveV2(
+        '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
+        { include_stats: true, stats_start_time: '2019-12-27T18:11:19.117Z' },
+        { path: '/_stainless_unknown_path' },
+      ),
+    ).rejects.toThrow(Langsmith.NotFoundError);
+  });
+
+  // Mock server tests are disabled
+  test.skip('updateV2', async () => {
+    const responsePromise = client.sessions.updateV2('182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e', {});
+    const rawResponse = await responsePromise.asResponse();
+    expect(rawResponse).toBeInstanceOf(Response);
+    const response = await responsePromise;
+    expect(response).not.toBeInstanceOf(Response);
+    const dataAndResponse = await responsePromise.withResponse();
+    expect(dataAndResponse.data).toBe(response);
+    expect(dataAndResponse.response).toBe(rawResponse);
   });
 });
