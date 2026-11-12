@@ -1498,22 +1498,132 @@ describe("wrapAISDK", () => {
       expect(chunkCount).toBeGreaterThan(5);
       expect(fullText).toBeTruthy();
 
-      // Add delay for async operations
-      await new Promise((resolve) => setTimeout(resolve, 1));
+      await expect
+        .poll(() => {
+          const updateRunCalls = mockHttpRequests.filter(
+            (req) => req.type === "updateRun",
+          );
+          return updateRunCalls
+            .map((req) => req.body)
+            .sort((a, b) => a.run_type.localeCompare(b.run_type));
+        })
+        .toMatchObject(
+          ["chain", "llm"].map((run_type) => ({
+            run_type,
+            end_time: expect.any(Number),
+            error: String(abortController.signal.reason),
+          })),
+        );
 
-      // Verify HTTP requests were made even with cancellation
-      expect(mockHttpRequests.length).toBeGreaterThan(0);
+      expect(
+        mockHttpRequests.find(
+          (req) =>
+            req.type === "createRun" &&
+            req.body.extra.metadata.ai_sdk_method === "ai.streamText",
+        ),
+      ).toMatchObject({
+        body: { inputs: { prompt: "Tell me a lorem ipsum poem" } },
+      });
+    });
 
-      const createRunCall = mockHttpRequests.find(
-        (req) =>
-          req.type === "createRun" &&
-          req.body.extra.metadata.ai_sdk_method === "ai.streamText",
+    it("should handle streamObject cancellation with abortController", async () => {
+      const wrappedMethods = wrapAISDK(
+        {
+          wrapLanguageModel: ai.wrapLanguageModel,
+          generateText: ai.generateText,
+          streamText: ai.streamText,
+          generateObject: ai.generateObject,
+          streamObject: ai.streamObject,
+        },
+        { client: mockClient as any },
       );
-      expect(createRunCall).toBeDefined();
-      expect(createRunCall.body.inputs).toHaveProperty(
-        "prompt",
-        "Tell me a lorem ipsum poem",
-      );
+
+      const abortController = new AbortController();
+
+      const mockLangModel = new MockLanguageModelV3({
+        modelId: "abort-test-model",
+        doStream: async () => ({
+          stream: simulateReadableStream({
+            chunks: [
+              { type: "text-start", id: "text-1" },
+              { type: "text-delta", id: "text-1", delta: '{"poem":"Lorem' },
+              { type: "text-delta", id: "text-1", delta: " ipsum" },
+              { type: "text-delta", id: "text-1", delta: " dolor" },
+              { type: "text-delta", id: "text-1", delta: " sit" },
+              { type: "text-delta", id: "text-1", delta: " amet" },
+              { type: "text-delta", id: "text-1", delta: " consectetur" },
+              { type: "text-delta", id: "text-1", delta: " adipiscing" },
+              { type: "text-delta", id: "text-1", delta: ' elit"}' },
+              { type: "text-end", id: "text-1" },
+              {
+                type: "finish",
+                finishReason: { unified: "stop" as const, raw: "stop" },
+                usage: {
+                  inputTokens: {
+                    total: 5,
+                    noCache: 5,
+                    cacheRead: 0,
+                    cacheWrite: 0,
+                  },
+                  outputTokens: { total: 8, text: 8, reasoning: 0 },
+                  totalTokens: 13,
+                },
+              },
+            ],
+          }),
+        }),
+      });
+
+      const result = wrappedMethods.streamObject({
+        model: mockLangModel,
+        schema: z.object({ poem: z.string() }),
+        prompt: "Tell me a lorem ipsum poem",
+        abortSignal: abortController.signal,
+      });
+
+      // Consume stream and abort after a few chunks
+      let chunkCount = 0;
+      let fullText = "";
+
+      for await (const textPart of result.textStream) {
+        fullText += textPart;
+        chunkCount++;
+
+        if (chunkCount > 5) {
+          abortController.abort();
+          break;
+        }
+      }
+
+      expect(chunkCount).toBeGreaterThan(5);
+      expect(fullText).toBeTruthy();
+
+      await expect
+        .poll(() => {
+          const updateRunCalls = mockHttpRequests.filter(
+            (req) => req.type === "updateRun",
+          );
+          return updateRunCalls
+            .map((req) => req.body)
+            .sort((a, b) => a.run_type.localeCompare(b.run_type));
+        })
+        .toMatchObject(
+          ["chain", "llm"].map((run_type) => ({
+            run_type,
+            end_time: expect.any(Number),
+            error: String(abortController.signal.reason),
+          })),
+        );
+
+      expect(
+        mockHttpRequests.find(
+          (req) =>
+            req.type === "createRun" &&
+            req.body.extra.metadata.ai_sdk_method === "ai.streamObject",
+        ),
+      ).toMatchObject({
+        body: { inputs: { prompt: "Tell me a lorem ipsum poem" } },
+      });
     });
   });
 

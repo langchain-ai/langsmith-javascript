@@ -526,9 +526,10 @@ test("telemetry stream cancellation should finish spans cleanly", async () => {
     },
   });
 
-  // Runs are created but not closed on abort (no end_time, no outputs)
-  expect(runs.data["anthropic.messages:0"].end_time).toBeUndefined();
-  expect(runs.data["anthropic.messages:1"].end_time).toBeUndefined();
+  for (const run of Object.values(runs.data)) {
+    expect(run.end_time).toBeDefined();
+    expect(run.error).toBe(String(abortController.signal.reason));
+  }
 });
 
 // Skipped due to high token usage

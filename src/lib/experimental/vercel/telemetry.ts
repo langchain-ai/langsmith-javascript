@@ -831,6 +831,13 @@ export function LangSmithTelemetry(
     invocationsByCallId.delete(callId);
   };
 
+  const onAbort: Telemetry["onAbort"] = async (event) => {
+    await onError({
+      callId: event.callId,
+      error: String(event.reason ?? "This operation was aborted"),
+    });
+  };
+
   const executeTool: Telemetry["executeTool"] = async <T>(params: {
     callId: string;
     toolCallId: string;
@@ -855,6 +862,7 @@ export function LangSmithTelemetry(
     onStepFinish,
     onEnd,
     onError,
+    onAbort,
     executeTool,
   } satisfies Telemetry;
 }

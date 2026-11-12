@@ -13,7 +13,6 @@ import {
   setUsageMetadataOnRunTree,
 } from "./utils.js";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const _formatTracedInputs = (params: LanguageModelV2CallOptions) => {
   const { prompt, ...rest } = params;
   if (prompt == null) {
@@ -160,27 +159,9 @@ export function LangSmithMiddleware(config?: {
       try {
         const { stream, ...rest } = await doStream();
         const chunks: LanguageModelV2StreamPart[] = [];
-        const transformStream = new TransformStream({
-          async transform(chunk: LanguageModelV2StreamPart, controller) {
-            if (
-              chunk.type === "tool-input-start" ||
-              chunk.type === "text-start"
-            ) {
-              // Only necessary to log the first token event
-              if (
-                runTree?.events == null ||
-                (Array.isArray(runTree.events) && runTree.events.length === 0)
-              ) {
-                runTree?.addEvent({ name: "new_token" });
-              }
-            } else if (chunk.type === "finish") {
-              runTree?.addEvent({ name: "end" });
-            }
-            chunks.push(chunk);
-            controller.enqueue(chunk);
-          },
-
-          async flush() {
+        let finish: Promise<void> | undefined;
+        const callFinish = (earlyError?: Error) =>
+          (finish ??= Promise.resolve().then(async () => {
             try {
               const output = chunks.reduce(
                 (aggregated: AggregatedDoStreamOutput, chunk) => {
@@ -288,22 +269,55 @@ export function LangSmithMiddleware(config?: {
                   lsConfig?.traceRawHttp,
                 );
               }
-              await runTree?.end(formattedOutputs);
+
+              await runTree?.end(
+                formattedOutputs,
+                earlyError ? String(earlyError) : undefined,
+              );
             } catch (error: any) {
               await runTree?.end(undefined, error.message ?? String(error));
               throw error;
             } finally {
-              await runTree?.patchRun({
-                excludeInputs: true,
-              });
+              await runTree?.patchRun({ excludeInputs: true });
             }
+          }));
+
+        const { writable, readable } = new TransformStream<
+          LanguageModelV2StreamPart,
+          LanguageModelV2StreamPart
+        >({
+          transform(chunk, controller) {
+            if (
+              chunk.type === "tool-input-start" ||
+              chunk.type === "text-start"
+            ) {
+              // Only necessary to log the first token event
+              if (
+                runTree?.events == null ||
+                (Array.isArray(runTree.events) && runTree.events.length === 0)
+              ) {
+                runTree?.addEvent({ name: "new_token" });
+              }
+            } else if (chunk.type === "finish") {
+              runTree?.addEvent({ name: "end" });
+            }
+            chunks.push(chunk);
+            controller.enqueue(chunk);
+          },
+          flush() {
+            return callFinish();
           },
         });
 
-        return {
-          stream: stream.pipeThrough(transformStream),
-          ...rest,
-        };
+        void stream
+          .pipeTo(writable, { signal: params.abortSignal })
+          .catch((error) =>
+            callFinish(error ?? "Stream terminated without a reason"),
+          )
+          // Prevent unhandled promise rejections due to tracing from propagating further
+          .catch(() => void 0);
+
+        return { stream: readable, ...rest };
       } catch (error: any) {
         await runTree?.end(undefined, error.message ?? String(error));
         await runTree?.patchRun({

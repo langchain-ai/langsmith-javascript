@@ -127,6 +127,7 @@ function createTrace(config?: Parameters<typeof LangSmithTelemetry>[0]) {
       }),
   );
   const client = new Client({
+    apiKey: "test",
     autoBatchTracing: false,
     fetchImplementation: callSpy,
   });
@@ -1539,6 +1540,70 @@ describe("traceResponseMetadata", () => {
 });
 
 describe("streaming (onChunk)", () => {
+  it.each([undefined, "user pressed stop"])(
+    "should close root and step spans on abort (%s)",
+    async (reason) => {
+      const trace = createTrace();
+      const abortController = new AbortController();
+      const model = new MockLanguageModelV4({
+        provider: "test-provider",
+        modelId: "test-model",
+        doStream: async () => ({
+          stream: simulateReadableStream({
+            chunkDelayInMs: 10,
+            chunks: [
+              { type: "text-start", id: "text-1" },
+              { type: "text-delta", id: "text-1", delta: "Hello" },
+              { type: "text-delta", id: "text-1", delta: " world" },
+              { type: "text-end", id: "text-1" },
+              {
+                type: "finish",
+                finishReason: { unified: "stop", raw: "stop" },
+                usage: usage({ input: 5, output: 3 }),
+              },
+            ],
+          }),
+        }),
+      });
+      const streamResult = streamText({
+        model,
+        prompt: "Say hello",
+        abortSignal: abortController.signal,
+        telemetry: { integrations: [trace.integration] },
+      });
+
+      for await (const chunk of streamResult.stream) {
+        if (chunk.type === "text-delta") abortController.abort(reason);
+      }
+
+      const tree = await expectTree(trace);
+      expect(tree).toMatchObject({
+        edges: [["test-provider:0", "test-provider:1"]],
+        data: {
+          "test-provider:0": {
+            run_type: "chain",
+
+            end_time: expect.any(Number),
+            error: String(abortController.signal.reason),
+          },
+          "test-provider:1": {
+            run_type: "llm",
+
+            end_time: expect.any(Number),
+            error: String(abortController.signal.reason),
+          },
+        },
+      });
+
+      // Ensure that we did send updates
+      expect(
+        trace.callSpy.mock.calls.filter(
+          ([, init]: any) => init?.method === "PATCH",
+        ),
+      ).toHaveLength(2);
+    },
+  );
+
   it("should handle onChunk as a no-op without errors", async () => {
     const trace = createTrace();
 

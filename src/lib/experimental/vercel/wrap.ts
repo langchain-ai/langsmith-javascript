@@ -9,9 +9,15 @@ import {
   LangSmithMiddleware,
 } from "./middleware.js";
 import { convertMessageToTracedFormat } from "./utils.js";
-import { isTraceableFunction, traceable } from "../../traceable.js";
+import {
+  getCurrentRunTree,
+  isTraceableFunction,
+  traceable,
+  type TraceableConfig,
+} from "../../traceable.js";
 import type { RunTreeConfig } from "../../run_trees.js";
 import { vercelLsAgentTypeMetadata } from "./_agent_type.js";
+import { isRecord } from "../../utils/types.js";
 
 const _getModelDisplayName = (
   model: string | Record<string, unknown>,
@@ -501,6 +507,48 @@ const _getGenerateTextWrapperConfig = ({
   };
 };
 
+const _getStreamAbortHandler = (params: unknown) => {
+  let onAbortCleanup: (() => void) | undefined;
+  let onAbort: ((event?: { reason?: unknown }) => void) | undefined;
+  let aborted: Promise<void> | undefined;
+
+  const originalOnAbort =
+    isRecord(params) && "onAbort" in params
+      ? (params.onAbort as (event: unknown) => void)
+      : undefined;
+
+  const signal =
+    isRecord(params) && "abortSignal" in params
+      ? (params.abortSignal as AbortSignal | undefined)
+      : undefined;
+
+  if (signal) {
+    // Obtain the run tree to which we can mark as finished
+    const runTree = getCurrentRunTree(true);
+    onAbort = async (event) => {
+      const error = String(event?.reason ?? signal?.reason ?? event);
+      await runTree?.end(undefined, error);
+      await originalOnAbort?.(event);
+    };
+
+    let resolveAbort: () => void;
+    aborted = new Promise<void>((resolve) => {
+      resolveAbort = resolve;
+    });
+    const handler = () => {
+      void runTree?.end(undefined, String(signal.reason));
+      resolveAbort();
+    };
+    signal.addEventListener("abort", handler, { once: true });
+
+    onAbortCleanup = () => signal.removeEventListener("abort", handler);
+    if (signal.aborted) handler();
+  }
+
+  onAbort ??= originalOnAbort;
+  return { onAbort, onAbortCleanup, aborted };
+};
+
 const _getStreamTextWrapperConfig = ({
   model,
   runName,
@@ -509,6 +557,7 @@ const _getStreamTextWrapperConfig = ({
   hasExplicitOutput,
   hasExplicitExperimentalOutput,
   traceResponseMetadata,
+  onEnd,
 }: {
   model: any;
   runName?: string;
@@ -517,7 +566,8 @@ const _getStreamTextWrapperConfig = ({
   hasExplicitOutput: boolean;
   hasExplicitExperimentalOutput?: boolean;
   traceResponseMetadata?: boolean;
-}) => {
+  onEnd?: (outputs: any) => Promise<void> | void;
+}): TraceableConfig<(...args: any[]) => any> => {
   return {
     name: runName ?? _getModelDisplayName(model),
     ...resolvedLsConfig,
@@ -582,6 +632,13 @@ const _getStreamTextWrapperConfig = ({
         // Handle parsing failures without a log
         return outputs;
       }
+    },
+    on_end: (tree) => {
+      // Call our onEnd first
+      onEnd?.(tree);
+
+      // Call the on_end hook from the resolved LangSmith config if it exists.
+      if (resolvedLsConfig.on_end) resolvedLsConfig.on_end(tree);
     },
   };
 };
@@ -840,6 +897,8 @@ const wrapAISDK = <
       _resolveConfigs(baseLsConfig, runtimeLsConfig);
     const hasExplicitOutput = "output" in params;
     const hasExplicitExperimentalOutput = "experimental_output" in params;
+    let abortCleanup: (() => void) | undefined;
+
     const traceableFunc = traceable(
       (
         ...args: Parameters<typeof ai.streamText>
@@ -854,12 +913,17 @@ const wrapAISDK = <
             lsConfig: resolvedChildLLMRunConfig as Record<string, unknown>,
           }),
         });
+
+        const wrappedAbort = _getStreamAbortHandler(params);
+        abortCleanup = wrappedAbort.onAbortCleanup;
+
         return ai.streamText(
           {
             ...params,
             providerOptions,
             tools: _wrapTools(params.tools, resolvedToolConfig),
             model: wrappedModel,
+            onAbort: wrappedAbort.onAbort,
           },
           ...rest,
         ) as ReturnType<typeof ai.streamText>;
@@ -869,6 +933,7 @@ const wrapAISDK = <
         resolvedLsConfig,
         hasExplicitOutput,
         hasExplicitExperimentalOutput,
+        onEnd: () => abortCleanup?.(),
       }),
     ) as (
       ...args: Parameters<typeof ai.streamText>
@@ -906,11 +971,18 @@ const wrapAISDK = <
         baseLsConfig,
         runtimeLsConfig,
       );
+      let abortCleanup: (() => void) | undefined;
+      let aborted: Promise<void> | undefined;
       const traceableFunc = traceable(
         (
           ...args: Parameters<typeof streamObject>
         ): ReturnType<typeof streamObject> => {
           const [params, ...rest] = args;
+
+          const wrappedAbort = _getStreamAbortHandler(params);
+          abortCleanup = wrappedAbort.onAbortCleanup;
+          aborted = wrappedAbort.aborted;
+
           const wrappedModel = ai.wrapLanguageModel({
             model: params.model,
             middleware: LangSmithMiddleware({
@@ -925,6 +997,7 @@ const wrapAISDK = <
               ...params,
               providerOptions,
               model: wrappedModel,
+              onAbort: wrappedAbort.onAbort,
             },
             ...rest,
           ) as ReturnType<typeof ai.streamObject>;
@@ -932,6 +1005,10 @@ const wrapAISDK = <
         {
           name: _getModelDisplayName(params.model),
           ...resolvedLsConfig,
+          on_end: (tree) => {
+            abortCleanup?.();
+            resolvedLsConfig?.on_end?.(tree);
+          },
           metadata: {
             ...vercelLsAgentTypeMetadata(),
             ai_sdk_method: "ai.streamObject",
@@ -958,7 +1035,14 @@ const wrapAISDK = <
               ) {
                 return outputs;
               }
-              const object = await outputs.outputs.object;
+              // Cancelling the consumer can leave the final object promise pending.
+              // Release output processing on abort so the parent trace can finish.
+              const object = await (aborted
+                ? Promise.race([
+                    outputs.outputs.object,
+                    aborted.then(() => ({})),
+                  ])
+                : outputs.outputs.object);
               if (object == null || typeof object !== "object") {
                 return outputs;
               }

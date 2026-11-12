@@ -583,8 +583,10 @@ test("telemetry stream cancellation should finish spans cleanly", async () => {
   });
 
   if (abortedAfterDeltas) {
-    expect(runs.data["openai.responses:0"].end_time).toBeUndefined();
-    expect(runs.data["openai.responses:1"].end_time).toBeUndefined();
+    for (const run of Object.values(runs.data)) {
+      expect(run.end_time).toBeDefined();
+      expect(run.error).toBe(String(abortController.signal.reason));
+    }
   }
 });
 
