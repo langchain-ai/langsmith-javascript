@@ -808,9 +808,16 @@ export function LangSmithTelemetry(
     const state = invocationsByCallId.get(callId);
     if (!state) return;
 
-    const { rootRunTree } = state;
-
     const errorMsg = error instanceof Error ? error.message : String(error);
+    await closeInvocationWithError(callId, state, errorMsg);
+  };
+
+  async function closeInvocationWithError(
+    callId: string,
+    state: InvocationState,
+    errorMsg: string,
+  ) {
+    const { rootRunTree } = state;
     await finalizeOpenToolRuns(state, { error: errorMsg });
 
     // Close any open step runs with error
@@ -829,6 +836,25 @@ export function LangSmithTelemetry(
     await rootRunTree.patchRun({ excludeInputs: true });
 
     invocationsByCallId.delete(callId);
+  }
+
+  // AI SDK reports an aborted stream only through onAbort: neither onEnd nor
+  // onError runs, so without this the runs stay pending and the state leaks.
+  const onAbort: Telemetry["onAbort"] = async (event) => {
+    if (!("callId" in event) || typeof event.callId !== "string") return;
+    const state = invocationsByCallId.get(event.callId);
+    if (!state) return;
+    const reason =
+      event.reason === undefined
+        ? "aborted"
+        : event.reason instanceof Error
+          ? event.reason.message
+          : String(event.reason);
+    await closeInvocationWithError(
+      event.callId,
+      state,
+      `Run aborted: ${reason}`,
+    );
   };
 
   const onAbort: Telemetry["onAbort"] = async (event) => {

@@ -769,6 +769,93 @@ describe("error handling", () => {
   });
 });
 
+describe("abort handling", () => {
+  function createSlowStreamModel() {
+    return new MockLanguageModelV4({
+      provider: "test-provider",
+      modelId: "test-model",
+      doStream: async () => ({
+        stream: simulateReadableStream({
+          chunkDelayInMs: 50,
+          chunks: [
+            { type: "text-start", id: "text-1" },
+            { type: "text-delta", id: "text-1", delta: "Hello" },
+            { type: "text-delta", id: "text-1", delta: " world" },
+            { type: "text-delta", id: "text-1", delta: "!" },
+            { type: "text-end", id: "text-1" },
+            {
+              type: "finish",
+              finishReason: { unified: "stop" as const, raw: "stop" },
+              usage: usage({ input: 5, output: 3 }),
+            },
+          ],
+        }),
+      }),
+    });
+  }
+
+  it("should end the root and open step runs when streamText is aborted", async () => {
+    const trace = createTrace();
+    const controller = new AbortController();
+    setTimeout(() => controller.abort("user pressed stop"), 120);
+
+    const result = streamText({
+      model: createSlowStreamModel(),
+      prompt: "Stream test",
+      abortSignal: controller.signal,
+      telemetry: { integrations: [trace.integration] },
+    });
+    await result.consumeStream();
+
+    await expect(expectTree(trace)).resolves.toMatchObject({
+      edges: [["test-provider:0", "test-provider:1"]],
+      data: {
+        "test-provider:0": {
+          run_type: "chain",
+          end_time: expect.anything(),
+          error: "Run aborted: user pressed stop",
+        },
+        "test-provider:1": {
+          run_type: "llm",
+          end_time: expect.anything(),
+          error: "Run aborted: user pressed stop",
+        },
+      },
+    });
+  });
+
+  it("should not leak state into the next invocation after an abort", async () => {
+    const trace = createTrace();
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(), 120);
+
+    await streamText({
+      model: createSlowStreamModel(),
+      prompt: "Aborted",
+      abortSignal: controller.signal,
+      telemetry: { integrations: [trace.integration] },
+    }).consumeStream();
+
+    const next = streamText({
+      model: createModel(),
+      prompt: "Next",
+      telemetry: { integrations: [trace.integration] },
+    });
+    await expect(next.text).resolves.toBe("Hello world");
+
+    const tree = await expectTree(trace);
+    expect(tree.edges).toEqual([
+      ["test-provider:0", "test-provider:1"],
+      ["test-provider:2", "test-provider:3"],
+    ]);
+    for (const run of Object.values(tree.data)) {
+      expect(run.end_time).toBeDefined();
+    }
+    expect(tree.data["test-provider:0"].error).toMatch(/^Run aborted: /);
+    expect(tree.data["test-provider:2"].error).toBeUndefined();
+  });
+});
+
 describe("multi-step tracing", () => {
   it("should create separate LLM spans for each step", async () => {
     const trace = createTrace();
