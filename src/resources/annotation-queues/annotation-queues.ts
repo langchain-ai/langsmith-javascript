@@ -582,6 +582,8 @@ export interface AnnotationQueueRetrieveAnnotationQueuesResponse {
 
   reviewer_access_mode?: string;
 
+  rubric_keys?: Array<string>;
+
   run_rule_id?: string | null;
 
   source_rule_id?: string | null;
@@ -725,6 +727,8 @@ export interface AnnotationQueueRetrieveAnnotationQueuesParams extends OffsetPag
   dataset_id?: string | null;
 
   ids?: Array<string> | null;
+
+  include_rubric_keys?: boolean;
 
   name?: string | null;
 

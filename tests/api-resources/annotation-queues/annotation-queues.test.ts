@@ -197,6 +197,7 @@ describe('resource annotationQueues', () => {
           assigned_to_me: true,
           dataset_id: '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e',
           ids: ['182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e', '182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e'],
+          include_rubric_keys: true,
           limit: 1,
           name: 'name',
           name_contains: 'name_contains',
