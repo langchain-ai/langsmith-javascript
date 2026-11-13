@@ -221,6 +221,16 @@ Methods:
 
 - <code title="post /api/v2/traces/query">client.traces.streaming.<a href="./src/resources/traces/streaming.ts">query</a>({ ...params }) -> StreamingQueryResponse</code>
 
+# AISearch
+
+Types:
+
+- <code><a href="./src/resources/ai-search.ts">AISearchParseResponse</a></code>
+
+Methods:
+
+- <code title="post /api/v2/ai-search/parse">client.aiSearch.<a href="./src/resources/ai-search.ts">parse</a>({ ...params }) -> AISearchParseResponse</code>
+
 # Evaluators
 
 Types:

@@ -1,6 +1,7 @@
 // File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
 
 export * from './shared';
+export { AISearch, type AISearchParseResponse, type AISearchParseParams } from './ai-search';
 export {
   Agents,
   type Agent,

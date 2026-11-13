@@ -48,6 +48,7 @@ import {
   Agents,
   AgentsItemsCursorGetPagination,
 } from './resources/agents';
+import { AISearch, AISearchParseParams, AISearchParseResponse } from './resources/ai-search';
 import {
   CommitCreateParams,
   CommitCreateResponse,
@@ -1034,6 +1035,7 @@ export class Langsmith {
   runs: API.Runs = new API.Runs(this);
   threads: API.Threads = new API.Threads(this);
   traces: API.Traces = new API.Traces(this);
+  aiSearch: API.AISearch = new API.AISearch(this);
   evaluators: API.Evaluators = new API.Evaluators(this);
   onlineEvaluators: API.OnlineEvaluators = new API.OnlineEvaluators(this);
   public: API.Public = new API.Public(this);
@@ -1055,6 +1057,7 @@ Langsmith.Datasets = Datasets;
 Langsmith.Runs = Runs;
 Langsmith.Threads = Threads;
 Langsmith.Traces = Traces;
+Langsmith.AISearch = AISearch;
 Langsmith.Evaluators = Evaluators;
 Langsmith.OnlineEvaluators = OnlineEvaluators;
 Langsmith.Public = Public;
@@ -1220,6 +1223,12 @@ export declare namespace Langsmith {
     type TracesItemsCursorPostPagination as TracesItemsCursorPostPagination,
     type TraceListRunsParams as TraceListRunsParams,
     type TraceQueryParams as TraceQueryParams,
+  };
+
+  export {
+    AISearch as AISearch,
+    type AISearchParseResponse as AISearchParseResponse,
+    type AISearchParseParams as AISearchParseParams,
   };
 
   export {
