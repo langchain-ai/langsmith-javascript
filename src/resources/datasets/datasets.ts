@@ -122,18 +122,36 @@ export interface FeedbackCreateCoreSchema {
 
   id?: string;
 
+  /**
+   * A free-text comment explaining the feedback. Truncated at the feedback size
+   * limit.
+   */
   comment?: string | null;
 
+  /**
+   * The ID of the comparative (pairwise) experiment this feedback was written for.
+   */
   comparative_experiment_id?: string | null;
 
+  /**
+   * The corrected output for the run, as a string or a JSON object. Dropped if it
+   * exceeds the feedback size limit.
+   */
   correction?: { [key: string]: unknown } | string | null;
 
+  /**
+   * When the feedback was created, as an ISO 8601 timestamp. Defaults to now.
+   */
   created_at?: string;
 
   extra?: { [key: string]: unknown } | null;
 
   feedback_config?: FeedbackCreateCoreSchema.FeedbackConfig | null;
 
+  /**
+   * Groups feedback written together, such as one comparison in a pairwise
+   * experiment.
+   */
   feedback_group_id?: string | null;
 
   /**
@@ -146,10 +164,21 @@ export interface FeedbackCreateCoreSchema {
     | FeedbackCreateCoreSchema.AutoEvalFeedbackSource
     | null;
 
+  /**
+   * When the feedback was last modified, as an ISO 8601 timestamp. Defaults to now.
+   */
   modified_at?: string;
 
+  /**
+   * The numeric or boolean score. Numbers must be between -99999.9999 and 99999.9999
+   * with at most 4 decimal places.
+   */
   score?: number | boolean | null;
 
+  /**
+   * A non-numeric value, such as a category label or a JSON object. Dropped if it
+   * exceeds the feedback size limit.
+   */
   value?: number | boolean | string | { [key: string]: unknown } | null;
 }
 
