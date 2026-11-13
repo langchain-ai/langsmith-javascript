@@ -151,6 +151,13 @@ import {
 } from './resources/sessions';
 import { Sql, SqlQueryParams, SqlQueryResponse } from './resources/sql';
 import {
+  WorkspaceSecret,
+  WorkspaceSecretListParams,
+  WorkspaceSecretListResponse,
+  WorkspaceSecretUpsertParams,
+  WorkspaceSecrets,
+} from './resources/workspace-secrets';
+import {
   AnnotationQueueAnnotationQueuesParams,
   AnnotationQueueCreateRunStatusParams,
   AnnotationQueueCreateRunStatusResponse,
@@ -1042,6 +1049,7 @@ export class Langsmith {
   annotationQueues: API.AnnotationQueues = new API.AnnotationQueues(this);
   promptWebhooks: API.PromptWebhooks = new API.PromptWebhooks(this);
   info: API.Info = new API.Info(this);
+  workspaceSecrets: API.WorkspaceSecrets = new API.WorkspaceSecrets(this);
   repos: API.Repos = new API.Repos(this);
   commits: API.Commits = new API.Commits(this);
   issues: API.Issues = new API.Issues(this);
@@ -1064,6 +1072,7 @@ Langsmith.Public = Public;
 Langsmith.AnnotationQueues = AnnotationQueues;
 Langsmith.PromptWebhooks = PromptWebhooks;
 Langsmith.Info = Info;
+Langsmith.WorkspaceSecrets = WorkspaceSecrets;
 Langsmith.Repos = Repos;
 Langsmith.Commits = Commits;
 Langsmith.Issues = Issues;
@@ -1315,6 +1324,14 @@ export declare namespace Langsmith {
   };
 
   export { Info as Info, type InfoListResponse as InfoListResponse };
+
+  export {
+    WorkspaceSecrets as WorkspaceSecrets,
+    type WorkspaceSecret as WorkspaceSecret,
+    type WorkspaceSecretListResponse as WorkspaceSecretListResponse,
+    type WorkspaceSecretListParams as WorkspaceSecretListParams,
+    type WorkspaceSecretUpsertParams as WorkspaceSecretUpsertParams,
+  };
 
   export {
     Repos as Repos,

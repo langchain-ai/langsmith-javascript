@@ -222,3 +222,10 @@ export {
   type TraceQueryParams,
   type TracesItemsCursorPostPagination,
 } from './traces/traces';
+export {
+  WorkspaceSecrets,
+  type WorkspaceSecret,
+  type WorkspaceSecretListResponse,
+  type WorkspaceSecretListParams,
+  type WorkspaceSecretUpsertParams,
+} from './workspace-secrets';

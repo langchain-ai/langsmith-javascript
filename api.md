@@ -398,6 +398,19 @@ Methods:
 
 - <code title="get /api/v1/info">client.info.<a href="./src/resources/info.ts">list</a>() -> InfoListResponse</code>
 
+# WorkspaceSecrets
+
+Types:
+
+- <code><a href="./src/resources/workspace-secrets.ts">WorkspaceSecret</a></code>
+- <code><a href="./src/resources/workspace-secrets.ts">WorkspaceSecretListResponse</a></code>
+
+Methods:
+
+- <code title="get /api/v1/workspaces/current/secrets">client.workspaceSecrets.<a href="./src/resources/workspace-secrets.ts">list</a>({ ...params }) -> WorkspaceSecretListResponse</code>
+- <code title="delete /api/v1/workspaces/current/secrets/{key}">client.workspaceSecrets.<a href="./src/resources/workspace-secrets.ts">delete</a>(key) -> void</code>
+- <code title="put /api/v1/workspaces/current/secrets/{key}">client.workspaceSecrets.<a href="./src/resources/workspace-secrets.ts">upsert</a>(key, { ...params }) -> WorkspaceSecret</code>
+
 # Repos
 
 Types:
