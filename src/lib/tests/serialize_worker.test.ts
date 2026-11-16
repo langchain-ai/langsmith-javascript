@@ -1,6 +1,7 @@
 /* eslint-disable no-process-env */
 import { SerializeWorker } from "../utils/serialize_worker.js";
 import { serialize } from "../utils/fast-safe-stringify/index.js";
+import { HumanMessage } from "@langchain/core/messages";
 
 describe("SerializeWorker", () => {
   let worker: SerializeWorker;
@@ -75,6 +76,36 @@ describe("SerializeWorker", () => {
     const payload: Record<string, unknown> = { a: 1 };
     payload.self = payload;
     expect(await serializeToText(payload)).toContain("[Circular]");
+  });
+
+  test("honours toJSON on objects that define it", async () => {
+    // structuredClone (used by postMessage) drops prototypes, taking
+    // toJSON() with them. The worker must still produce the same JSON as the
+    // inline path, which calls toJSON() via JSON.stringify.
+    class Money {
+      constructor(private readonly cents: number) {}
+      toJSON() {
+        return { amount: this.cents / 100, currency: "USD" };
+      }
+    }
+    const payload = { price: new Money(4200), note: "x".repeat(70_000) };
+    const workerStr = await serializeToText(payload);
+    expect(JSON.parse(workerStr).price).toEqual({
+      amount: 42,
+      currency: "USD",
+    });
+    expect(workerStr).toBe(Buffer.from(serialize(payload)).toString("utf8"));
+  });
+
+  test("honours toJSON on LangChain messages that trigger the worker path", async () => {
+    const payload = {
+      inputs: { messages: [new HumanMessage("a".repeat(70_000))] },
+    };
+    const workerStr = await serializeToText(payload);
+    const message = JSON.parse(workerStr).inputs.messages[0];
+    expect(message.lc_serializable).toBeUndefined();
+    expect(message.lc_kwargs).toBeUndefined();
+    expect(workerStr).toBe(Buffer.from(serialize(payload)).toString("utf8"));
   });
 
   test("produces byte-identical output to main-thread serialize for well-known types", async () => {
