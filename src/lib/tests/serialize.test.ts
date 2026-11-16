@@ -5,7 +5,7 @@ import {
   serialize,
   estimateSerializedSize,
 } from "../utils/fast-safe-stringify/index.js";
-import { hasLargeString } from "../utils/serialize_worker.js";
+import { hasLargeString, applyToJSON } from "../utils/serialize_worker.js";
 import {
   HumanMessage,
   SystemMessage,
@@ -581,5 +581,89 @@ describe("hasLargeString", () => {
     expect(hasLargeString(new Date(), 10)).toBe(false);
     expect(hasLargeString(/foo/, 10)).toBe(false);
     expect(hasLargeString(new Error("boom"), 10)).toBe(false);
+  });
+});
+
+describe("applyToJSON", () => {
+  class Money {
+    constructor(private readonly cents: number) {}
+    toJSON() {
+      return { amount: this.cents / 100, currency: "USD" };
+    }
+  }
+
+  it("returns the payload untouched when nothing defines toJSON", () => {
+    const payload = { messages: [{ role: "user", content: "hi" }] };
+    expect(applyToJSON(payload)).toBe(payload);
+    expect(applyToJSON("plain string")).toBe("plain string");
+    expect(applyToJSON(null)).toBe(null);
+  });
+
+  it("applies toJSON to nested objects, array elements, Maps and Sets", () => {
+    const payload = {
+      nested: { price: new Money(4200) },
+      list: [new Money(100)],
+      map: new Map([["k", new Money(200)]]),
+      set: new Set([new Money(300)]),
+    };
+    const prepared = applyToJSON(payload) as Record<string, unknown>;
+    expect(prepared.nested).toEqual({ price: { amount: 42, currency: "USD" } });
+    expect(prepared.list).toEqual([{ amount: 1, currency: "USD" }]);
+    expect((prepared.map as Map<string, unknown>).get("k")).toEqual({
+      amount: 2,
+      currency: "USD",
+    });
+    expect(Array.from(prepared.set as Set<unknown>)).toEqual([
+      { amount: 3, currency: "USD" },
+    ]);
+  });
+
+  it("passes the property key to toJSON, matching JSON.stringify", () => {
+    const withKeys = {
+      toJSON(key: string) {
+        return { key };
+      },
+    };
+    const payload = { a: withKeys, list: [withKeys] };
+    expect(JSON.stringify(applyToJSON(payload))).toBe(JSON.stringify(payload));
+  });
+
+  it("preserves cycles so the serializer still emits [Circular]", () => {
+    const payload: Record<string, unknown> = { price: new Money(500) };
+    payload.self = payload;
+    const prepared = applyToJSON(payload) as Record<string, unknown>;
+    expect(prepared.self).toBe(prepared);
+    expect(serialize(payload)).toEqual(serialize(prepared));
+  });
+
+  it("does not mutate the input payload", () => {
+    const message = new HumanMessage("hello");
+    const payload = { messages: [message] };
+    applyToJSON(payload);
+    expect(payload.messages[0]).toBe(message);
+    expect(message).toBeInstanceOf(HumanMessage);
+  });
+
+  it("produces the same JSON as JSON.stringify for mixed well-known types", () => {
+    const payload = {
+      message: new HumanMessage({ content: "x".repeat(2000) }),
+      date: new Date("2024-01-01T00:00:00.000Z"),
+      regex: /foo/gi,
+      map: new Map([["k", new Money(100)]]),
+      set: new Set(["a"]),
+      big: BigInt(9007199254740999),
+      error: new Error("boom"),
+      buffer: Buffer.from([1, 2, 3]),
+    };
+    expect(Buffer.from(serialize(applyToJSON(payload))).toString("utf8")).toBe(
+      Buffer.from(serialize(payload)).toString("utf8"),
+    );
+  });
+
+  it("leaves binary views for structured clone", () => {
+    const buffer = Buffer.from([1, 2, 3]);
+    expect(applyToJSON(buffer)).toBe(buffer);
+    const view = new Uint8Array([1, 2, 3]);
+    expect(applyToJSON(view)).toBe(view);
   });
 });
