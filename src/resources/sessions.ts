@@ -286,6 +286,9 @@ export namespace CustomChartsSection {
         | 'error_responses_per_second'
         | 'p95_latency'
         | 'run_queue_wait_time'
+        | 'startable_runs_wait_max_by_priority'
+        | 'startable_runs_by_priority'
+        | 'running_runs_by_priority'
         | null;
 
       workspace_id?: string | null;
@@ -931,6 +934,9 @@ export namespace CustomChartsSection {
           | 'error_responses_per_second'
           | 'p95_latency'
           | 'run_queue_wait_time'
+          | 'startable_runs_wait_max_by_priority'
+          | 'startable_runs_by_priority'
+          | 'running_runs_by_priority'
           | null;
 
         workspace_id?: string | null;
