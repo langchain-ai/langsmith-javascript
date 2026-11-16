@@ -193,6 +193,8 @@ export interface ItemListResponse {
 
   added_at?: string;
 
+  assigned_to?: Array<string>;
+
   completed_by?: Array<string>;
 
   effective_added_at?: string;
