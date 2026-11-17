@@ -1,5 +1,60 @@
 # Changelog
 
+## [0.13.0](https://github.com/langchain-ai/langsmith-javascript/compare/v0.12.0...v0.13.0) (2026-11-17)
+
+
+### ⚠ BREAKING CHANGES
+
+* **sessions:** publish v2 write APIs and SDK methods
+* **sandboxes:** require explicit permissions for sandbox access delegation
+* **sandboxes:** add literal and callback proxy attribution
+
+### Features
+
+* **annotation-queues:** return rubric keys from the queue list behind include_rubric_keys ([8fd9272](https://github.com/langchain-ai/langsmith-javascript/commit/8fd92726f87a22080a9097ff34441c8a17cd3ca1))
+* **byoc:** make sandboxes opt-in on AWS data planes and default host headroom to 0 ([d49335e](https://github.com/langchain-ai/langsmith-javascript/commit/d49335e5c5d0e15e1a9d5b3584fc6068c595ad74))
+* **cli,sdk-go:** store profile secrets in the OS keychain ([cd3f59b](https://github.com/langchain-ai/langsmith-javascript/commit/cd3f59b5b74e3c66ca5e0fd4e15bb1340da6734b))
+* **cli:** expose feedback list and create ([3fa8b68](https://github.com/langchain-ai/langsmith-javascript/commit/3fa8b68135ba8085d8afa3d3dd7f722c547fcec9))
+* expose AI search parse in the public API and SDKs ([b9e3216](https://github.com/langchain-ai/langsmith-javascript/commit/b9e3216342b8a5bfe29cbdbdb91fae2d18a30ac7))
+* parse AI search in query endpoints ([944aecd](https://github.com/langchain-ai/langsmith-javascript/commit/944aecd2e9a96cd551ad69d7aff5cb88a89a1ec2))
+* per-priority queue charts on the deployment metrics page ([61f3669](https://github.com/langchain-ai/langsmith-javascript/commit/61f36693c749ebbd3a7a5e8fa820d56a72617dd4))
+* **rules:** deprecate GET /api/v1/runs/rules and index run_rules for V2 paging ([5d410fc](https://github.com/langchain-ai/langsmith-javascript/commit/5d410fcd183206ea55070aacbbc1b9eaf743af35))
+* **run-rules:** accept v2 filters for thread evaluators ([13026bd](https://github.com/langchain-ai/langsmith-javascript/commit/13026bd7a127514c5785e5472b2da19972fefb6c))
+* **sandboxes:** add literal and callback proxy attribution ([905a66a](https://github.com/langchain-ai/langsmith-javascript/commit/905a66ab83ace13cabb754be788b7e3e6ccb6ec4))
+* **sandboxes:** require explicit permissions for sandbox access delegation ([2028be4](https://github.com/langchain-ai/langsmith-javascript/commit/2028be48fab131c6849a99dad92e1eeb3f351aff))
+* **sandboxes:** restrict header rules to an exact scheme and port ([1541706](https://github.com/langchain-ai/langsmith-javascript/commit/15417062c81c972235e1250f9743bd4cf82ff4ba))
+* scope roster queue review to dealt assignments ([afb4e4c](https://github.com/langchain-ai/langsmith-javascript/commit/afb4e4c3adcb161b502a7bb4203981ea0a65b82e))
+* **sdk:** generate Prompt Hub repos and commits in the Python and TypeScript SDKs ([441ed34](https://github.com/langchain-ai/langsmith-javascript/commit/441ed34c0b7df1e8daa6ab366e07f037be6976b7))
+* **sdk:** generate workspace secrets list ([b096844](https://github.com/langchain-ai/langsmith-javascript/commit/b09684494ad9551301ce5d09ff5e45d830ddc8a0))
+* **sdks:** add paginated V2 rule-list methods ([7cbbeab](https://github.com/langchain-ai/langsmith-javascript/commit/7cbbeabd42ee115697872a0c2697da4b0763c289))
+* **sdks:** move internal methods off deprecated endpoints ([828c083](https://github.com/langchain-ai/langsmith-javascript/commit/828c083c05f7e95c47dd9a079c53417ca0c80295))
+* **sessions:** publish v2 write APIs and SDK methods ([e10f338](https://github.com/langchain-ai/langsmith-javascript/commit/e10f338fa3266edcc6e4c2670e9eaa4db4b87636))
+* show total agent count in the table header ([cd8243f](https://github.com/langchain-ai/langsmith-javascript/commit/cd8243fddd48d4af24a1cad7bb6b9b2f8cb1ceeb))
+
+
+### Bug Fixes
+
+* **sandboxes:** never attach proxy credentials to non-canonical paths ([a1e2fb7](https://github.com/langchain-ai/langsmith-javascript/commit/a1e2fb71d7323f9538abaf8ec203a4d0669f5fdd))
+* **sdk-js:** wrapAISDK and LangSmithTelemetry should handle abort signal gracefully ([0a1b2d6](https://github.com/langchain-ai/langsmith-javascript/commit/0a1b2d6fd7e4736c011ba42187681cfff2292d1f))
+* **sdk:** populate Vercel AI first-token timing ([a7002bd](https://github.com/langchain-ai/langsmith-javascript/commit/a7002bd815bb5adf28be708c897a1dcc3f78bce8))
+* **sessions:** align v1 endpoint sunset notices to July 1, 2027 ([272b85d](https://github.com/langchain-ai/langsmith-javascript/commit/272b85dee8be2623f20f5362540361c2af42fba3))
+
+
+### Chores
+
+* **deps-dev:** bump mongoose from 9.10.1 to 9.11.4 in /sdks/javascript ([2cc73ba](https://github.com/langchain-ai/langsmith-javascript/commit/2cc73ba96a7034d08e5df217ab80d0cda1a09978))
+* **deps-dev:** bump openai from 6.49.0 to 7.54.0 in /sdks/javascript ([8a0e193](https://github.com/langchain-ai/langsmith-javascript/commit/8a0e193d8811048cce8d457a3b5a63e28140dc1d))
+
+
+### Documentation
+
+* clarify public trace query read semantics ([ed81b51](https://github.com/langchain-ai/langsmith-javascript/commit/ed81b516c90e20b511d9b2e5244255ac5736cbb0))
+
+
+### Build System
+
+* **deps-dev:** bump the minor-and-patch group across 1 directory with 32 updates ([a71dacc](https://github.com/langchain-ai/langsmith-javascript/commit/a71dacc3d1d2ff228c1930a26c13cdbd07516758))
+
 ## [0.12.0](https://github.com/langchain-ai/langsmith-javascript/compare/v0.11.8...v0.12.0) (2026-11-10)
 
 
