@@ -79,7 +79,7 @@
     "mongoose": "^9.5.0",
     "msw": "^2.11.2",
     "node-fetch": "^3.3.2",
-    "openai": "^6.18.0",
+    "openai": "^7.54.0",
     "prettier": "3.1.1",
     "publint": "^0.3.25",
     "semver": "^7.7.4",
