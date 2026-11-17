@@ -323,26 +323,22 @@ test.skip("wrap streamObject", async () => {
   expect(result.providerMetadata).toBeDefined();
 });
 
-requires("require_provider", "require_clickhouse").test(
-  "can set run id",
-  async () => {
-    const runId = v4();
-    const client = new Client();
-    const { generateText } = wrapAISDK(ai, { id: runId });
-    await generateText({
-      model: openai("gpt-5-nano"),
-      messages: [
-        {
-          role: "user",
-          content: "What color is the sky in one word?",
-        },
-      ],
-    });
-    await waitUntilRunFound(client, runId);
-    const run = await client.readRun(runId);
-    expect(run.id).toBe(runId);
-  },
-);
+requires("require_provider", "require_v2").test("can set run id", async () => {
+  const runId = v4();
+  const client = new Client();
+  const { generateText } = wrapAISDK(ai, { id: runId });
+  await generateText({
+    model: openai("gpt-5-nano"),
+    messages: [
+      {
+        role: "user",
+        content: "What color is the sky in one word?",
+      },
+    ],
+  });
+  const run = await waitUntilRunFound(client, runId);
+  expect(run.id).toBe(runId);
+});
 
 test("should reuse tool def without double wrapping tool traces", async () => {
   const toolDef = {

@@ -4049,7 +4049,17 @@ export class Client implements LangSmithTracingClientInterface {
     }
   }
 
+  /** @deprecated Use `client.threads.query()` instead. See https://docs.langchain.com/langsmith/smithdb-sdk-migration-threads#threads-query for the migration guide. Will be removed after Jan 31, 2027. */
   public async *listGroupRuns(props: GroupRunsParams): AsyncIterable<Thread> {
+    warnOnce(
+      "listGroupRuns() is deprecated and will be removed after Jan 31, 2027. " +
+        "Use client.threads.query() instead. " +
+        "See https://docs.langchain.com/langsmith/smithdb-sdk-migration-threads#threads-query for the migration guide.",
+      {
+        type: "DeprecationWarning",
+        code: "LANGSMITH_DEPRECATED_LIST_GROUP_RUNS",
+      },
+    );
     const {
       projectId,
       projectName,
@@ -7073,23 +7083,31 @@ export class Client implements LangSmithTracingClientInterface {
    * Add runs to an annotation queue with the specified queue ID.
    *
    * The second argument is either:
-   * - `RunKey[]` (preferred): each entry carries the run's full lookup key, so
-   *   it can be located directly without a scan. Required for workspaces served
-   *   by SmithDB; routes to `POST /runs/by-key`.
-   * - `string[]`: a plain list of run IDs. **Deprecated**: this path will be
-   *   removed after Jan 31, 2027; prefer the key form. Routes to `POST /runs`.
-   *   See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#annotation-queues-add-runs.
+   * - `RunKey[]`: each entry carries the run's full lookup key, so it can be
+   *   located directly without a scan. Required for workspaces served by
+   *   SmithDB; routes to `POST /runs/by-key`.
+   * - `string[]`: a plain list of run IDs. Routes to `POST /runs`.
    *
    * If every element is a string (or the list is empty) it is treated as run
    * IDs; otherwise the list is treated as `RunKey` objects.
    *
    * @param queueId - The ID of the annotation queue
-   * @param runs - Either a list of run IDs (deprecated) or a list of run keys.
+   * @param runs - Either a list of run IDs or a list of run keys.
+   * @deprecated Use `client.annotationQueues.items.create()` instead. See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#annotation-queues-add-runs for the migration guide. Will be removed after Jan 31, 2027.
    */
   public async addRunsToAnnotationQueue(
     queueId: string,
     runs: string[] | RunKey[],
   ): Promise<void> {
+    warnOnce(
+      "addRunsToAnnotationQueue() is deprecated and will be removed after Jan 31, 2027. " +
+        "Use client.annotationQueues.items.create() instead. " +
+        "See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#annotation-queues-add-runs for the migration guide.",
+      {
+        type: "DeprecationWarning",
+        code: "LANGSMITH_DEPRECATED_ADD_RUNS_TO_ANNOTATION_QUEUE",
+      },
+    );
     const base = `${this.apiUrl}/annotation-queues/${assertUuid(
       queueId,
       "queueId",
@@ -7124,15 +7142,6 @@ export class Client implements LangSmithTracingClientInterface {
         }),
       );
     } else {
-      warnOnce(
-        "Passing run IDs as strings to addRunsToAnnotationQueue() is deprecated and will be removed after Jan 31, 2027. " +
-          "Use RunKey[] instead. " +
-          "See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#annotation-queues-add-runs for the migration guide.",
-        {
-          type: "DeprecationWarning",
-          code: "LANGSMITH_DEPRECATED_ADD_RUNS_STRING_IDS",
-        },
-      );
       url = base;
       body = JSON.stringify(
         (runs as string[]).map((id, i) =>
@@ -7163,11 +7172,21 @@ export class Client implements LangSmithTracingClientInterface {
    * @param index - The index of the run to retrieve
    * @returns A Promise that resolves to a RunWithAnnotationQueueInfo object
    * @throws {Error} If the run is not found at the given index or for other API-related errors
+   * @deprecated Use `client.annotationQueues.items.list()` instead. See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#annotation-queues-read-runs for the migration guide. Will be removed after Jan 31, 2027.
    */
   public async getRunFromAnnotationQueue(
     queueId: string,
     index: number,
   ): Promise<RunWithAnnotationQueueInfo> {
+    warnOnce(
+      "getRunFromAnnotationQueue() is deprecated and will be removed after Jan 31, 2027. " +
+        "Use client.annotationQueues.items.list() instead. " +
+        "See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#annotation-queues-read-runs for the migration guide.",
+      {
+        type: "DeprecationWarning",
+        code: "LANGSMITH_DEPRECATED_GET_RUN_FROM_ANNOTATION_QUEUE",
+      },
+    );
     const baseUrl = `/annotation-queues/${assertUuid(queueId, "queueId")}/run`;
     const response = await this.caller.call(async () => {
       const res = await this._fetch(`${this.apiUrl}${baseUrl}/${index}`, {
@@ -7191,6 +7210,7 @@ export class Client implements LangSmithTracingClientInterface {
    * runs across all review states.
    * @param options.limit - The maximum number of runs to return
    * @returns An iterator of RunWithAnnotationQueueInfo objects
+   * @deprecated Use `client.annotationQueues.items.list()` instead. See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#annotation-queues-read-runs for the migration guide. Will be removed after Jan 31, 2027.
    */
   public async *listRunsFromAnnotationQueue(
     queueId: string,
@@ -7199,6 +7219,15 @@ export class Client implements LangSmithTracingClientInterface {
       limit?: number;
     } = {},
   ): AsyncIterableIterator<RunWithAnnotationQueueInfo> {
+    warnOnce(
+      "listRunsFromAnnotationQueue() is deprecated and will be removed after Jan 31, 2027. " +
+        "Use client.annotationQueues.items.list() instead. " +
+        "See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#annotation-queues-read-runs for the migration guide.",
+      {
+        type: "DeprecationWarning",
+        code: "LANGSMITH_DEPRECATED_LIST_RUNS_FROM_ANNOTATION_QUEUE",
+      },
+    );
     const { status, limit: userLimit } = options;
     const params = new URLSearchParams();
     const limit =
@@ -7227,11 +7256,21 @@ export class Client implements LangSmithTracingClientInterface {
    * Delete a run from an an annotation queue.
    * @param queueId - The ID of the annotation queue to delete the run from
    * @param queueRunId - The ID of the run to delete from the annotation queue
+   * @deprecated Use `client.annotationQueues.items.deleteAll()` instead. See https://docs.langchain.com/langsmith/smithdb-sdk-migration for the migration guide. Will be removed after Jan 31, 2027.
    */
   public async deleteRunFromAnnotationQueue(
     queueId: string,
     queueRunId: string,
   ): Promise<void> {
+    warnOnce(
+      "deleteRunFromAnnotationQueue() is deprecated and will be removed after Jan 31, 2027. " +
+        "Use client.annotationQueues.items.deleteAll() instead. " +
+        "See https://docs.langchain.com/langsmith/smithdb-sdk-migration for the migration guide.",
+      {
+        type: "DeprecationWarning",
+        code: "LANGSMITH_DEPRECATED_DELETE_RUN_FROM_ANNOTATION_QUEUE",
+      },
+    );
     await this.caller.call(async () => {
       const res = await this._fetch(
         `${this.apiUrl}/annotation-queues/${assertUuid(
@@ -7253,10 +7292,20 @@ export class Client implements LangSmithTracingClientInterface {
   /**
    * Get the size of an annotation queue.
    * @param queueId - The ID of the annotation queue
+   * @deprecated Use `client.annotationQueues.items.retrieveCount()` instead. See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#annotation-queues-read-runs for the migration guide. Will be removed after Jan 31, 2027.
    */
   public async getSizeFromAnnotationQueue(
     queueId: string,
   ): Promise<{ size: number }> {
+    warnOnce(
+      "getSizeFromAnnotationQueue() is deprecated and will be removed after Jan 31, 2027. " +
+        "Use client.annotationQueues.items.retrieveCount() instead. " +
+        "See https://docs.langchain.com/langsmith/smithdb-sdk-migration-feedback#annotation-queues-read-runs for the migration guide.",
+      {
+        type: "DeprecationWarning",
+        code: "LANGSMITH_DEPRECATED_GET_SIZE_FROM_ANNOTATION_QUEUE",
+      },
+    );
     const response = await this.caller.call(async () => {
       const res = await this._fetch(
         `${this.apiUrl}/annotation-queues/${assertUuid(

@@ -12,9 +12,9 @@ import {
   skipOnRateLimit,
 } from "./utils.js";
 import { traceable } from "../traceable.js";
-import { requiresClickhouse } from "./utils/markers.js";
+import { requiresV2 } from "./utils/markers.js";
 
-requiresClickhouse.test(
+requiresV2.test(
   "Test persist update run",
   async () => {
     await skipOnRateLimit(async () => {
@@ -48,12 +48,13 @@ requiresClickhouse.test(
         trace_id: runId,
       });
 
-      await Promise.all([
-        waitUntilRunFound(langchainClient, runId, true),
+      const [storedRun] = await Promise.all([
+        waitUntilRunFound(langchainClient, runId, {
+          projectName,
+          checkOutputs: true,
+        }),
         waitUntilProjectFound(langchainClient, projectName),
       ]);
-
-      const storedRun = await langchainClient.readRun(runId);
       expect(storedRun.id).toEqual(runId);
       await langchainClient.deleteProject({ projectName });
     });
@@ -96,12 +97,13 @@ test.skip("Test persist update runs above the batch size limit", async () => {
         trace_id: runId,
         end_time: Math.floor(new Date().getTime() / 1000),
       });
-      await Promise.all([
-        waitUntilRunFound(langchainClient, runId, true),
+      const [storedRun] = await Promise.all([
+        waitUntilRunFound(langchainClient, runId, {
+          projectName,
+          checkOutputs: true,
+        }),
         waitUntilProjectFound(langchainClient, projectName),
       ]);
-
-      const storedRun = await langchainClient.readRun(runId);
       expect(storedRun.id).toEqual(runId);
     };
 
@@ -111,7 +113,7 @@ test.skip("Test persist update runs above the batch size limit", async () => {
   });
 }, 180_000);
 
-requiresClickhouse.test(
+requiresV2.test(
   "Test persist update run with delay",
   async () => {
     await skipOnRateLimit(async () => {
@@ -146,11 +148,13 @@ requiresClickhouse.test(
         trace_id: runId,
         end_time: Math.floor(new Date().getTime() / 1000),
       });
-      await Promise.all([
-        waitUntilRunFound(langchainClient, runId, true),
+      const [storedRun] = await Promise.all([
+        waitUntilRunFound(langchainClient, runId, {
+          projectName,
+          checkOutputs: true,
+        }),
         waitUntilProjectFound(langchainClient, projectName),
       ]);
-      const storedRun = await langchainClient.readRun(runId);
       expect(storedRun.id).toEqual(runId);
       await langchainClient.deleteProject({ projectName });
     });
@@ -158,7 +162,7 @@ requiresClickhouse.test(
   180_000,
 );
 
-requiresClickhouse.test(
+requiresV2.test(
   "Test persist update run tree",
   async () => {
     await skipOnRateLimit(async () => {
@@ -181,11 +185,13 @@ requiresClickhouse.test(
       await runTree.postRun();
       await runTree.end({ output: "foo2" });
       await runTree.patchRun();
-      await Promise.all([
-        waitUntilRunFound(langchainClient, runId, true),
+      const [storedRun] = await Promise.all([
+        waitUntilRunFound(langchainClient, runId, {
+          projectName,
+          checkOutputs: true,
+        }),
         waitUntilProjectFound(langchainClient, projectName),
       ]);
-      const storedRun = await langchainClient.readRun(runId);
       expect(storedRun.id).toEqual(runId);
       expect(storedRun.dotted_order).toEqual(runTree.dotted_order);
       expect(storedRun.trace_id).toEqual(runTree.trace_id);
@@ -197,7 +203,7 @@ requiresClickhouse.test(
   180_000,
 );
 
-requiresClickhouse.test(
+requiresV2.test(
   "Test persist run with attachment",
   async () => {
     await skipOnRateLimit(async () => {
@@ -239,12 +245,13 @@ requiresClickhouse.test(
         end_time: Math.floor(new Date().getTime() / 1000),
       });
 
-      await Promise.all([
-        waitUntilRunFound(langchainClient, runId, true),
+      const [storedRun] = await Promise.all([
+        waitUntilRunFound(langchainClient, runId, {
+          projectName,
+          checkOutputs: true,
+        }),
         waitUntilProjectFound(langchainClient, projectName),
       ]);
-
-      const storedRun = await langchainClient.readRun(runId);
       expect(storedRun.id).toEqual(runId);
       await langchainClient.deleteProject({ projectName });
     });

@@ -3174,3 +3174,98 @@ describe("run sharing deprecations", () => {
     },
   );
 });
+
+describe("annotation queue and group runs deprecations", () => {
+  const QUEUE_ID = "00000000-0000-4000-8000-000000000031";
+  const RUN_ID = "00000000-0000-4000-8000-000000000032";
+  const PROJECT_ID = "00000000-0000-4000-8000-000000000033";
+
+  let client: Client;
+  let warnings: string[];
+  let emitWarningSpy: { mockRestore: () => void };
+
+  beforeEach(() => {
+    _resetWarnedMessages();
+    client = new Client({
+      apiKey: "test-key",
+      apiUrl: "https://api.smith.langchain.com",
+    });
+    warnings = [];
+    emitWarningSpy = jest
+      .spyOn(process, "emitWarning")
+      .mockImplementation((message) => {
+        warnings.push(String(message));
+      });
+  });
+
+  afterEach(() => emitWarningSpy.mockRestore());
+
+  const drain = async (iterable: AsyncIterable<unknown>) => {
+    for await (const _ of iterable) {
+      // drain
+    }
+  };
+
+  it.each([
+    [
+      "addRunsToAnnotationQueue",
+      {},
+      () => client.addRunsToAnnotationQueue(QUEUE_ID, [RUN_ID]),
+      "client.annotationQueues.items.create()",
+    ],
+    [
+      "getRunFromAnnotationQueue",
+      { id: RUN_ID, start_time: "2026-01-01T00:00:00Z" },
+      () => client.getRunFromAnnotationQueue(QUEUE_ID, 0),
+      "client.annotationQueues.items.list()",
+    ],
+    [
+      "listRunsFromAnnotationQueue",
+      [],
+      () => drain(client.listRunsFromAnnotationQueue(QUEUE_ID)),
+      "client.annotationQueues.items.list()",
+    ],
+    [
+      "deleteRunFromAnnotationQueue",
+      {},
+      () => client.deleteRunFromAnnotationQueue(QUEUE_ID, RUN_ID),
+      "client.annotationQueues.items.deleteAll()",
+    ],
+    [
+      "getSizeFromAnnotationQueue",
+      { size: 0 },
+      () => client.getSizeFromAnnotationQueue(QUEUE_ID),
+      "client.annotationQueues.items.retrieveCount()",
+    ],
+    [
+      "listGroupRuns",
+      { groups: [], total: 0 },
+      () =>
+        drain(
+          client.listGroupRuns({
+            projectId: PROJECT_ID,
+            groupBy: "conversation",
+          }),
+        ),
+      "client.threads.query()",
+    ],
+  ])(
+    "%s() warns once and names its replacement",
+    async (name, body, call, replacement) => {
+      jest.spyOn(client as any, "_fetch").mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => body,
+        text: async () => "",
+      } as never);
+      await call();
+
+      const emitted = warnings.filter((w) =>
+        w.includes(`${name}() is deprecated`),
+      );
+      expect(emitted).toHaveLength(1);
+      expect(emitted[0]).toContain(`Use ${replacement} instead.`);
+    },
+  );
+});

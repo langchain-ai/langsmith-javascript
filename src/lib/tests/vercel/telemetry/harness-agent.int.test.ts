@@ -7,8 +7,11 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { Client } from "../../../client.js";
 import { LangSmithTelemetry } from "../../../experimental/vercel/telemetry.js";
-import { toArray, waitUntil, testRunStart } from "../../utils.js";
+import type { Run as V2Run } from "../../../../resources/runs.js";
+import { getParentRunId, queryRuns, waitUntil } from "../../utils.js";
 import { getAssumedTreeFromCalls } from "../../utils/tree.js";
+
+type PersistedRun = V2Run & { extra?: { metadata?: Record<string, any> } };
 
 const PROJECT_NAME = "js-ai-sdk-harness-pi-integration";
 const ROOT_RUN_NAME = "AI SDK HarnessAgent with Pi";
@@ -259,28 +262,25 @@ test.skip("uploads a real HarnessAgent and Pi trace", async () => {
     ).toBeGreaterThan(0);
 
     const readPersistedRuns = () =>
-      toArray(
-        client.listRuns({
-          startTime: testRunStart,
-          projectName: PROJECT_NAME,
-          traceId: harnessRoot.trace_id,
-        }),
-      );
-    let persistedRuns = await readPersistedRuns();
-    let persistedFinalLlmRun = await client.readRun(finalLlmRun.id);
+      queryRuns(client, PROJECT_NAME, {
+        trace_id: harnessRoot.trace_id,
+      }) as Promise<PersistedRun[]>;
+    let persistedRuns: PersistedRun[] = [];
+    let persistedFinalLlmRun: PersistedRun | undefined;
     await waitUntil(
       async () => {
-        [persistedRuns, persistedFinalLlmRun] = await Promise.all([
-          readPersistedRuns(),
-          client.readRun(finalLlmRun.id),
-        ]);
+        persistedRuns = await readPersistedRuns();
+        persistedFinalLlmRun = persistedRuns.find(
+          (run) => run.id === finalLlmRun.id,
+        );
         return (
           persistedRuns.some(
             (run) =>
               run.id === harnessRoot.id &&
-              run.parent_run_id == null &&
+              getParentRunId(run) == null &&
               JSON.stringify(run.outputs).includes(TASK_FINAL_RESPONSE),
           ) &&
+          persistedFinalLlmRun != null &&
           JSON.stringify(persistedFinalLlmRun.inputs).includes(
             '"role":"tool"',
           ) &&
@@ -291,8 +291,8 @@ test.skip("uploads a real HarnessAgent and Pi trace", async () => {
           persistedRuns.some(
             (run) =>
               run.name === "bash" &&
-              run.run_type === "tool" &&
-              run.parent_run_id === harnessRoot.id &&
+              run.run_type?.toUpperCase() === "TOOL" &&
+              getParentRunId(run) === harnessRoot.id &&
               JSON.stringify(run.inputs).includes(TASK_FILE_NAME) &&
               !JSON.stringify(run.inputs).includes('"role":"user"') &&
               !JSON.stringify(run.inputs).includes('"type":"tool-call"') &&
@@ -305,7 +305,7 @@ test.skip("uploads a real HarnessAgent and Pi trace", async () => {
       "Waiting for the HarnessAgent with Pi trace",
     );
     expect(
-      persistedRuns.filter((run) => run.parent_run_id == null),
+      persistedRuns.filter((run) => getParentRunId(run) == null),
     ).toMatchObject([
       {
         name: ROOT_RUN_NAME,
@@ -319,10 +319,12 @@ test.skip("uploads a real HarnessAgent and Pi trace", async () => {
       (run) => run.id === harnessRoot.id,
     );
     expect(persistedRoot?.extra?.metadata).not.toHaveProperty("usage_metadata");
+    if (!persistedFinalLlmRun)
+      throw new Error("Expected a persisted final Pi LLM run");
     expectCompleteToolHistory(persistedFinalLlmRun.inputs);
+    expect(getParentRunId(persistedFinalLlmRun)).toBe(harnessRoot.id);
     expect(persistedFinalLlmRun).toMatchObject({
-      parent_run_id: harnessRoot.id,
-      run_type: "llm",
+      run_type: expect.stringMatching(/^llm$/i),
       end_time: expect.anything(),
       extra: {
         metadata: {
@@ -342,13 +344,23 @@ test.skip("uploads a real HarnessAgent and Pi trace", async () => {
         ?.total_tokens as number,
     ).toBeGreaterThan(0);
     const persistedToolRun = persistedRuns.find(
-      (run) => run.name === "bash" && run.run_type === "tool",
+      (run) => run.name === "bash" && run.run_type?.toUpperCase() === "TOOL",
     );
     if (!persistedToolRun)
       throw new Error("Expected a persisted Bash tool run");
-    expectToolMessageRun(persistedToolRun, harnessRoot.id);
+    expectToolMessageRun(
+      {
+        ...persistedToolRun,
+        run_type: persistedToolRun.run_type?.toLowerCase(),
+        parent_run_id: getParentRunId(persistedToolRun),
+      },
+      harnessRoot.id,
+    );
 
-    const traceUrl = await client.getRunUrl({ run: harnessRoot });
+    const { url: traceUrl } = await client.runs.getURL(harnessRoot.id, {
+      project_id: persistedFinalLlmRun.project_id as string,
+      trace_id: harnessRoot.trace_id as string,
+    });
     console.log(`\nReal AI SDK HarnessAgent + Pi trace: ${traceUrl}\n`);
   } finally {
     jest.restoreAllMocks();
@@ -640,38 +652,37 @@ test.skip("uploads a nested HarnessAgent and Pi coordinator/subagent trace", asy
 
     const coordinatorTraceId = coordinatorRoot.trace_id;
     const readTrace = () =>
-      toArray(
-        client.listRuns({
-          startTime: testRunStart,
-          projectName: PROJECT_NAME,
-          traceId: coordinatorTraceId,
-        }),
-      );
-    let persistedRuns = await readTrace();
-    let persistedCoordinatorLlm = await client.readRun(finalCoordinatorLlm.id);
-    let persistedSubagentLlm = await client.readRun(subagentLlm.id);
+      queryRuns(client, PROJECT_NAME, {
+        trace_id: coordinatorTraceId,
+      }) as Promise<PersistedRun[]>;
+    let persistedRuns: PersistedRun[] = [];
+    let persistedCoordinatorLlm: PersistedRun | undefined;
+    let persistedSubagentLlm: PersistedRun | undefined;
     await waitUntil(
       async () => {
-        [persistedRuns, persistedCoordinatorLlm, persistedSubagentLlm] =
-          await Promise.all([
-            readTrace(),
-            client.readRun(finalCoordinatorLlm.id),
-            client.readRun(subagentLlm.id),
-          ]);
+        persistedRuns = await readTrace();
+        persistedCoordinatorLlm = persistedRuns.find(
+          (run) => run.id === finalCoordinatorLlm.id,
+        );
+        persistedSubagentLlm = persistedRuns.find(
+          (run) => run.id === subagentLlm.id,
+        );
         return (
           persistedRuns.some((run) => run.id === coordinatorRoot.id) &&
           persistedRuns.some(
             (run) =>
               run.id === delegateRun.id &&
-              run.parent_run_id === coordinatorRoot.id,
+              getParentRunId(run) === coordinatorRoot.id,
           ) &&
           persistedRuns.some(
             (run) =>
               run.id === subagentRoot.id &&
-              run.parent_run_id === delegateRun.id &&
+              getParentRunId(run) === delegateRun.id &&
               run.trace_id === coordinatorTraceId,
           ) &&
+          persistedCoordinatorLlm != null &&
           hasCompletedLlmTelemetry(persistedCoordinatorLlm) &&
+          persistedSubagentLlm != null &&
           hasCompletedLlmTelemetry(persistedSubagentLlm)
         );
       },
@@ -679,6 +690,8 @@ test.skip("uploads a nested HarnessAgent and Pi coordinator/subagent trace", asy
       500,
       "Waiting for the persisted nested coordinator/subagent trace",
     );
+    if (!persistedCoordinatorLlm || !persistedSubagentLlm)
+      throw new Error("Expected the persisted coordinator and subagent LLMs");
 
     const persistedCoordinatorRoot = persistedRuns.find(
       (run) => run.id === coordinatorRoot.id,
@@ -692,9 +705,9 @@ test.skip("uploads a nested HarnessAgent and Pi coordinator/subagent trace", asy
     expect(persistedSubagentRoot?.extra?.metadata).not.toHaveProperty(
       "usage_metadata",
     );
+    expect(getParentRunId(persistedCoordinatorLlm)).toBe(coordinatorRoot.id);
     expect(persistedCoordinatorLlm).toMatchObject({
-      parent_run_id: coordinatorRoot.id,
-      run_type: "llm",
+      run_type: expect.stringMatching(/^llm$/i),
       end_time: expect.anything(),
       extra: {
         metadata: {
@@ -711,9 +724,9 @@ test.skip("uploads a nested HarnessAgent and Pi coordinator/subagent trace", asy
       persistedCoordinatorLlm.extra?.metadata?.usage_metadata
         ?.total_tokens as number,
     ).toBeGreaterThan(0);
+    expect(getParentRunId(persistedSubagentLlm)).toBe(subagentRoot.id);
     expect(persistedSubagentLlm).toMatchObject({
-      parent_run_id: subagentRoot.id,
-      run_type: "llm",
+      run_type: expect.stringMatching(/^llm$/i),
       end_time: expect.anything(),
     });
     expectNonEmptyTextOutput(persistedSubagentLlm.outputs);
@@ -725,7 +738,10 @@ test.skip("uploads a nested HarnessAgent and Pi coordinator/subagent trace", asy
         ?.total_tokens as number,
     ).toBeGreaterThan(0);
 
-    const traceUrl = await client.getRunUrl({ run: coordinatorRoot });
+    const { url: traceUrl } = await client.runs.getURL(coordinatorRoot.id, {
+      project_id: persistedCoordinatorLlm.project_id as string,
+      trace_id: coordinatorTraceId,
+    });
     console.log(`\nReal nested Pi coordinator/subagent trace: ${traceUrl}\n`);
   } finally {
     jest.restoreAllMocks();

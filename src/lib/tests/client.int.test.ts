@@ -23,13 +23,20 @@ import {
   createRunsFactory,
   deleteDataset,
   deleteProject,
+  getParentRunId,
   pollRunsUntilCount,
   toArray,
   waitUntil,
+  waitUntilRunFound as waitUntilRunFoundV2,
   skipIfTransientError,
   testRunStart,
 } from "./utils.js";
-import { requiresBetaDataset, requiresClickhouse } from "./utils/markers.js";
+import {
+  requires,
+  requiresBetaDataset,
+  requiresClickhouse,
+  requiresV2,
+} from "./utils/markers.js";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { ChatOpenAI } from "@langchain/openai";
 import { RunnableSequence } from "@langchain/core/runnables";
@@ -336,7 +343,7 @@ test("Test list datasets", async () => {
   await langchainClient.deleteDataset({ datasetId: dataset2.id });
 }, 180_000);
 
-requiresClickhouse.test(
+requiresV2.test(
   "Test create feedback with source run",
   async () => {
     await skipIfTransientError(async () => {
@@ -374,8 +381,16 @@ requiresClickhouse.test(
 
       // Wait for runs to be ingested before creating feedback
       await Promise.all([
-        waitUntilRunFound(langchainClient, runId, true),
-        waitUntilRunFound(langchainClient, runId2, true),
+        waitUntilRunFoundV2(langchainClient, runId, {
+          projectName,
+          checkOutputs: true,
+          timeout: 210_000,
+        }),
+        waitUntilRunFoundV2(langchainClient, runId2, {
+          projectName,
+          checkOutputs: true,
+          timeout: 210_000,
+        }),
       ]);
 
       await langchainClient.createFeedback(runId, "test_feedback", {
@@ -409,7 +424,7 @@ requiresClickhouse.test(
   180_000,
 );
 
-requiresClickhouse.test(
+requiresV2.test(
   "Test create run with masked inputs/outputs",
   async () => {
     const langchainClient = new Client({
@@ -446,12 +461,16 @@ requiresClickhouse.test(
       outputs: { generation: "hi there 2" },
       end_time: new Date().getTime(),
     });
-    await waitUntilRunFound(langchainClient, runId, false);
-    const run1 = await langchainClient.readRun(runId);
+    const run1 = await waitUntilRunFoundV2(langchainClient, runId, {
+      projectName,
+      timeout: 210_000,
+    });
     expect(Object.keys(run1.inputs ?? {})).toHaveLength(0);
     expect(Object.keys(run1.outputs ?? {})).toHaveLength(0);
-    await waitUntilRunFound(langchainClient, runId2, false);
-    const run2 = await langchainClient.readRun(runId2);
+    const run2 = await waitUntilRunFoundV2(langchainClient, runId2, {
+      projectName,
+      timeout: 210_000,
+    });
     expect(Object.keys(run2.inputs ?? {})).toHaveLength(0);
     expect(Object.keys(run2.outputs ?? {})).toHaveLength(0);
   },
@@ -499,31 +518,34 @@ test.skip("Test create run with revision id", async () => {
     });
 
     // Wait for both runs to be fully persisted
-    await waitUntilRunFound(
-      langchainClient,
-      runId,
-      (run: Run | undefined) => Object.keys(run?.outputs || {}).length !== 0,
-    );
-    await waitUntilRunFound(langchainClient, runId2);
+    await waitUntilRunFoundV2(langchainClient, runId, {
+      projectName,
+      checkOutputs: true,
+      timeout: 210_000,
+    });
+    await waitUntilRunFoundV2(langchainClient, runId2, {
+      projectName,
+      timeout: 210_000,
+    });
 
     // Add a delay to ensure metadata is fully propagated (sometimes takes longer in CI)
     await new Promise((resolve) => setTimeout(resolve, 3000));
 
-    const run1 = await langchainClient.readRun(runId);
-    expect(run1.extra?.metadata?.revision_id).toEqual("test_revision_id");
-    expect(run1.extra?.metadata.LANGCHAIN_OTHER_FIELD).toEqual(
-      "test_other_field",
-    );
-    expect(run1.extra?.metadata.LANGCHAIN_OTHER_KEY).toBeUndefined();
-    expect(run1.extra?.metadata).not.toHaveProperty("LANGCHAIN_API_KEY");
+    const run1 = await waitUntilRunFoundV2(langchainClient, runId, {
+      projectName,
+    });
+    expect(run1.metadata?.revision_id).toEqual("test_revision_id");
+    expect(run1.metadata?.LANGCHAIN_OTHER_FIELD).toEqual("test_other_field");
+    expect(run1.metadata?.LANGCHAIN_OTHER_KEY).toBeUndefined();
+    expect(run1.metadata).not.toHaveProperty("LANGCHAIN_API_KEY");
 
-    const run2 = await langchainClient.readRun(runId2);
-    expect(run2.extra?.metadata?.revision_id).toEqual("different_revision_id");
-    expect(run2.extra?.metadata.LANGCHAIN_OTHER_FIELD).toEqual(
-      "test_other_field",
-    );
-    expect(run2.extra?.metadata.LANGCHAIN_OTHER_KEY).toBeUndefined();
-    expect(run2.extra?.metadata).not.toHaveProperty("LANGCHAIN_API_KEY");
+    const run2 = await waitUntilRunFoundV2(langchainClient, runId2, {
+      projectName,
+    });
+    expect(run2.metadata?.revision_id).toEqual("different_revision_id");
+    expect(run2.metadata?.LANGCHAIN_OTHER_FIELD).toEqual("test_other_field");
+    expect(run2.metadata?.LANGCHAIN_OTHER_KEY).toBeUndefined();
+    expect(run2.metadata).not.toHaveProperty("LANGCHAIN_API_KEY");
   } finally {
     // Clean up environment variables
     // eslint-disable-next-line no-process-env
@@ -2409,7 +2431,7 @@ test("create example errors", async () => {
   await client.deleteDataset({ datasetName });
 });
 
-requiresClickhouse.test("fetch child runs", async () => {
+requiresV2.test("fetch child runs", async () => {
   const client = new Client({ callerOptions: { maxRetries: 6 } });
   const projectName = `__test_fetch_child_runs_${uuidv4().slice(0, 4)}`;
   await deleteProject(client, projectName);
@@ -2440,16 +2462,24 @@ requiresClickhouse.test("fetch child runs", async () => {
     expect(result).toEqual("From child|From parent");
 
     await client.awaitPendingTraceBatches();
-    await waitUntilRunFound(client, parentRunId);
+    const run = await waitUntilRunFoundV2(client, parentRunId, {
+      timeout: 210_000,
+    });
+    expect(run.id).toEqual(parentRunId);
 
-    const noChildRun = await client.readRun(parentRunId);
-    expect(noChildRun.id).toEqual(parentRunId);
-    expect(noChildRun.child_runs?.length).toBeUndefined();
-
-    const run = await client.readRun(parentRunId, { loadChildRuns: true });
-    expect(run.child_runs?.length).toEqual(1);
-    expect(run.child_runs?.[0].id).toEqual(childRunId);
-    expect(run.child_runs?.[0].outputs?.outputs).toEqual("From child");
+    const { items: traceRuns = [] } = await client.traces.listRuns(
+      parentRunId,
+      {
+        project_id: run.project_id as string,
+        selects: ["ID", "OUTPUTS", "PARENT_RUN_IDS"],
+      },
+    );
+    const childRuns = traceRuns.filter(
+      (traceRun) => getParentRunId(traceRun) === parentRunId,
+    );
+    expect(childRuns.length).toEqual(1);
+    expect(childRuns[0].id).toEqual(childRunId);
+    expect(childRuns[0].outputs?.outputs).toEqual("From child");
   } finally {
     await deleteProject(client, projectName);
   }
@@ -2460,7 +2490,7 @@ requiresClickhouse.test("fetch child runs", async () => {
 // runs. Previously split across
 // "listThreads returns threads grouped by thread_id" and
 // "readThread yields runs for a single thread_id".
-requiresClickhouse.test(
+requires("require_clickhouse", "require_v2").test(
   "listThreads groups runs by thread_id and readThread yields per-thread runs",
   async () => {
     const client = new Client({

@@ -12,7 +12,7 @@ import { v4 as uuidv4 } from "../utils/uuid/src/index.js";
 import * as ai from "ai";
 import { openai } from "@ai-sdk/openai";
 import { wrapAISDK } from "../experimental/vercel/index.js";
-import { requiresClickhouse } from "./utils/markers.js";
+import { requiresV2 } from "./utils/markers.js";
 
 const { generateText } = wrapAISDK(ai);
 
@@ -578,7 +578,7 @@ test("concurrent evaluate restores dataset order before summary", async () => {
   );
 });
 
-requiresClickhouse.test(
+requiresV2.test(
   "evaluate handles comparative target with ComparativeEvaluateOptions",
   async () => {
     const client = new Client();
@@ -608,8 +608,10 @@ requiresClickhouse.test(
     });
 
     await Promise.all(
-      [exp1, exp2].flatMap(({ results }) =>
-        results.flatMap(({ run }) => waitUntilRunFound(client, run.id)),
+      [exp1, exp2].flatMap(({ results, experimentName }) =>
+        results.flatMap(({ run }) =>
+          waitUntilRunFound(client, run.id, { projectName: experimentName }),
+        ),
       ),
     );
     // Create comparative evaluator

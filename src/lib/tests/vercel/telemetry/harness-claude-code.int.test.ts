@@ -5,8 +5,11 @@ import { jest } from "@jest/globals";
 import { randomUUID } from "node:crypto";
 import { Client } from "../../../client.js";
 import { LangSmithTelemetry } from "../../../experimental/vercel/telemetry.js";
-import { toArray, waitUntil, testRunStart } from "../../utils.js";
+import type { Run as V2Run } from "../../../../resources/runs.js";
+import { queryRuns, waitUntil } from "../../utils.js";
 import { getAssumedTreeFromCalls } from "../../utils/tree.js";
+
+type PersistedRun = V2Run & { extra?: { metadata?: Record<string, any> } };
 
 const PROJECT_NAME = "js-ai-sdk-harness-claude-code-integration";
 const ROOT_RUN_NAME = "AI SDK HarnessAgent with Claude Code";
@@ -175,13 +178,9 @@ test.skip(
       expectCompletedLlmRun(llmRun);
 
       const readTrace = () =>
-        toArray(
-          client.listRuns({
-            startTime: testRunStart,
-            projectName: PROJECT_NAME,
-            traceId: root.trace_id,
-          }),
-        );
+        queryRuns(client, PROJECT_NAME, {
+          trace_id: root.trace_id,
+        }) as Promise<PersistedRun[]>;
       let persistedRuns = await readTrace();
       await waitUntil(
         async () => {
@@ -212,7 +211,10 @@ test.skip(
         throw new Error("Expected a persisted Claude Code LLM run");
       expectCompletedLlmRun(persistedLlm);
 
-      const traceUrl = await client.getRunUrl({ run: root });
+      const { url: traceUrl } = await client.runs.getURL(root.id, {
+        project_id: persistedLlm.project_id as string,
+        trace_id: root.trace_id,
+      });
       console.log(
         `\nReal AI SDK HarnessAgent + Claude Code trace: ${traceUrl}\n`,
       );

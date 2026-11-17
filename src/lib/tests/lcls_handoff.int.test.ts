@@ -4,12 +4,11 @@ import { LangChainTracer } from "@langchain/core/tracers/tracer_langchain";
 import { MessageGraph } from "@langchain/langgraph";
 import { v4 as uuidv4 } from "../utils/uuid/src/index.js";
 import { Client } from "../client.js";
-import { Run } from "../schemas.js";
 import { traceable } from "../traceable.js";
-import { toArray, waitUntil, testRunStart } from "./utils.js";
-import { requiresClickhouse } from "./utils/markers.js";
+import { getParentRunId, queryRuns, waitUntil } from "./utils.js";
+import { requiresV2 } from "./utils/markers.js";
 
-requiresClickhouse.test(
+requiresV2.test(
   "Test handoff between run tree and LangChain code.",
   async () => {
     const projectName = `__test_handoff ${uuidv4()}`;
@@ -66,14 +65,10 @@ requiresClickhouse.test(
       expect(result[result.length - 1].content).toEqual("Hello! world");
 
       // First wait until at least one trace is found in the project
-      const getNestedFunction = (): Promise<Run[]> =>
-        toArray(
-          client.listRuns({
-            startTime: testRunStart,
-            projectName,
-            filter: "eq(name, 'add_negligible_value')",
-          }),
-        );
+      const getNestedFunction = () =>
+        queryRuns(client, projectName, {
+          filter: "eq(name, 'add_negligible_value')",
+        });
       await waitUntil(
         async () => {
           const traces = await getNestedFunction();
@@ -87,7 +82,7 @@ requiresClickhouse.test(
       expect(traces.length).toEqual(1);
       const trace = traces[0];
       expect(trace.name).toEqual("add_negligible_value");
-      expect(trace.parent_run_id).not.toBeNull();
+      expect(getParentRunId(trace)).toBeDefined();
       expect(trace.trace_id).toEqual(runId);
     } catch (e) {
       console.error(e);

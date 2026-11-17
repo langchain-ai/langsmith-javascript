@@ -2,6 +2,12 @@ import { Client } from "../client.js";
 import { v4 as uuidv4 } from "../utils/uuid/src/index.js";
 import { faker } from "@faker-js/faker";
 import { RunCreate } from "../schemas.js";
+import { getDefaultProjectName } from "../utils/project.js";
+import type {
+  Run as V2Run,
+  RunQueryV2Params,
+  RunSelectField,
+} from "../../resources/runs.js";
 
 /**
  * Lower bound for run queries in integration tests: every run a test reads was
@@ -42,59 +48,74 @@ export async function waitUntil(
   );
 }
 
-/**
- * Counts the runs in a project.
- *
- * `listRuns` comes first so environments that serve it keep the exact behavior
- * they had before; SmithDB-only backends don't serve it and never settle, so
- * they fall through to the v2 read path.
- */
+/** Fields the integration tests read back from stored runs. */
+const RUN_SELECTS: RunSelectField[] = [
+  "ID",
+  "NAME",
+  "RUN_TYPE",
+  "STATUS",
+  "START_TIME",
+  "END_TIME",
+  "ERROR",
+  "EXTRA",
+  "METADATA",
+  "INPUTS",
+  "OUTPUTS",
+  "PARENT_RUN_IDS",
+  "PROJECT_ID",
+  "TRACE_ID",
+  "DOTTED_ORDER",
+  "TAGS",
+];
+
+/** The direct parent of a run: the last of its ancestor ids. */
+export function getParentRunId(run: V2Run): string | undefined {
+  return run.parent_run_ids?.at(-1);
+}
+
+/** Queries the runs started since `testRunStart` in one or more projects. */
+export async function queryRuns(
+  client: Client,
+  projectName: string | string[],
+  params: Omit<RunQueryV2Params, "project_ids"> = {},
+): Promise<V2Run[]> {
+  const projectNames = Array.isArray(projectName) ? projectName : [projectName];
+  const projectIds = await Promise.all(
+    projectNames.map(
+      async (name) => (await client.readProject({ projectName: name })).id,
+    ),
+  );
+  return toArray(
+    client.runs.query({
+      project_ids: projectIds,
+      min_start_time: testRunStart.toISOString(),
+      selects: RUN_SELECTS,
+      ...params,
+    }),
+  );
+}
+
+/** Counts the runs in a project. */
 async function countProjectRuns(
   client: Client,
   projectName: string,
 ): Promise<number | null> {
   try {
-    const count = (
-      await toArray(client.listRuns({ startTime: testRunStart, projectName }))
-    ).length;
-    if (count > 0) return count;
-  } catch (_e) {
-    // Fall through to the v2 endpoint.
-  }
-  try {
-    const { id } = await client.readProject({ projectName });
-    let count = 0;
-    for await (const _run of client.runs.queryV2({
-      project_ids: [id],
-      selects: ["ID"],
-    })) {
-      count++;
-    }
-    return count;
+    return (await queryRuns(client, projectName, { selects: ["ID"] })).length;
   } catch (_e) {
     return null;
   }
 }
 
 /**
- * Resolves a run's trace id.
- *
- * `readRun` comes first to keep the previous behavior where it works; SmithDB
- * answers the legacy single-run read with 501, so those deployments fall through
- * to the v2 read. Callers create root runs, whose trace id is the run id itself
- * — the last resort.
+ * Resolves a run's trace id. Callers create root runs, whose trace id is the
+ * run id itself — the last resort.
  */
 export async function resolveTraceId(
   client: Client,
   runId: string,
   projectId: string,
 ): Promise<string> {
-  try {
-    const run = await client.readRun(runId);
-    if (run?.trace_id) return run.trace_id;
-  } catch (_e) {
-    // Fall through to the v2 endpoint.
-  }
   try {
     const run = await client.runs.retrieveV2(runId, {
       project_id: projectId,
@@ -143,71 +164,34 @@ export async function deleteDataset(
   }
 }
 
+/**
+ * Polls until the run is stored and returns it. With `checkOutputs`, also
+ * waits for non-empty outputs.
+ */
 export async function waitUntilRunFound(
   client: Client,
   runId: string,
-  checkOutputs = false,
-  timeout?: number,
-) {
-  return waitUntil(
+  {
+    projectName = getDefaultProjectName(),
+    checkOutputs = false,
+    timeout = 30_000,
+  }: { projectName?: string; checkOutputs?: boolean; timeout?: number } = {},
+): Promise<V2Run> {
+  let run: V2Run | undefined;
+  await waitUntil(
     async () => {
-      try {
-        const run = await client.readRun(runId);
-        if (checkOutputs) {
-          return (
-            run.outputs !== null &&
-            run.outputs !== undefined &&
-            Object.keys(run.outputs).length !== 0
-          );
-        }
-        return true;
-      } catch (_e) {
-        return false;
-      }
+      const { id } = await client.readProject({ projectName });
+      run = await client.runs.retrieve(runId, {
+        project_id: id,
+        selects: RUN_SELECTS,
+      });
+      return !checkOutputs || Object.keys(run.outputs ?? {}).length !== 0;
     },
-    timeout ?? 30_000,
+    timeout,
     3_000,
     `Waiting for run "${runId}"`,
   );
-}
-
-export async function waitUntilRunFoundByMetaField(
-  client: Client,
-  projectName: string,
-  metaKey: string,
-  metaValue: string,
-  checkOutputs = false,
-) {
-  return waitUntil(
-    async () => {
-      try {
-        const runs = await toArray(
-          client.listRuns({
-            startTime: testRunStart,
-            filter: `and(eq(metadata_key, "${metaKey}"), eq(metadata_value, "${metaValue}"))`,
-            projectName,
-          }),
-        );
-        if (runs.length === 0) {
-          return false;
-        }
-        const run = runs[0];
-        if (checkOutputs) {
-          return (
-            run.outputs !== null &&
-            run.outputs !== undefined &&
-            Object.keys(run.outputs).length !== 0
-          );
-        }
-        return true;
-      } catch (_e) {
-        return false;
-      }
-    },
-    30_000,
-    5_000,
-    `Waiting for run with metadata.${metaKey} = "${metaValue}"`,
-  );
+  return run as V2Run;
 }
 
 export async function waitUntilProjectFound(

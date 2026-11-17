@@ -443,20 +443,23 @@ const client = new Client({
     */
 });
 const datasetName = 'Example Dataset';
-// We will only use examples from the top level AgentExecutor run here,
-// and exclude runs that errored.
-const runs = await client.listRuns({
-  projectName: 'my_project',
-  executionOrder: 1,
-  error: false,
-});
+const project = await client.readProject({ projectName: 'my_project' });
 
 const dataset = await client.createDataset(datasetName, {
   description: 'An example dataset',
 });
 
-for (const run of runs) {
-  await client.createExample(run.inputs, run.outputs ?? {}, {
+// We will only use examples from the top level AgentExecutor run here,
+// and exclude runs that errored. Without min_start_time, only the last
+// 24 hours are queried.
+for await (const run of client.runs.query({
+  project_ids: [project.id],
+  is_root: true,
+  has_error: false,
+  min_start_time: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+  selects: ['INPUTS', 'OUTPUTS'],
+})) {
+  await client.createExample(run.inputs ?? {}, run.outputs ?? {}, {
     datasetId: dataset.id,
   });
 }
