@@ -1539,6 +1539,61 @@ describe("traceResponseMetadata", () => {
   });
 });
 
+describe("first-token timing", () => {
+  it.each([
+    { timing: 125.5, starts: [1000], expected: 1125.5 },
+    { timing: 0, starts: [1000], expected: 1000 },
+    { timing: 125, starts: [1000, 2000], expected: 2125 },
+    { timing: undefined, starts: [1000], expected: undefined },
+    { timing: NaN, starts: [1000], expected: undefined },
+    { timing: Infinity, starts: [1000], expected: undefined },
+    { timing: -1, starts: [1000], expected: undefined },
+    { timing: 125, starts: [], expected: undefined },
+  ])(
+    "records first output $timing from call starts $starts",
+    async ({ timing, starts, expected }) => {
+      const trace = createTrace();
+      const event = {
+        callId: "first-token-call",
+        operationId: "ai.streamText",
+        provider: "test-provider",
+        modelId: "test-model",
+        messages: [{ role: "user", content: "Hello" }],
+        stepNumber: 0,
+      };
+      await trace.integration.onStart(event);
+      await trace.integration.onStepStart(event);
+      const clock = vi.spyOn(Date, "now");
+      try {
+        for (const start of starts) {
+          clock.mockReturnValue(start);
+          await trace.integration.onLanguageModelCallStart(event);
+        }
+      } finally {
+        clock.mockRestore();
+      }
+      await trace.integration.onStepFinish({
+        ...event,
+        ...textResult("Hello"),
+        performance: { timeToFirstOutputMs: timing },
+      });
+      await trace.integration.onEnd({ ...event, text: "Hello" });
+
+      const tree = await expectTree(trace);
+      const tokens =
+        tree.data["test-provider:1"].events?.filter(
+          (event) => event.name === "new_token",
+        ) ?? [];
+      expect(tokens).toEqual(
+        expected === undefined
+          ? []
+          : [{ name: "new_token", time: new Date(expected).toISOString() }],
+      );
+      expect(tree.data["test-provider:0"].events ?? []).toEqual([]);
+    },
+  );
+});
+
 describe("streaming (onChunk)", () => {
   it.each([undefined, "user pressed stop"])(
     "should close root and step spans on abort (%s)",
@@ -1604,7 +1659,7 @@ describe("streaming (onChunk)", () => {
     },
   );
 
-  it("should handle onChunk as a no-op without errors", async () => {
+  it("records a first-token event on the streaming LLM step", async () => {
     const trace = createTrace();
 
     const result = streamText({
@@ -1614,7 +1669,11 @@ describe("streaming (onChunk)", () => {
     });
 
     await expect(result.text).resolves.toBe("Hello world");
-    await expect(expectTree(trace)).resolves.toMatchObject({
+    const tree = await expectTree(trace);
+    expect(tree.data["test-provider:1"].events).toEqual([
+      { name: "new_token", time: expect.any(String) },
+    ]);
+    expect(tree).toMatchObject({
       edges: [["test-provider:0", "test-provider:1"]],
       data: {
         "test-provider:0": {

@@ -328,6 +328,7 @@ export function LangSmithTelemetry(
 
   /** Per-generation state keyed by AI SDK `callId` (stable across nested calls). */
   const invocationsByCallId = new Map<string, InvocationState>();
+  const modelCallStartTimes = new WeakMap<RunTree, number>();
 
   const onStart: Telemetry["onStart"] = async (event) => {
     if (!isEnvTracingEnabled(tracingEnabled)) return;
@@ -487,6 +488,7 @@ export function LangSmithTelemetry(
 
       const stepRunTree = getOpenStepOrRoot(state);
       if (stepRunTree.run_type !== "llm") return;
+      modelCallStartTimes.set(stepRunTree, Date.now());
 
       const prevParams = isRecord(stepRunTree.extra?.invocation_params)
         ? stepRunTree.extra.invocation_params
@@ -606,6 +608,20 @@ export function LangSmithTelemetry(
     const stepRunTree = state.stepRunTrees.get(stepNumber);
     if (!stepRunTree) return;
     const harnessState = state.experimental_harness;
+    const callStart = modelCallStartTimes.get(stepRunTree);
+    const timeToFirstOutputMs = event.performance?.timeToFirstOutputMs;
+    if (
+      callStart != null &&
+      typeof timeToFirstOutputMs === "number" &&
+      Number.isFinite(timeToFirstOutputMs) &&
+      timeToFirstOutputMs >= 0 &&
+      !stepRunTree.events?.some((event) => event.name === "new_token")
+    ) {
+      stepRunTree.addEvent({
+        name: "new_token",
+        time: new Date(callStart + timeToFirstOutputMs).toISOString(),
+      });
+    }
 
     let outputs = {};
     if (event.recordOutputs !== false) {
