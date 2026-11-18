@@ -503,8 +503,12 @@ export class _ExperimentManager {
     if (this._numExamples === undefined) {
       this._numExamples = await _resolveNumExamples(this._data, this.client);
     }
-    const numExamples = this._numExamples ?? null;
-    const numRepetitions = this._numRepetitions ?? null;
+    // The server tracks progress against examples x repetitions. With per-run
+    // selection the uploaded count isn't known up front, so leave it unset
+    // rather than leave the experiment stuck below 100%.
+    const selectsRuns = typeof this._uploadRuns === "function";
+    const numExamples = selectsRuns ? null : this._numExamples ?? null;
+    const numRepetitions = selectsRuns ? null : this._numRepetitions ?? null;
     const evaluatorKeys = this._evaluatorKeys ?? null;
     for (let i = 0; i < 10; i++) {
       try {

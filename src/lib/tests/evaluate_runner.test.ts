@@ -338,7 +338,10 @@ describe("evaluation runner internals", () => {
     async ({ name, output, expected }) => {
       const now = new Date().toISOString();
       const client = {
-        createProject: async () => ({ id: "project", name: "sampled" }),
+        createProject: jest.fn(async () => ({
+          id: "project",
+          name: "sampled",
+        })),
         updateProject: async () => ({}),
         createRun: jest.fn(async () => undefined),
         updateRun: jest.fn(async () => undefined),
@@ -393,6 +396,10 @@ describe("evaluation runner internals", () => {
         expected,
       ]);
       expect(client.createRun).toHaveBeenCalledTimes(2);
+      // No expected run count, so the experiment doesn't wait for skipped runs.
+      expect(client.createProject).toHaveBeenCalledWith(
+        expect.objectContaining({ numExamples: null, numRepetitions: null }),
+      );
     },
   );
 
