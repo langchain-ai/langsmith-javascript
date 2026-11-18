@@ -58,8 +58,10 @@ describe('resource items', () => {
   test.skip('list: required and optional params', async () => {
     const response = await client.annotationQueues.items.list('queue_id', {
       status: 'needs_my_review',
+      agreement: 'disagreed',
       cursor: 'cursor',
       direction: 'forward',
+      has_unresolved_keys: true,
       item_type: 'RUN',
       max_start_time: '2019-12-27T18:11:19.117Z',
       min_start_time: '2019-12-27T18:11:19.117Z',
@@ -107,7 +109,9 @@ describe('resource items', () => {
   test.skip('retrieveCount: required and optional params', async () => {
     const response = await client.annotationQueues.items.retrieveCount('queue_id', {
       status: 'status',
+      agreement: 'disagreed',
       end_time: 'end_time',
+      has_unresolved_keys: true,
       max_start_time: '2019-12-27T18:11:19.117Z',
       min_start_time: '2019-12-27T18:11:19.117Z',
       start_time: 'start_time',

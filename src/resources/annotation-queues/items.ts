@@ -193,13 +193,28 @@ export interface ItemListResponse {
 
   added_at?: string;
 
+  /**
+   * Whether the item's reviewers agreed across its rubric keys.
+   */
+  agreement_state?: 'agreed' | 'disagreed' | 'none';
+
   assigned_to?: Array<string>;
 
   completed_by?: Array<string>;
 
   effective_added_at?: string;
 
+  /**
+   * True while a key the reviewers disagreed on has no final answer.
+   */
+  has_unresolved_keys?: boolean;
+
   item_type?: 'RUN' | 'THREAD';
+
+  /**
+   * The reviewers' result for each rubric key.
+   */
+  key_agreements?: { [key: string]: ItemListResponse.KeyAgreements };
 
   /**
    * LastReviewedTime is always present on the wire (null until reviewed).
@@ -219,6 +234,28 @@ export interface ItemListResponse {
   start_time?: string;
 
   thread_id?: string;
+}
+
+export namespace ItemListResponse {
+  export interface KeyAgreements {
+    answer?: KeyAgreements.Answer;
+
+    has_final?: boolean;
+
+    state?: 'agreed' | 'disagreed' | 'none';
+  }
+
+  export namespace KeyAgreements {
+    export interface Answer {
+      score?: number;
+
+      scores?: Array<number>;
+
+      value?: string;
+
+      values?: Array<string>;
+    }
+  }
 }
 
 export interface ItemCreateStatusResponse {
@@ -312,9 +349,24 @@ export interface ItemListParams extends ItemsCursorGetPaginationParams {
   status: 'needs_my_review' | 'needs_others_review' | 'archived';
 
   /**
+   * Only completed items whose reviewers disagreed on at least one rubric key.
+   * Returns 501 unless multi-reviewer queues are on for the workspace. Requires
+   * status=archived
+   */
+  agreement?: 'disagreed';
+
+  /**
    * Pagination direction. backward requires cursor
    */
   direction?: 'forward' | 'backward';
+
+  /**
+   * Only completed items that do (true) or do not (false) still have a disagreed
+   * rubric key with no final answer. Items with no agreement result match neither
+   * value. Returns 501 unless multi-reviewer queues are on for the workspace.
+   * Requires status=archived
+   */
+  has_unresolved_keys?: boolean;
 
   /**
    * Filter to RUN or THREAD
@@ -351,9 +403,24 @@ export interface ItemRetrieveCountParams {
   status: string;
 
   /**
+   * Count only completed items whose reviewers disagreed on at least one rubric key.
+   * Returns 501 unless multi-reviewer queues are on for the workspace. Requires
+   * status=archived
+   */
+  agreement?: 'disagreed';
+
+  /**
    * Archived strictly before this time. Only used when status=archived
    */
   end_time?: string;
+
+  /**
+   * Count only completed items that do (true) or do not (false) still have a
+   * disagreed rubric key with no final answer. Items with no agreement result match
+   * neither value. Returns 501 unless multi-reviewer queues are on for the
+   * workspace. Requires status=archived
+   */
+  has_unresolved_keys?: boolean;
 
   /**
    * Trace started at or before this time
