@@ -289,6 +289,7 @@ export namespace CustomChartsSection {
         | 'startable_runs_wait_max_by_priority'
         | 'startable_runs_by_priority'
         | 'running_runs_by_priority'
+        | 'out_of_memory_restarts'
         | null;
 
       workspace_id?: string | null;
@@ -937,6 +938,7 @@ export namespace CustomChartsSection {
           | 'startable_runs_wait_max_by_priority'
           | 'startable_runs_by_priority'
           | 'running_runs_by_priority'
+          | 'out_of_memory_restarts'
           | null;
 
         workspace_id?: string | null;
