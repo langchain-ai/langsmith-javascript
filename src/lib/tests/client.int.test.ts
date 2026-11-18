@@ -393,12 +393,17 @@ requiresV2.test(
         }),
       ]);
 
+      const { id: sessionId } = await langchainClient.readProject({
+        projectName,
+      });
       await langchainClient.createFeedback(runId, "test_feedback", {
+        sessionId,
         score: 0.5,
         sourceRunId: runId2,
         feedbackSourceType: "app",
       });
       await langchainClient.createFeedback(runId2, "test_feedback_2", {
+        sessionId,
         score: 0.5,
         feedbackSourceType: "app",
       });
