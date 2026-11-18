@@ -13,7 +13,7 @@ import {
   SystemMessage,
 } from "@langchain/core/messages";
 
-import { Client } from "../client.js";
+import { Client, type ListThreadsItem } from "../client.js";
 import { v4 as uuidv4 } from "../utils/uuid/src/index.js";
 import { ExampleCreate } from "../schemas.js";
 import * as fs from "node:fs";
@@ -24,7 +24,6 @@ import {
   deleteDataset,
   deleteProject,
   getParentRunId,
-  pollRunsUntilCount,
   toArray,
   waitUntil,
   waitUntilRunFound as waitUntilRunFoundV2,
@@ -32,7 +31,6 @@ import {
   testRunStart,
 } from "./utils.js";
 import {
-  requires,
   requiresBetaDataset,
   requiresClickhouse,
   requiresV2,
@@ -2495,7 +2493,7 @@ requiresV2.test("fetch child runs", async () => {
 // runs. Previously split across
 // "listThreads returns threads grouped by thread_id" and
 // "readThread yields runs for a single thread_id".
-requires("require_clickhouse", "require_v2").test(
+requiresClickhouse.test(
   "listThreads groups runs by thread_id and readThread yields per-thread runs",
   async () => {
     const client = new Client({
@@ -2542,11 +2540,19 @@ requires("require_clickhouse", "require_v2").test(
         start_time: now.getTime() + 2000,
         extra: threadMeta(threadB),
       });
-      await pollRunsUntilCount(client, projectName, 3, 30_000);
-      const threads = await client.listThreads({
-        projectName,
-        limit: 10,
-      });
+      let threads: ListThreadsItem[] = [];
+      await waitUntil(
+        async () => {
+          threads = await client.listThreads({ projectName, limit: 10 });
+          return (
+            threads.find((t) => t.thread_id === threadA)?.count === 2 &&
+            threads.find((t) => t.thread_id === threadB)?.count === 1
+          );
+        },
+        30_000,
+        1000,
+        "Waiting for both threads and all three runs",
+      );
       expect(Array.isArray(threads)).toBe(true);
       expect(threads.length).toBeGreaterThanOrEqual(2);
       for (const item of threads) {
