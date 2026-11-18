@@ -44,7 +44,7 @@ export interface ProductFeedbackCreateResponse {
 
   message: string;
 
-  source: 'LANGSMITH_CLI';
+  source: 'LANGSMITH_CLI' | 'LANGSMITH_MCP';
 
   client?: ProductFeedbackCreateResponse.Client;
 }
@@ -68,7 +68,7 @@ export interface ProductFeedbackRetrieveResponse {
 
   message: string;
 
-  source: 'LANGSMITH_CLI';
+  source: 'LANGSMITH_CLI' | 'LANGSMITH_MCP';
 
   client?: ProductFeedbackRetrieveResponse.Client;
 }
@@ -97,7 +97,7 @@ export interface ProductFeedbackCreateParams {
   /**
    * Body param
    */
-  source: 'LANGSMITH_CLI';
+  source: 'LANGSMITH_CLI' | 'LANGSMITH_MCP';
 
   /**
    * Body param
