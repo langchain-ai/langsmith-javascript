@@ -7,6 +7,7 @@ import {
   type ItemsCursorGetPaginationParams,
   PagePromise,
 } from '../../core/pagination';
+import { buildHeaders } from '../../internal/headers';
 import { RequestOptions } from '../../internal/request-options';
 import { path } from '../../internal/utils/path';
 
@@ -61,6 +62,19 @@ export class Items extends APIResource {
       path`/api/v1/platform/annotation-queues/${queueID}/items`,
       ItemsCursorGetPagination<ItemListResponse>,
       { query, ...options },
+    );
+  }
+
+  /**
+   * Remove the final for one rubric key. The key's answer goes back to the
+   * reviewers' majority, or null when they disagreed. Clearing a key that has no
+   * final succeeds.
+   */
+  clearFinal(key: string, params: ItemClearFinalParams, options?: RequestOptions): APIPromise<void> {
+    const { queue_id, item_id } = params;
+    return this._client.delete(
+      path`/api/v1/platform/annotation-queues/${queue_id}/items/${item_id}/finals/${key}`,
+      { ...options, headers: buildHeaders([{ Accept: '*/*' }, options?.headers]) },
     );
   }
 
@@ -126,6 +140,24 @@ export class Items extends APIResource {
     return this._client.get(
       path`/api/v1/platform/annotation-queues/${queue_id}/items/${itemID}/placement`,
       options,
+    );
+  }
+
+  /**
+   * Set the answer downstream uses for one rubric key when the item's reviewers
+   * disagreed. A key that already has a final can be changed even after reviewers
+   * come to agree. Multi-select keys take a list of category labels in values.
+   * final_set_by is empty for API key callers.
+   */
+  setFinal(
+    key: string,
+    params: ItemSetFinalParams,
+    options?: RequestOptions,
+  ): APIPromise<ItemSetFinalResponse> {
+    const { queue_id, item_id, ...body } = params;
+    return this._client.put(
+      path`/api/v1/platform/annotation-queues/${queue_id}/items/${item_id}/finals/${key}`,
+      { body, ...options },
     );
   }
 }
@@ -284,6 +316,44 @@ export interface ItemRetrievePlacementResponse {
   section?: 'needs_my_review' | 'needs_others_review' | 'archived';
 }
 
+export interface ItemSetFinalResponse {
+  answer?: ItemSetFinalResponse.Answer;
+
+  final?: ItemSetFinalResponse.Final;
+
+  final_set_at?: string;
+
+  final_set_by?: string;
+
+  has_final?: boolean;
+
+  key?: string;
+
+  state?: 'agreed' | 'disagreed' | 'none';
+}
+
+export namespace ItemSetFinalResponse {
+  export interface Answer {
+    score?: number;
+
+    scores?: Array<number>;
+
+    value?: string;
+
+    values?: Array<string>;
+  }
+
+  export interface Final {
+    score?: number;
+
+    scores?: Array<number>;
+
+    value?: string;
+
+    values?: Array<string>;
+  }
+}
+
 export interface ItemCreateParams {
   /**
    * Query param: Defaults to false. When true, upgrade the traces of added runs from
@@ -386,6 +456,18 @@ export interface ItemListParams extends ItemsCursorGetPaginationParams {
   min_start_time?: string;
 }
 
+export interface ItemClearFinalParams {
+  /**
+   * Annotation queue ID
+   */
+  queue_id: string;
+
+  /**
+   * Annotation queue item ID
+   */
+  item_id: string;
+}
+
 export interface ItemCreateStatusParams {
   override_added_at?: string;
 
@@ -445,6 +527,33 @@ export interface ItemRetrievePlacementParams {
   queue_id: string;
 }
 
+export interface ItemSetFinalParams {
+  /**
+   * Path param: Annotation queue ID
+   */
+  queue_id: string;
+
+  /**
+   * Path param: Annotation queue item ID
+   */
+  item_id: string;
+
+  /**
+   * Body param
+   */
+  score?: number;
+
+  /**
+   * Body param
+   */
+  value?: string;
+
+  /**
+   * Body param
+   */
+  values?: Array<string>;
+}
+
 export declare namespace Items {
   export {
     type ItemCreateResponse as ItemCreateResponse,
@@ -454,13 +563,16 @@ export declare namespace Items {
     type ItemDeleteAllResponse as ItemDeleteAllResponse,
     type ItemRetrieveCountResponse as ItemRetrieveCountResponse,
     type ItemRetrievePlacementResponse as ItemRetrievePlacementResponse,
+    type ItemSetFinalResponse as ItemSetFinalResponse,
     type ItemListResponsesItemsCursorGetPagination as ItemListResponsesItemsCursorGetPagination,
     type ItemCreateParams as ItemCreateParams,
     type ItemUpdateParams as ItemUpdateParams,
     type ItemListParams as ItemListParams,
+    type ItemClearFinalParams as ItemClearFinalParams,
     type ItemCreateStatusParams as ItemCreateStatusParams,
     type ItemDeleteAllParams as ItemDeleteAllParams,
     type ItemRetrieveCountParams as ItemRetrieveCountParams,
     type ItemRetrievePlacementParams as ItemRetrievePlacementParams,
+    type ItemSetFinalParams as ItemSetFinalParams,
   };
 }

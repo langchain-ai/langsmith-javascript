@@ -70,6 +70,29 @@ describe('resource items', () => {
   });
 
   // Mock server tests are disabled
+  test.skip('clearFinal: only required params', async () => {
+    const responsePromise = client.annotationQueues.items.clearFinal('key', {
+      queue_id: 'queue_id',
+      item_id: 'item_id',
+    });
+    const rawResponse = await responsePromise.asResponse();
+    expect(rawResponse).toBeInstanceOf(Response);
+    const response = await responsePromise;
+    expect(response).not.toBeInstanceOf(Response);
+    const dataAndResponse = await responsePromise.withResponse();
+    expect(dataAndResponse.data).toBe(response);
+    expect(dataAndResponse.response).toBe(rawResponse);
+  });
+
+  // Mock server tests are disabled
+  test.skip('clearFinal: required and optional params', async () => {
+    const response = await client.annotationQueues.items.clearFinal('key', {
+      queue_id: 'queue_id',
+      item_id: 'item_id',
+    });
+  });
+
+  // Mock server tests are disabled
   test.skip('createStatus', async () => {
     const responsePromise = client.annotationQueues.items.createStatus('queue_item_id', {});
     const rawResponse = await responsePromise.asResponse();
@@ -136,6 +159,32 @@ describe('resource items', () => {
   test.skip('retrievePlacement: required and optional params', async () => {
     const response = await client.annotationQueues.items.retrievePlacement('item_id', {
       queue_id: 'queue_id',
+    });
+  });
+
+  // Mock server tests are disabled
+  test.skip('setFinal: only required params', async () => {
+    const responsePromise = client.annotationQueues.items.setFinal('key', {
+      queue_id: 'queue_id',
+      item_id: 'item_id',
+    });
+    const rawResponse = await responsePromise.asResponse();
+    expect(rawResponse).toBeInstanceOf(Response);
+    const response = await responsePromise;
+    expect(response).not.toBeInstanceOf(Response);
+    const dataAndResponse = await responsePromise.withResponse();
+    expect(dataAndResponse.data).toBe(response);
+    expect(dataAndResponse.response).toBe(rawResponse);
+  });
+
+  // Mock server tests are disabled
+  test.skip('setFinal: required and optional params', async () => {
+    const response = await client.annotationQueues.items.setFinal('key', {
+      queue_id: 'queue_id',
+      item_id: 'item_id',
+      score: 0,
+      value: 'value',
+      values: ['string'],
     });
   });
 });

@@ -34,13 +34,16 @@ export {
   type ItemDeleteAllResponse,
   type ItemRetrieveCountResponse,
   type ItemRetrievePlacementResponse,
+  type ItemSetFinalResponse,
   type ItemCreateParams,
   type ItemUpdateParams,
   type ItemListParams,
+  type ItemClearFinalParams,
   type ItemCreateStatusParams,
   type ItemDeleteAllParams,
   type ItemRetrieveCountParams,
   type ItemRetrievePlacementParams,
+  type ItemSetFinalParams,
   type ItemListResponsesItemsCursorGetPagination,
 } from './items';
 export {

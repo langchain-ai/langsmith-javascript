@@ -3,6 +3,7 @@
 import { APIResource } from '../../core/resource';
 import * as ItemsAPI from './items';
 import {
+  ItemClearFinalParams,
   ItemCreateParams,
   ItemCreateResponse,
   ItemCreateStatusParams,
@@ -16,6 +17,8 @@ import {
   ItemRetrieveCountResponse,
   ItemRetrievePlacementParams,
   ItemRetrievePlacementResponse,
+  ItemSetFinalParams,
+  ItemSetFinalResponse,
   ItemUpdateParams,
   ItemUpdateResponse,
   Items,
@@ -819,13 +822,16 @@ export declare namespace AnnotationQueues {
     type ItemDeleteAllResponse as ItemDeleteAllResponse,
     type ItemRetrieveCountResponse as ItemRetrieveCountResponse,
     type ItemRetrievePlacementResponse as ItemRetrievePlacementResponse,
+    type ItemSetFinalResponse as ItemSetFinalResponse,
     type ItemListResponsesItemsCursorGetPagination as ItemListResponsesItemsCursorGetPagination,
     type ItemCreateParams as ItemCreateParams,
     type ItemUpdateParams as ItemUpdateParams,
     type ItemListParams as ItemListParams,
+    type ItemClearFinalParams as ItemClearFinalParams,
     type ItemCreateStatusParams as ItemCreateStatusParams,
     type ItemDeleteAllParams as ItemDeleteAllParams,
     type ItemRetrieveCountParams as ItemRetrieveCountParams,
     type ItemRetrievePlacementParams as ItemRetrievePlacementParams,
+    type ItemSetFinalParams as ItemSetFinalParams,
   };
 }
