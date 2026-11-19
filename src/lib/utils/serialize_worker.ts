@@ -14,6 +14,8 @@
  *     op = "serialize" -> worker returns bytes as a transferable ArrayBuffer
  *   worker -> main: { id, bytes?: ArrayBuffer, error?: string }
  *
+ * Payloads are passed through applyToJSON() first, see there.
+ *
  * The worker source is inlined as a string so the library bundles cleanly
  * under webpack/esbuild/ncc without requiring a separate asset file.
  */
@@ -125,6 +127,184 @@ type Pending = {
   reject: (err: Error) => void;
 };
 
+/**
+ * True for values that are always left to the structured clone, whatever
+ * `toJSON()` they carry: Dates are stringified as ISO timestamps by both
+ * paths, and binary data is never expanded into a numeric JSON array on the
+ * main thread.
+ */
+function isLeftToClone(val: object): boolean {
+  return (
+    val instanceof Date ||
+    val instanceof RegExp ||
+    val instanceof ArrayBuffer ||
+    ArrayBuffer.isView(val)
+  );
+}
+
+/**
+ * True for values the structured clone carries as they are, which a copy of
+ * their own properties would not: Errors and boxed primitives. They are left
+ * to the clone unless they define a `toJSON()` to run first.
+ */
+function survivesClone(val: object): boolean {
+  return (
+    val instanceof Error ||
+    val instanceof Number ||
+    val instanceof String ||
+    val instanceof Boolean
+  );
+}
+
+/**
+ * Cheap, short-circuiting walk that returns true if any object in the payload
+ * graph defines a `toJSON()` method that the main thread would have to run.
+ *
+ * Mirrors the traversal in `hasLargeString`: iterative, cycle-safe and
+ * allocation-free apart from the `seen` set.
+ */
+export function hasToJSON(value: unknown): boolean {
+  if (value === null || typeof value !== "object") return false;
+  const stack: unknown[] = [value];
+  const seen = new Set<object>();
+  while (stack.length > 0) {
+    const cur = stack.pop();
+    if (cur === null || typeof cur !== "object") continue;
+    const obj = cur as { toJSON?: unknown };
+    if (seen.has(obj)) continue;
+    seen.add(obj);
+    if (isLeftToClone(obj)) continue;
+    if (typeof obj.toJSON === "function") return true;
+    if (survivesClone(obj)) continue;
+    if (Array.isArray(obj)) {
+      for (let i = 0; i < obj.length; i++) stack.push(obj[i]);
+      continue;
+    }
+    if (obj instanceof Map) {
+      for (const [, v] of obj) stack.push(v);
+      continue;
+    }
+    if (obj instanceof Set) {
+      for (const v of obj) stack.push(v);
+      continue;
+    }
+    const keys = Object.keys(obj);
+    for (let i = 0; i < keys.length; i++) {
+      stack.push((obj as Record<string, unknown>)[keys[i]]);
+    }
+  }
+  return false;
+}
+
+type Copies = {
+  /** Copies of objects reached as ordinary values. */
+  plain: Map<object, unknown>;
+  /** Raw copies of `toJSON()` results that define `toJSON()` themselves. */
+  raw: Map<object, unknown>;
+};
+
+/**
+ * Deep-copy `value`, replacing every object that defines `toJSON()` with the
+ * value that method returns -- the same substitution `JSON.stringify` makes
+ * before our replacer sees a value.
+ *
+ * `key` is the property name the value was reached through, which is what
+ * `JSON.stringify` passes to `toJSON()`. Anything already visited is reused, so
+ * shared references and cycles survive the copy unchanged.
+ */
+function cloneWithToJSON(
+  value: unknown,
+  key: string,
+  copies: Copies,
+  isToJSONResult = false,
+): unknown {
+  if (value === null || typeof value !== "object") {
+    // postMessage cannot clone these. Stop here so the caller serializes
+    // inline without finishing a copy it would throw away.
+    if (typeof value === "function" || typeof value === "symbol") {
+      throw new Error("Payload holds a value the worker cannot receive.");
+    }
+    return value;
+  }
+  const obj = value as Record<string, unknown> & { toJSON?: unknown };
+  if (isLeftToClone(obj)) return obj;
+  // JSON.stringify does not call toJSON() again on what toJSON() returned,
+  // only on that value's children.
+  const definesToJSON = typeof obj.toJSON === "function";
+  if (!isToJSONResult && definesToJSON) {
+    const projected = (obj.toJSON as (key: string) => unknown).call(obj, key);
+    return cloneWithToJSON(projected, key, copies, true);
+  }
+  if (survivesClone(obj)) return obj;
+  // A toJSON() result that defines toJSON() itself is copied raw here, but
+  // must still be projected when reached as an ordinary value: the two
+  // copies are kept apart.
+  const seen = definesToJSON ? copies.raw : copies.plain;
+  const cached = seen.get(obj);
+  if (cached !== undefined) return cached;
+  if (Array.isArray(obj)) {
+    const out: unknown[] = new Array(obj.length);
+    seen.set(obj, out);
+    for (let i = 0; i < obj.length; i++) {
+      out[i] = cloneWithToJSON(obj[i], String(i), copies);
+    }
+    return out;
+  }
+  if (obj instanceof Map) {
+    const out = new Map<unknown, unknown>();
+    seen.set(obj, out);
+    for (const [k, v] of obj) {
+      out.set(k, cloneWithToJSON(v, String(k), copies));
+    }
+    return out;
+  }
+  if (obj instanceof Set) {
+    // An array, like the serializer makes of a Set: members whose toJSON()
+    // results are equal must not collapse into one.
+    const out: unknown[] = [];
+    seen.set(obj, out);
+    for (const v of obj) {
+      out.push(cloneWithToJSON(v, String(out.length), copies));
+    }
+    return out;
+  }
+  const out: Record<string, unknown> = {};
+  seen.set(obj, out);
+  const keys = Object.keys(obj);
+  for (let i = 0; i < keys.length; i++) {
+    const copy = cloneWithToJSON(obj[keys[i]], keys[i], copies);
+    if (keys[i] === "__proto__") {
+      // Assigning this key would set the prototype instead of a property.
+      Object.defineProperty(out, keys[i], {
+        value: copy,
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    } else {
+      out[keys[i]] = copy;
+    }
+  }
+  return out;
+}
+
+/**
+ * Apply `toJSON()` to a payload before it crosses a thread boundary.
+ *
+ * `postMessage` uses the structured clone algorithm, which copies own
+ * enumerable properties and drops prototypes -- so a `toJSON()` defined on a
+ * class (LangChain's `BaseMessage`, Decimal, Moment, Mongoose documents, ...)
+ * is silently lost on the worker path while the inline path honours it through
+ * `JSON.stringify`. That made the uploaded shape depend on the payload size.
+ *
+ * Returns the payload unchanged when nothing in the graph defines `toJSON()`,
+ * so plain JSON payloads are handed to the worker without being copied.
+ */
+export function applyToJSON(value: unknown): unknown {
+  if (!hasToJSON(value)) return value;
+  return cloneWithToJSON(value, "", { plain: new Map(), raw: new Map() });
+}
+
 export class SerializeWorker {
   private worker: WorkerLike | null = null;
   private nextId = 1;
@@ -225,12 +405,17 @@ export class SerializeWorker {
   async serialize(payload: unknown): Promise<Uint8Array<ArrayBuffer> | null> {
     const ok = await this.ensureStarted();
     if (!ok) return null;
+    const snapshot = applyToJSON(payload);
     const id = this.nextId++;
     return new Promise<Uint8Array<ArrayBuffer>>((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (this.worker as any).postMessage({ id, op: "serialize", payload });
+        (this.worker as any).postMessage({
+          id,
+          op: "serialize",
+          payload: snapshot,
+        });
       } catch (e) {
         // postMessage throws synchronously for DataCloneError, unclonable
         // values, detached buffers, etc.
