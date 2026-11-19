@@ -40,6 +40,9 @@ export class Runs extends APIResource {
   }
 
   /**
+   * GET with body payload — no resources created. Returns the runs matching the
+   * query passed as the request payload.
+   *
    * Returns a paginated list of runs for the given projects within min/max
    * start_time. Supports filters, cursor pagination, and `selects` to select fields
    * to return.
