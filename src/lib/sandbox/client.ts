@@ -689,6 +689,7 @@ export class SandboxClient {
       memBytes,
       fsCapacityBytes,
       labels,
+      tagValueIds,
       mountConfig,
       proxyConfig,
       runConfig,
@@ -747,6 +748,9 @@ export class SandboxClient {
     }
     if (labels !== undefined) {
       payload.labels = labels;
+    }
+    if (tagValueIds !== undefined) {
+      payload.tag_value_ids = [...tagValueIds];
     }
     if (mountConfig !== undefined) {
       validateMountConfigProxyConfig(mountConfig, proxyConfig);

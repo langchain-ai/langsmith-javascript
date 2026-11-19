@@ -820,6 +820,13 @@ export interface CreateSandboxOptions {
    */
   labels?: Record<string, string>;
   /**
+   * IDs of governed LangSmith tag values to attach to the sandbox. A cloud
+   * identity scoped to a tag (`subject_scope` `"tag:<id>"` in a `proxyConfig`
+   * or `mountConfig` rule) needs that tag here: the identity is fixed when the
+   * sandbox is created.
+   */
+  tagValueIds?: string[];
+  /**
    * Mount configuration forwarded to the server as `mount_config`. The backend
    * expands mount auth into runtime proxy rules. Explicit AWS/GCP proxy rules
    * in `proxyConfig` conflict with mount auth for the same provider.

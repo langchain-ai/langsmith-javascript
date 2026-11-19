@@ -972,6 +972,31 @@ describe("SandboxClient - createSandbox", () => {
     expect(sandbox.labels).toEqual({ env: "prod", team: "agents" });
   });
 
+  it("should send tag value IDs only when set", async () => {
+    const mockFetch = jest.fn<typeof fetch>().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        name: "test-sb",
+        dataplane_url: "https://dp.example.com",
+        status: "ready",
+      }),
+    } as Response);
+
+    const client = createClientWithMock(mockFetch);
+    await client.createSandbox("snap-123", {
+      tagValueIds: ["0a1b2c3d-0000-7000-8000-000000000001"],
+    });
+    await client.createSandbox("snap-123");
+
+    const [setBody, unsetBody] = mockFetch.mock.calls.map(([, init]) =>
+      JSON.parse((init as RequestInit).body as string),
+    );
+    expect(setBody.tag_value_ids).toEqual([
+      "0a1b2c3d-0000-7000-8000-000000000001",
+    ]);
+    expect(unsetBody).not.toHaveProperty("tag_value_ids");
+  });
+
   it("should send wait_for_ready: false and omit timeout when waitForReady is false", async () => {
     const mockFetch = jest.fn<typeof fetch>().mockResolvedValue({
       ok: true,
