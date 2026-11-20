@@ -171,6 +171,7 @@ export {
   type SnapshotListResponse,
   type SnapshotResponse,
   type SandboxListUsageCostsResponse,
+  type SandboxRetrieveUsageResponse,
   type SandboxListUsageCostsParams,
   type SandboxResponsesItemsCursorGetPagination,
   type SnapshotResponsesItemsCursorGetPagination,

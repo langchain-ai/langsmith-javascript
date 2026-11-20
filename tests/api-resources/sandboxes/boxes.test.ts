@@ -94,6 +94,18 @@ describe('resource boxes', () => {
   });
 
   // Mock server tests are disabled
+  test.skip('batchDelete', async () => {
+    const responsePromise = client.sandboxes.boxes.batchDelete({});
+    const rawResponse = await responsePromise.asResponse();
+    expect(rawResponse).toBeInstanceOf(Response);
+    const response = await responsePromise;
+    expect(response).not.toBeInstanceOf(Response);
+    const dataAndResponse = await responsePromise.withResponse();
+    expect(dataAndResponse.data).toBe(response);
+    expect(dataAndResponse.response).toBe(rawResponse);
+  });
+
+  // Mock server tests are disabled
   test.skip('createSnapshot: only required params', async () => {
     const responsePromise = client.sandboxes.boxes.createSnapshot('name', { name: 'name' });
     const rawResponse = await responsePromise.asResponse();

@@ -237,6 +237,7 @@ import {
   SandboxListUsageCostsResponsesItemsCursorGetPagination,
   SandboxMountConfig,
   SandboxResponse,
+  SandboxRetrieveUsageResponse,
   SandboxStatusResponse,
   Sandboxes,
   ServiceURLResponse,
@@ -1397,6 +1398,7 @@ export declare namespace Langsmith {
     type SnapshotListResponse as SnapshotListResponse,
     type SnapshotResponse as SnapshotResponse,
     type SandboxListUsageCostsResponse as SandboxListUsageCostsResponse,
+    type SandboxRetrieveUsageResponse as SandboxRetrieveUsageResponse,
     type SandboxListUsageCostsResponsesItemsCursorGetPagination as SandboxListUsageCostsResponsesItemsCursorGetPagination,
     type SandboxListUsageCostsParams as SandboxListUsageCostsParams,
   };

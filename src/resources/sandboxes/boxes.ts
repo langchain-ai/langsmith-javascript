@@ -74,6 +74,13 @@ export class Boxes extends APIResource {
   }
 
   /**
+   * Delete multiple sandboxes by name or UUID in a single request.
+   */
+  batchDelete(body: BoxBatchDeleteParams, options?: RequestOptions): APIPromise<BoxBatchDeleteResponse> {
+    return this._client.post('/api/v2/sandboxes/boxes/batch-delete', { body, ...options });
+  }
+
+  /**
    * Create a snapshot by capturing the current state of a sandbox or promoting an
    * existing checkpoint.
    */
@@ -202,6 +209,20 @@ export class Boxes extends APIResource {
 
 export type BoxListServiceURLsResponsesItemsCursorGetPagination =
   ItemsCursorGetPagination<BoxListServiceURLsResponse>;
+
+export interface BoxBatchDeleteResponse {
+  deleted?: Array<string>;
+
+  skipped?: Array<BoxBatchDeleteResponse.Skipped>;
+}
+
+export namespace BoxBatchDeleteResponse {
+  export interface Skipped {
+    name?: string;
+
+    reason?: string;
+  }
+}
 
 export interface BoxListServiceURLsResponse {
   /**
@@ -485,6 +506,10 @@ export interface BoxListParams extends ItemsCursorGetPaginationParams {
   tag_value_id?: Array<string>;
 }
 
+export interface BoxBatchDeleteParams {
+  names?: Array<string>;
+}
+
 export interface BoxCreateSnapshotParams {
   name: string;
 
@@ -683,11 +708,13 @@ export interface BoxListServiceURLsParams extends ItemsCursorGetPaginationParams
 
 export declare namespace Boxes {
   export {
+    type BoxBatchDeleteResponse as BoxBatchDeleteResponse,
     type BoxListServiceURLsResponse as BoxListServiceURLsResponse,
     type BoxListServiceURLsResponsesItemsCursorGetPagination as BoxListServiceURLsResponsesItemsCursorGetPagination,
     type BoxCreateParams as BoxCreateParams,
     type BoxUpdateParams as BoxUpdateParams,
     type BoxListParams as BoxListParams,
+    type BoxBatchDeleteParams as BoxBatchDeleteParams,
     type BoxCreateSnapshotParams as BoxCreateSnapshotParams,
     type BoxDeleteServiceURLParams as BoxDeleteServiceURLParams,
     type BoxGenerateDownloadURLParams as BoxGenerateDownloadURLParams,

@@ -530,15 +530,18 @@ Types:
 - <code><a href="./src/resources/sandboxes/sandboxes.ts">SnapshotListResponse</a></code>
 - <code><a href="./src/resources/sandboxes/sandboxes.ts">SnapshotResponse</a></code>
 - <code><a href="./src/resources/sandboxes/sandboxes.ts">SandboxListUsageCostsResponse</a></code>
+- <code><a href="./src/resources/sandboxes/sandboxes.ts">SandboxRetrieveUsageResponse</a></code>
 
 Methods:
 
 - <code title="get /api/v2/sandboxes/usage/costs">client.sandboxes.<a href="./src/resources/sandboxes/sandboxes.ts">listUsageCosts</a>({ ...params }) -> SandboxListUsageCostsResponsesItemsCursorGetPagination</code>
+- <code title="get /api/v2/sandboxes/usage">client.sandboxes.<a href="./src/resources/sandboxes/sandboxes.ts">retrieveUsage</a>() -> SandboxRetrieveUsageResponse</code>
 
 ## Boxes
 
 Types:
 
+- <code><a href="./src/resources/sandboxes/boxes.ts">BoxBatchDeleteResponse</a></code>
 - <code><a href="./src/resources/sandboxes/boxes.ts">BoxListServiceURLsResponse</a></code>
 
 Methods:
@@ -548,6 +551,7 @@ Methods:
 - <code title="patch /api/v2/sandboxes/boxes/{name}">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">update</a>(name, { ...params }) -> SandboxResponse</code>
 - <code title="get /api/v2/sandboxes/boxes">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">list</a>({ ...params }) -> SandboxResponsesItemsCursorGetPagination</code>
 - <code title="delete /api/v2/sandboxes/boxes/{name}">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">delete</a>(name) -> void</code>
+- <code title="post /api/v2/sandboxes/boxes/batch-delete">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">batchDelete</a>({ ...params }) -> BoxBatchDeleteResponse</code>
 - <code title="post /api/v2/sandboxes/boxes/{name}/snapshot">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">createSnapshot</a>(name, { ...params }) -> SnapshotResponse</code>
 - <code title="delete /api/v2/sandboxes/boxes/{name}/service-urls">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">deleteServiceURL</a>(name, { ...params }) -> void</code>
 - <code title="post /api/v2/sandboxes/boxes/{name}/download-url">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">generateDownloadURL</a>(name, { ...params }) -> DownloadURLResponse</code>
@@ -556,6 +560,21 @@ Methods:
 - <code title="get /api/v2/sandboxes/boxes/{name}/service-urls">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">listServiceURLs</a>(name, { ...params }) -> BoxListServiceURLsResponsesItemsCursorGetPagination</code>
 - <code title="post /api/v2/sandboxes/boxes/{name}/start">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">start</a>(name) -> SandboxResponse</code>
 - <code title="post /api/v2/sandboxes/boxes/{name}/stop">client.sandboxes.boxes.<a href="./src/resources/sandboxes/boxes.ts">stop</a>(name) -> void</code>
+
+## Volumes
+
+Types:
+
+- <code><a href="./src/resources/sandboxes/volumes.ts">VolumeResponse</a></code>
+
+Methods:
+
+- <code title="post /api/v2/sandboxes/volumes">client.sandboxes.volumes.<a href="./src/resources/sandboxes/volumes.ts">create</a>({ ...params }) -> VolumeResponse</code>
+- <code title="get /api/v2/sandboxes/volumes/{volume}">client.sandboxes.volumes.<a href="./src/resources/sandboxes/volumes.ts">retrieve</a>(volume) -> VolumeResponse</code>
+- <code title="patch /api/v2/sandboxes/volumes/{volume}">client.sandboxes.volumes.<a href="./src/resources/sandboxes/volumes.ts">update</a>(volume, { ...params }) -> VolumeResponse</code>
+- <code title="get /api/v2/sandboxes/volumes">client.sandboxes.volumes.<a href="./src/resources/sandboxes/volumes.ts">list</a>({ ...params }) -> VolumeResponsesItemsCursorGetPagination</code>
+- <code title="delete /api/v2/sandboxes/volumes/{volume}">client.sandboxes.volumes.<a href="./src/resources/sandboxes/volumes.ts">delete</a>(volume) -> void</code>
+- <code title="post /api/v2/sandboxes/volumes/{volume}/clone">client.sandboxes.volumes.<a href="./src/resources/sandboxes/volumes.ts">clone</a>(volume, { ...params }) -> VolumeResponse</code>
 
 ## Registries
 

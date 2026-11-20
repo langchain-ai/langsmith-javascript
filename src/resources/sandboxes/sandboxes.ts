@@ -3,6 +3,8 @@
 import { APIResource } from '../../core/resource';
 import * as BoxesAPI from './boxes';
 import {
+  BoxBatchDeleteParams,
+  BoxBatchDeleteResponse,
   BoxCreateParams,
   BoxCreateSnapshotParams,
   BoxDeleteServiceURLParams,
@@ -31,6 +33,17 @@ import {
   SnapshotRetrieveByNameResponse,
   Snapshots,
 } from './snapshots';
+import * as VolumesAPI from './volumes';
+import {
+  VolumeCloneParams,
+  VolumeCreateParams,
+  VolumeListParams,
+  VolumeResponse,
+  VolumeResponsesItemsCursorGetPagination,
+  VolumeUpdateParams,
+  Volumes,
+} from './volumes';
+import { APIPromise } from '../../core/api-promise';
 import {
   ItemsCursorGetPagination,
   type ItemsCursorGetPaginationParams,
@@ -40,6 +53,7 @@ import { RequestOptions } from '../../internal/request-options';
 
 export class Sandboxes extends APIResource {
   boxes: BoxesAPI.Boxes = new BoxesAPI.Boxes(this._client);
+  volumes: VolumesAPI.Volumes = new VolumesAPI.Volumes(this._client);
   registries: RegistriesAPI.Registries = new RegistriesAPI.Registries(this._client);
   snapshots: SnapshotsAPI.Snapshots = new SnapshotsAPI.Snapshots(this._client);
 
@@ -61,6 +75,13 @@ export class Sandboxes extends APIResource {
       ItemsCursorGetPagination<SandboxListUsageCostsResponse>,
       { query, ...options },
     );
+  }
+
+  /**
+   * Get current sandbox resource usage and quota limits for the workspace
+   */
+  retrieveUsage(options?: RequestOptions): APIPromise<SandboxRetrieveUsageResponse> {
+    return this._client.get('/api/v2/sandboxes/usage', options);
   }
 }
 
@@ -1471,6 +1492,36 @@ export interface SandboxListUsageCostsResponse {
   vcpu_hours?: string | null;
 }
 
+export interface SandboxRetrieveUsageResponse {
+  cpu_limit_millicores?: number;
+
+  cpu_used_millicores?: number;
+
+  memory_limit_bytes?: number;
+
+  memory_used_bytes?: number;
+
+  pools_count?: number;
+
+  registries_count?: number;
+
+  sandbox_direct_count?: number;
+
+  sandbox_pool_replicas_count?: number;
+
+  sandbox_running_count?: number;
+
+  sandbox_stopped_count?: number;
+
+  sandboxes_limit?: number;
+
+  sandboxes_used?: number;
+
+  snapshots_count?: number;
+
+  templates_count?: number;
+}
+
 export interface SandboxListUsageCostsParams extends ItemsCursorGetPaginationParams {
   /**
    * Exclusive RFC3339 end time; the range must not exceed 31 days
@@ -1514,6 +1565,7 @@ export interface SandboxListUsageCostsParams extends ItemsCursorGetPaginationPar
 }
 
 Sandboxes.Boxes = Boxes;
+Sandboxes.Volumes = Volumes;
 Sandboxes.Registries = Registries;
 Sandboxes.Snapshots = Snapshots;
 
@@ -1529,22 +1581,35 @@ export declare namespace Sandboxes {
     type SnapshotListResponse as SnapshotListResponse,
     type SnapshotResponse as SnapshotResponse,
     type SandboxListUsageCostsResponse as SandboxListUsageCostsResponse,
+    type SandboxRetrieveUsageResponse as SandboxRetrieveUsageResponse,
     type SandboxListUsageCostsResponsesItemsCursorGetPagination as SandboxListUsageCostsResponsesItemsCursorGetPagination,
     type SandboxListUsageCostsParams as SandboxListUsageCostsParams,
   };
 
   export {
     Boxes as Boxes,
+    type BoxBatchDeleteResponse as BoxBatchDeleteResponse,
     type BoxListServiceURLsResponse as BoxListServiceURLsResponse,
     type BoxListServiceURLsResponsesItemsCursorGetPagination as BoxListServiceURLsResponsesItemsCursorGetPagination,
     type BoxCreateParams as BoxCreateParams,
     type BoxUpdateParams as BoxUpdateParams,
     type BoxListParams as BoxListParams,
+    type BoxBatchDeleteParams as BoxBatchDeleteParams,
     type BoxCreateSnapshotParams as BoxCreateSnapshotParams,
     type BoxDeleteServiceURLParams as BoxDeleteServiceURLParams,
     type BoxGenerateDownloadURLParams as BoxGenerateDownloadURLParams,
     type BoxGenerateServiceURLParams as BoxGenerateServiceURLParams,
     type BoxListServiceURLsParams as BoxListServiceURLsParams,
+  };
+
+  export {
+    Volumes as Volumes,
+    type VolumeResponse as VolumeResponse,
+    type VolumeResponsesItemsCursorGetPagination as VolumeResponsesItemsCursorGetPagination,
+    type VolumeCreateParams as VolumeCreateParams,
+    type VolumeUpdateParams as VolumeUpdateParams,
+    type VolumeListParams as VolumeListParams,
+    type VolumeCloneParams as VolumeCloneParams,
   };
 
   export {
