@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.13.1](https://github.com/langchain-ai/langsmith-javascript/compare/v0.13.0...v0.13.1) (2026-11-20)
+
+
+### Features
+
+* **annotation-queues:** return agreement on the items list and count ([4d91b29](https://github.com/langchain-ai/langsmith-javascript/commit/4d91b292884630303965f663ab7100a93e5ada2f))
+* **annotation-queues:** set and clear a final answer on a completed item ([e7db651](https://github.com/langchain-ai/langsmith-javascript/commit/e7db6510de1a9de13f99386054ae1f7f07310401))
+* **host:** chart Postgres out-of-memory restarts for Cloud SQL deployments ([f63ce89](https://github.com/langchain-ai/langsmith-javascript/commit/f63ce8900996e670c7971646971a1edb8c998e1f))
+* let LangSmith MCP agents report product feedback ([1073d94](https://github.com/langchain-ai/langsmith-javascript/commit/1073d9436c93d877bde880b5d7d3727d85d7be56))
+* **python:** let evaluate() upload only some runs ([d7390c5](https://github.com/langchain-ai/langsmith-javascript/commit/d7390c579c2b303a00d8e0b3bbcf81aa684ca391))
+* **runs:** add stride to /v2/threads/stats and return thread feedback stats ([4d35aaf](https://github.com/langchain-ai/langsmith-javascript/commit/4d35aafd871057d2fc3a86486040efed22668860))
+* **sdk:** add sandbox volumes, batch delete and usage to the SDKs ([f32852e](https://github.com/langchain-ai/langsmith-javascript/commit/f32852e62e2077ecdcd26bae65c63a6703576ef7))
+* **sdk:** add tag_value_ids to sandbox create in the Python and JS clients ([00bffa1](https://github.com/langchain-ai/langsmith-javascript/commit/00bffa1cef2511df7f0c5b18a55541e0774de712))
+* **sdk:** generate workspace resource tag keys and values ([769f3b7](https://github.com/langchain-ai/langsmith-javascript/commit/769f3b7a52336bf0ae76f7fa66c2de362eb491ba))
+
+
+### Bug Fixes
+
+* **js:** keep toJSON() when a run is serialized on the worker thread ([83d6647](https://github.com/langchain-ai/langsmith-javascript/commit/83d664761090d480a038ba544c0a8be2cdd91b23))
+* **run-rules:** apply all filters together in GET /runs/rules ([3dd4113](https://github.com/langchain-ai/langsmith-javascript/commit/3dd4113f9d9365b1b4f5b0d822dc65048096708d))
+* **runs:** gate standard runs/query page limits behind FF_RUNS_QUERY_PAGE_LIMITS [closes LSO-5052] ([8a3c7d8](https://github.com/langchain-ai/langsmith-javascript/commit/8a3c7d86abbf38384ce0d94b0b52ce85b79bbed7))
+
+
+### Documentation
+
+* **runs:** mark POST /v2/traces/query as a read [closes LSO-5053] ([4900195](https://github.com/langchain-ai/langsmith-javascript/commit/490019586937c37c4863d791767fe839149449b0))
+
 ## [0.13.0](https://github.com/langchain-ai/langsmith-javascript/compare/v0.12.0...v0.13.0) (2026-11-17)
 
 
