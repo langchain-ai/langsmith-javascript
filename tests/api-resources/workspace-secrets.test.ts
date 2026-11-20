@@ -25,7 +25,14 @@ describe('resource workspaceSecrets', () => {
   test.skip('list: request options and params are passed correctly', async () => {
     // ensure the request options are being passed correctly by passing an invalid HTTP method in order to cause an error
     await expect(
-      client.workspaceSecrets.list({ include_configs: true }, { path: '/_stainless_unknown_path' }),
+      client.workspaceSecrets.list(
+        {
+          cursor: 'cursor',
+          include_configs: true,
+          page_size: 1,
+        },
+        { path: '/_stainless_unknown_path' },
+      ),
     ).rejects.toThrow(Langsmith.NotFoundError);
   });
 

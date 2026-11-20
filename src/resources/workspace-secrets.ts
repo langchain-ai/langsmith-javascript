@@ -2,19 +2,32 @@
 
 import { APIResource } from '../core/resource';
 import { APIPromise } from '../core/api-promise';
+import {
+  ItemsCursorGetPagination,
+  type ItemsCursorGetPaginationParams,
+  PagePromise,
+} from '../core/pagination';
 import { buildHeaders } from '../internal/headers';
 import { RequestOptions } from '../internal/request-options';
 import { path } from '../internal/utils/path';
 
 export class WorkspaceSecrets extends APIResource {
   /**
-   * List the current workspace's secret keys. Values are never returned.
+   * List the current workspace's secret keys in ascending key order. Secret values
+   * are never returned. Set include_configs to include allowed hosts and header
+   * configuration. Pass next_cursor as cursor to retrieve the next page, keeping
+   * include_configs unchanged. Pagination reflects the current secrets on each
+   * request, rather than a snapshot.
    */
   list(
     query: WorkspaceSecretListParams | null | undefined = {},
     options?: RequestOptions,
-  ): APIPromise<WorkspaceSecretListResponse> {
-    return this._client.get('/api/v1/workspaces/current/secrets', { query, ...options });
+  ): PagePromise<WorkspaceSecretsItemsCursorGetPagination, WorkspaceSecret> {
+    return this._client.getAPIList(
+      '/api/v2/workspaces/current/secrets',
+      ItemsCursorGetPagination<WorkspaceSecret>,
+      { query, ...options },
+    );
   }
 
   /**
@@ -44,6 +57,8 @@ export class WorkspaceSecrets extends APIResource {
     return this._client.put(path`/api/v1/workspaces/current/secrets/${key}`, { body, ...options });
   }
 }
+
+export type WorkspaceSecretsItemsCursorGetPagination = ItemsCursorGetPagination<WorkspaceSecret>;
 
 /**
  * A workspace secret's key and the hosts it may be sent to. Never the value.
@@ -101,11 +116,9 @@ export namespace WorkspaceSecret {
   }
 }
 
-export type WorkspaceSecretListResponse = Array<WorkspaceSecret>;
-
-export interface WorkspaceSecretListParams {
+export interface WorkspaceSecretListParams extends ItemsCursorGetPaginationParams {
   /**
-   * If true, include the hosts each secret may be sent to.
+   * Include the hosts each secret may be sent to
    */
   include_configs?: boolean;
 }
@@ -149,7 +162,7 @@ export namespace WorkspaceSecretUpsertParams {
 export declare namespace WorkspaceSecrets {
   export {
     type WorkspaceSecret as WorkspaceSecret,
-    type WorkspaceSecretListResponse as WorkspaceSecretListResponse,
+    type WorkspaceSecretsItemsCursorGetPagination as WorkspaceSecretsItemsCursorGetPagination,
     type WorkspaceSecretListParams as WorkspaceSecretListParams,
     type WorkspaceSecretUpsertParams as WorkspaceSecretUpsertParams,
   };

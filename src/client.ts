@@ -153,9 +153,9 @@ import { Sql, SqlQueryParams, SqlQueryResponse } from './resources/sql';
 import {
   WorkspaceSecret,
   WorkspaceSecretListParams,
-  WorkspaceSecretListResponse,
   WorkspaceSecretUpsertParams,
   WorkspaceSecrets,
+  WorkspaceSecretsItemsCursorGetPagination,
 } from './resources/workspace-secrets';
 import {
   AnnotationQueueAnnotationQueuesParams,
@@ -1337,7 +1337,7 @@ export declare namespace Langsmith {
   export {
     WorkspaceSecrets as WorkspaceSecrets,
     type WorkspaceSecret as WorkspaceSecret,
-    type WorkspaceSecretListResponse as WorkspaceSecretListResponse,
+    type WorkspaceSecretsItemsCursorGetPagination as WorkspaceSecretsItemsCursorGetPagination,
     type WorkspaceSecretListParams as WorkspaceSecretListParams,
     type WorkspaceSecretUpsertParams as WorkspaceSecretUpsertParams,
   };

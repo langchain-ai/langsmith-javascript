@@ -226,9 +226,9 @@ export {
 export {
   WorkspaceSecrets,
   type WorkspaceSecret,
-  type WorkspaceSecretListResponse,
   type WorkspaceSecretListParams,
   type WorkspaceSecretUpsertParams,
+  type WorkspaceSecretsItemsCursorGetPagination,
 } from './workspace-secrets';
 export {
   WorkspaceTags,
