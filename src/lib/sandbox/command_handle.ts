@@ -81,6 +81,7 @@ export class CommandHandle {
   private _lastStderrOffset: number;
   private _started: boolean;
   private _reconnectAttempts = 0;
+  private _startedAt = performance.now();
   private _onStdout?: (data: string) => void;
   private _onStderr?: (data: string) => void;
   private _stdinClosed: boolean;
@@ -271,11 +272,23 @@ export class CommandHandle {
         }
 
         const isHotReload = e instanceof LangSmithSandboxServerReloadError;
-        if (!isHotReload) {
-          const delay = Math.min(
-            CommandHandle.BACKOFF_BASE * 2 ** (this._reconnectAttempts - 1),
-            CommandHandle.BACKOFF_MAX,
-          );
+        const delay = isHotReload
+          ? 0
+          : Math.min(
+              CommandHandle.BACKOFF_BASE * 2 ** (this._reconnectAttempts - 1),
+              CommandHandle.BACKOFF_MAX,
+            );
+        const elapsed = (performance.now() - this._startedAt) / 1000;
+        console.warn(
+          `Sandbox command ${String(
+            this._commandId,
+          )} lost its connection ${elapsed.toFixed(
+            1,
+          )}s in; reattaching (attempt ${this._reconnectAttempts}/${
+            CommandHandle.MAX_AUTO_RECONNECTS
+          }, delay ${delay.toFixed(1)}s). ${e.name}: ${e.message}`,
+        );
+        if (delay > 0) {
           await new Promise((r) => setTimeout(r, delay * 1000));
         }
 
