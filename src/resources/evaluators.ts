@@ -242,6 +242,11 @@ export namespace EvaluatorTopLevel {
 
     prompt?: Array<Array<unknown>> | null;
 
+    /**
+     * Output schema for the evaluator's feedback. Not accepted for decision-model
+     * (TypeSafe or OpenAI Decisions) evaluators, whose schema comes from their
+     * questions.
+     */
     schema?: { [key: string]: unknown } | null;
 
     template_format?: string | null;
