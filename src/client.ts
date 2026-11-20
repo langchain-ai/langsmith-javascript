@@ -265,6 +265,12 @@ import {
   Traces,
   TracesItemsCursorPostPagination,
 } from './resources/traces/traces';
+import {
+  TagKeyWithValues,
+  WorkspaceTagListParams,
+  WorkspaceTagListResponse,
+  WorkspaceTags,
+} from './resources/workspace-tags/workspace-tags';
 import { type Fetch } from './internal/builtin-types';
 import { HeadersLike, NullableHeaders, buildHeaders } from './internal/headers';
 import { FinalRequestOptions, RequestOptions } from './internal/request-options';
@@ -1050,6 +1056,7 @@ export class Langsmith {
   promptWebhooks: API.PromptWebhooks = new API.PromptWebhooks(this);
   info: API.Info = new API.Info(this);
   workspaceSecrets: API.WorkspaceSecrets = new API.WorkspaceSecrets(this);
+  workspaceTags: API.WorkspaceTags = new API.WorkspaceTags(this);
   repos: API.Repos = new API.Repos(this);
   commits: API.Commits = new API.Commits(this);
   issues: API.Issues = new API.Issues(this);
@@ -1073,6 +1080,7 @@ Langsmith.AnnotationQueues = AnnotationQueues;
 Langsmith.PromptWebhooks = PromptWebhooks;
 Langsmith.Info = Info;
 Langsmith.WorkspaceSecrets = WorkspaceSecrets;
+Langsmith.WorkspaceTags = WorkspaceTags;
 Langsmith.Repos = Repos;
 Langsmith.Commits = Commits;
 Langsmith.Issues = Issues;
@@ -1331,6 +1339,13 @@ export declare namespace Langsmith {
     type WorkspaceSecretListResponse as WorkspaceSecretListResponse,
     type WorkspaceSecretListParams as WorkspaceSecretListParams,
     type WorkspaceSecretUpsertParams as WorkspaceSecretUpsertParams,
+  };
+
+  export {
+    WorkspaceTags as WorkspaceTags,
+    type TagKeyWithValues as TagKeyWithValues,
+    type WorkspaceTagListResponse as WorkspaceTagListResponse,
+    type WorkspaceTagListParams as WorkspaceTagListParams,
   };
 
   export {

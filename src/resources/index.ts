@@ -229,3 +229,9 @@ export {
   type WorkspaceSecretListParams,
   type WorkspaceSecretUpsertParams,
 } from './workspace-secrets';
+export {
+  WorkspaceTags,
+  type TagKeyWithValues,
+  type WorkspaceTagListResponse,
+  type WorkspaceTagListParams,
+} from './workspace-tags/workspace-tags';

@@ -414,6 +414,47 @@ Methods:
 - <code title="delete /api/v1/workspaces/current/secrets/{key}">client.workspaceSecrets.<a href="./src/resources/workspace-secrets.ts">delete</a>(key) -> void</code>
 - <code title="put /api/v1/workspaces/current/secrets/{key}">client.workspaceSecrets.<a href="./src/resources/workspace-secrets.ts">upsert</a>(key, { ...params }) -> WorkspaceSecret</code>
 
+# WorkspaceTags
+
+Types:
+
+- <code><a href="./src/resources/workspace-tags/workspace-tags.ts">TagKeyWithValues</a></code>
+- <code><a href="./src/resources/workspace-tags/workspace-tags.ts">WorkspaceTagListResponse</a></code>
+
+Methods:
+
+- <code title="get /api/v1/workspaces/current/tags">client.workspaceTags.<a href="./src/resources/workspace-tags/workspace-tags.ts">list</a>({ ...params }) -> WorkspaceTagListResponse</code>
+
+## Keys
+
+Types:
+
+- <code><a href="./src/resources/workspace-tags/keys/keys.ts">TagKey</a></code>
+- <code><a href="./src/resources/workspace-tags/keys/keys.ts">KeyListResponse</a></code>
+
+Methods:
+
+- <code title="post /api/v1/workspaces/current/tag-keys">client.workspaceTags.keys.<a href="./src/resources/workspace-tags/keys/keys.ts">create</a>({ ...params }) -> TagKey</code>
+- <code title="get /api/v1/workspaces/current/tag-keys/{tag_key_id}">client.workspaceTags.keys.<a href="./src/resources/workspace-tags/keys/keys.ts">retrieve</a>(tagKeyID) -> TagKey</code>
+- <code title="patch /api/v1/workspaces/current/tag-keys/{tag_key_id}">client.workspaceTags.keys.<a href="./src/resources/workspace-tags/keys/keys.ts">update</a>(tagKeyID, { ...params }) -> TagKey</code>
+- <code title="get /api/v1/workspaces/current/tag-keys">client.workspaceTags.keys.<a href="./src/resources/workspace-tags/keys/keys.ts">list</a>() -> KeyListResponse</code>
+- <code title="delete /api/v1/workspaces/current/tag-keys/{tag_key_id}">client.workspaceTags.keys.<a href="./src/resources/workspace-tags/keys/keys.ts">delete</a>(tagKeyID) -> void</code>
+
+### Values
+
+Types:
+
+- <code><a href="./src/resources/workspace-tags/keys/values.ts">TagValue</a></code>
+- <code><a href="./src/resources/workspace-tags/keys/values.ts">ValueListResponse</a></code>
+
+Methods:
+
+- <code title="post /api/v1/workspaces/current/tag-keys/{tag_key_id}/tag-values">client.workspaceTags.keys.values.<a href="./src/resources/workspace-tags/keys/values.ts">create</a>(tagKeyID, { ...params }) -> TagValue</code>
+- <code title="get /api/v1/workspaces/current/tag-keys/{tag_key_id}/tag-values/{tag_value_id}">client.workspaceTags.keys.values.<a href="./src/resources/workspace-tags/keys/values.ts">retrieve</a>(tagValueID, { ...params }) -> TagValue</code>
+- <code title="patch /api/v1/workspaces/current/tag-keys/{tag_key_id}/tag-values/{tag_value_id}">client.workspaceTags.keys.values.<a href="./src/resources/workspace-tags/keys/values.ts">update</a>(tagValueID, { ...params }) -> TagValue</code>
+- <code title="get /api/v1/workspaces/current/tag-keys/{tag_key_id}/tag-values">client.workspaceTags.keys.values.<a href="./src/resources/workspace-tags/keys/values.ts">list</a>(tagKeyID) -> ValueListResponse</code>
+- <code title="delete /api/v1/workspaces/current/tag-keys/{tag_key_id}/tag-values/{tag_value_id}">client.workspaceTags.keys.values.<a href="./src/resources/workspace-tags/keys/values.ts">delete</a>(tagValueID, { ...params }) -> void</code>
+
 # Repos
 
 Types:
