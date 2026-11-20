@@ -32,7 +32,7 @@ export class Threads extends APIResource {
    * GET with body payload — no resources created. Returns aggregate statistics for
    * threads in a tracing project. The response includes the thread counts, run
    * counts, latency percentiles, rates, token totals, and cost totals requested in
-   * `select`.
+   * `select`. Set `stride` to return the statistics as a time series in `buckets`.
    *
    * Self-hosted deployments require LangSmith `v0.17` or later.
    *
@@ -781,6 +781,12 @@ export namespace ThreadTrace {
 
 export interface ThreadAggregateStatsResponse {
   /**
+   * `buckets` holds the statistics for each time bucket in ascending order.
+   * Populated only when `stride` is set.
+   */
+  buckets?: Array<ThreadAggregateStatsResponse.Bucket>;
+
+  /**
    * `completion_cost` is the completion cost across matching traces in USD.
    */
   completion_cost?: number;
@@ -891,6 +897,196 @@ export interface ThreadAggregateStatsResponse {
 }
 
 export namespace ThreadAggregateStatsResponse {
+  export interface Bucket {
+    /**
+     * `bucket_start_time` is the start of the bucket (RFC3339 date-time).
+     */
+    bucket_start_time?: string;
+
+    /**
+     * `completion_cost` is the completion cost across matching traces in USD.
+     */
+    completion_cost?: number;
+
+    /**
+     * `completion_cost_details` contains completion-cost totals by category.
+     */
+    completion_cost_details?: { [key: string]: number };
+
+    /**
+     * `completion_token_details` contains completion-token totals by category.
+     */
+    completion_token_details?: { [key: string]: number };
+
+    /**
+     * `completion_tokens` is the sum of completion tokens across matching traces.
+     */
+    completion_tokens?: number;
+
+    /**
+     * `error_rate` is the fraction of matching traces that contain an error.
+     */
+    error_rate?: number;
+
+    /**
+     * `first_token_p50_seconds` is the approximate median time to first token in
+     * seconds. Populated when `FIRST_TOKEN_P50` is selected.
+     */
+    first_token_p50_seconds?: number;
+
+    /**
+     * `first_token_p99_seconds` is the approximate p99 time to first token in seconds.
+     * Populated when `FIRST_TOKEN_P99` is selected.
+     */
+    first_token_p99_seconds?: number;
+
+    /**
+     * `latency_p50_seconds` is the approximate median trace latency in seconds.
+     * Populated when `LATENCY_P50` is selected.
+     */
+    latency_p50_seconds?: number;
+
+    /**
+     * `latency_p99_seconds` is the approximate p99 trace latency in seconds. Populated
+     * when `LATENCY_P99` is selected.
+     */
+    latency_p99_seconds?: number;
+
+    /**
+     * `median_tokens` is the approximate median of total tokens across matching
+     * traces. Populated when `MEDIAN_TOKENS` is selected.
+     */
+    median_tokens?: number;
+
+    /**
+     * `prompt_cost` is the prompt cost across matching traces in USD.
+     */
+    prompt_cost?: number;
+
+    /**
+     * `prompt_cost_details` contains prompt-cost totals by category.
+     */
+    prompt_cost_details?: { [key: string]: number };
+
+    /**
+     * `prompt_token_details` contains prompt-token totals by category.
+     */
+    prompt_token_details?: { [key: string]: number };
+
+    /**
+     * `prompt_tokens` is the sum of prompt tokens across matching traces.
+     */
+    prompt_tokens?: number;
+
+    /**
+     * `streaming_rate` is the fraction of completed matching traces that streamed
+     * tokens.
+     */
+    streaming_rate?: number;
+
+    /**
+     * `thread_count` is the number of distinct threads matching the query. Populated
+     * when `THREAD_COUNT` is selected.
+     */
+    thread_count?: number;
+
+    /**
+     * `thread_feedback_stats` contains aggregate thread-level feedback statistics
+     * keyed by feedback key. Populated when `THREAD_FEEDBACK_STATS` is selected.
+     */
+    thread_feedback_stats?: { [key: string]: Bucket.ThreadFeedbackStats };
+
+    /**
+     * `total_cost` is the total cost across matching traces in USD.
+     */
+    total_cost?: number;
+
+    /**
+     * `total_tokens` is the sum of all tokens across matching traces.
+     */
+    total_tokens?: number;
+
+    /**
+     * `trace_count` is the number of traces in the matching threads. Populated when
+     * `TRACE_COUNT` is selected.
+     */
+    trace_count?: number;
+  }
+
+  export namespace Bucket {
+    export interface ThreadFeedbackStats {
+      /**
+       * `avg` is the arithmetic mean of numeric feedback scores for this key on the run,
+       * or `null` when no numeric score has been recorded (for example purely
+       * categorical feedback).
+       */
+      avg?: number;
+
+      /**
+       * `comments` is a sample of human-readable comments attached to feedback points
+       * for this key, in no particular order. May be empty; is not exhaustive when many
+       * comments exist.
+       */
+      comments?: Array<string>;
+
+      /**
+       * `contains_thread_feedback` is true when at least one feedback point for this key
+       * was submitted at the thread level (rather than at an individual run). Always
+       * false on responses that already describe a single run in isolation.
+       */
+      contains_thread_feedback?: boolean;
+
+      /**
+       * `errors` is the number of feedback points recorded as errors rather than
+       * successful scores (for example an automated evaluator that raised an exception).
+       * Defaults to 0 when no errors occurred.
+       */
+      errors?: number;
+
+      /**
+       * `max` is the largest numeric feedback score recorded for this key on the run, or
+       * `null` when no numeric score has been recorded.
+       */
+      max?: number;
+
+      /**
+       * `min` is the smallest numeric feedback score recorded for this key on the run,
+       * or `null` when no numeric score has been recorded.
+       */
+      min?: number;
+
+      /**
+       * `n` is the number of feedback points recorded for this key on the run. For
+       * numeric feedback this is the sample size behind `avg`, `min`, `max`, and
+       * `stdev`; for categorical feedback it is the sum of the `values` counts.
+       */
+      n?: number;
+
+      /**
+       * `sources` is a sample of feedback sources for this key. Each entry is either a
+       * plain string identifier (for example `"api"`, `"app"`, `"model"`) or a JSON
+       * object describing a synthetic source (for example
+       * `{"type": "__ls_composite_feedback"}` for a computed aggregate). Clients must
+       * tolerate both shapes.
+       */
+      sources?: Array<unknown>;
+
+      /**
+       * `stdev` is the sample standard deviation of numeric feedback scores for this key
+       * on the run, or `null` when it cannot be computed (for example fewer than two
+       * numeric scores, or purely categorical feedback).
+       */
+      stdev?: number;
+
+      /**
+       * `values` is the distribution of categorical feedback labels for this key,
+       * mapping each label to its occurrence count. Empty (`{}`) for purely numeric
+       * feedback.
+       */
+      values?: { [key: string]: number };
+    }
+  }
+
   export interface ThreadFeedbackStats {
     /**
      * `avg` is the arithmetic mean of numeric feedback scores for this key on the run,
@@ -1019,6 +1215,13 @@ export interface ThreadAggregateStatsParams {
   min_start_time?: string;
 
   /**
+   * `stride` returns the statistics as a time series in `buckets`. Each thread
+   * counts once, in the bucket containing the start of its most recent trace. Omit
+   * for a single aggregate over the whole window.
+   */
+  stride?: ThreadAggregateStatsParams.Stride;
+
+  /**
    * `thread_filter` narrows eligible threads using a LangSmith filter expression
    * evaluated against the complete thread summary.
    */
@@ -1035,6 +1238,26 @@ export interface ThreadAggregateStatsParams {
    * anywhere in a trace tree.
    */
   tree_filter?: string;
+}
+
+export namespace ThreadAggregateStatsParams {
+  /**
+   * `stride` returns the statistics as a time series in `buckets`. Each thread
+   * counts once, in the bucket containing the start of its most recent trace. Omit
+   * for a single aggregate over the whole window.
+   */
+  export interface Stride {
+    /**
+     * `unit` is the unit of time used for each bucket. See the `StrideUnit` enum for
+     * allowed values.
+     */
+    unit?: 'SECOND' | 'MINUTE' | 'HOUR' | 'DAY';
+
+    /**
+     * `value` is the number of time units per bucket. Must be at least 1.
+     */
+    value?: number;
+  }
 }
 
 export interface ThreadListTracesParams extends ItemsCursorGetPaginationParams {
