@@ -1,6 +1,7 @@
 // File generated from our OpenAPI spec by Stainless. See CONTRIBUTING.md for details.
 
 import { APIResource } from '../../core/resource';
+import * as ItemsAPI from './items';
 import { APIPromise } from '../../core/api-promise';
 import {
   ItemsCursorGetPagination,
@@ -144,6 +145,24 @@ export class Items extends APIResource {
   }
 
   /**
+   * For each rubric key: whether the reviewers agreed, the final if one is set, and
+   * each reviewer's answer. Reviewers are listed in the order they completed the
+   * item. Their name and email are empty when the caller cannot see other workspace
+   * members. Returns 404 unless the item is completed.
+   */
+  retrieveReviews(
+    itemID: string,
+    params: ItemRetrieveReviewsParams,
+    options?: RequestOptions,
+  ): APIPromise<ItemRetrieveReviewsResponse> {
+    const { queue_id } = params;
+    return this._client.get(
+      path`/api/v1/platform/annotation-queues/${queue_id}/items/${itemID}/reviews`,
+      options,
+    );
+  }
+
+  /**
    * Set the answer downstream uses for one rubric key when the item's reviewers
    * disagreed. A key that already has a final can be changed even after reviewers
    * come to agree. Multi-select keys take a list of category labels in values.
@@ -160,9 +179,65 @@ export class Items extends APIResource {
       { body, ...options },
     );
   }
+
+  /**
+   * Replace your own answer on one rubric key and update the item's agreement. Only
+   * a reviewer who completed the item can edit their answer. Multi-select keys take
+   * a list of category labels in values; free-text keys take text in value. An empty
+   * body clears your answer.
+   */
+  setReview(
+    key: string,
+    params: ItemSetReviewParams,
+    options?: RequestOptions,
+  ): APIPromise<AnnotationQueueItemKeyReviews> {
+    const { queue_id, item_id, ...body } = params;
+    return this._client.put(
+      path`/api/v1/platform/annotation-queues/${queue_id}/items/${item_id}/reviews/${key}`,
+      { body, ...options },
+    );
+  }
 }
 
 export type ItemListResponsesItemsCursorGetPagination = ItemsCursorGetPagination<ItemListResponse>;
+
+export type AnnotationQueueItemAgreementState = 'agreed' | 'disagreed' | 'none';
+
+export interface AnnotationQueueItemAnswer {
+  score?: number;
+
+  scores?: Array<number>;
+
+  value?: string;
+
+  values?: Array<string>;
+}
+
+export interface AnnotationQueueItemKeyReviews {
+  answer?: AnnotationQueueItemAnswer;
+
+  final?: AnnotationQueueItemAnswer;
+
+  final_set_at?: string;
+
+  final_set_by?: string;
+
+  has_final?: boolean;
+
+  key?: string;
+
+  reviews?: Array<AnnotationQueueItemKeyReviews.Review>;
+
+  state?: AnnotationQueueItemAgreementState;
+}
+
+export namespace AnnotationQueueItemKeyReviews {
+  export interface Review {
+    answer?: ItemsAPI.AnnotationQueueItemAnswer;
+
+    ls_user_id?: string;
+  }
+}
 
 export interface ItemCreateResponse {
   items?: Array<ItemCreateResponse.Item>;
@@ -228,7 +303,7 @@ export interface ItemListResponse {
   /**
    * Whether the item's reviewers agreed across its rubric keys.
    */
-  agreement_state?: 'agreed' | 'disagreed' | 'none';
+  agreement_state?: AnnotationQueueItemAgreementState;
 
   assigned_to?: Array<string>;
 
@@ -270,23 +345,11 @@ export interface ItemListResponse {
 
 export namespace ItemListResponse {
   export interface KeyAgreements {
-    answer?: KeyAgreements.Answer;
+    answer?: ItemsAPI.AnnotationQueueItemAnswer;
 
     has_final?: boolean;
 
-    state?: 'agreed' | 'disagreed' | 'none';
-  }
-
-  export namespace KeyAgreements {
-    export interface Answer {
-      score?: number;
-
-      scores?: Array<number>;
-
-      value?: string;
-
-      values?: Array<string>;
-    }
+    state?: ItemsAPI.AnnotationQueueItemAgreementState;
   }
 }
 
@@ -316,10 +379,30 @@ export interface ItemRetrievePlacementResponse {
   section?: 'needs_my_review' | 'needs_others_review' | 'archived';
 }
 
-export interface ItemSetFinalResponse {
-  answer?: ItemSetFinalResponse.Answer;
+export interface ItemRetrieveReviewsResponse {
+  keys?: Array<AnnotationQueueItemKeyReviews>;
 
-  final?: ItemSetFinalResponse.Final;
+  reviewers?: Array<ItemRetrieveReviewsResponse.Reviewer>;
+}
+
+export namespace ItemRetrieveReviewsResponse {
+  export interface Reviewer {
+    completed_at?: string;
+
+    email?: string;
+
+    identity_id?: string;
+
+    ls_user_id?: string;
+
+    name?: string;
+  }
+}
+
+export interface ItemSetFinalResponse {
+  answer?: AnnotationQueueItemAnswer;
+
+  final?: AnnotationQueueItemAnswer;
 
   final_set_at?: string;
 
@@ -329,29 +412,7 @@ export interface ItemSetFinalResponse {
 
   key?: string;
 
-  state?: 'agreed' | 'disagreed' | 'none';
-}
-
-export namespace ItemSetFinalResponse {
-  export interface Answer {
-    score?: number;
-
-    scores?: Array<number>;
-
-    value?: string;
-
-    values?: Array<string>;
-  }
-
-  export interface Final {
-    score?: number;
-
-    scores?: Array<number>;
-
-    value?: string;
-
-    values?: Array<string>;
-  }
+  state?: AnnotationQueueItemAgreementState;
 }
 
 export interface ItemCreateParams {
@@ -527,7 +588,41 @@ export interface ItemRetrievePlacementParams {
   queue_id: string;
 }
 
+export interface ItemRetrieveReviewsParams {
+  /**
+   * Annotation queue ID
+   */
+  queue_id: string;
+}
+
 export interface ItemSetFinalParams {
+  /**
+   * Path param: Annotation queue ID
+   */
+  queue_id: string;
+
+  /**
+   * Path param: Annotation queue item ID
+   */
+  item_id: string;
+
+  /**
+   * Body param
+   */
+  score?: number;
+
+  /**
+   * Body param
+   */
+  value?: string;
+
+  /**
+   * Body param
+   */
+  values?: Array<string>;
+}
+
+export interface ItemSetReviewParams {
   /**
    * Path param: Annotation queue ID
    */
@@ -556,6 +651,9 @@ export interface ItemSetFinalParams {
 
 export declare namespace Items {
   export {
+    type AnnotationQueueItemAgreementState as AnnotationQueueItemAgreementState,
+    type AnnotationQueueItemAnswer as AnnotationQueueItemAnswer,
+    type AnnotationQueueItemKeyReviews as AnnotationQueueItemKeyReviews,
     type ItemCreateResponse as ItemCreateResponse,
     type ItemUpdateResponse as ItemUpdateResponse,
     type ItemListResponse as ItemListResponse,
@@ -563,6 +661,7 @@ export declare namespace Items {
     type ItemDeleteAllResponse as ItemDeleteAllResponse,
     type ItemRetrieveCountResponse as ItemRetrieveCountResponse,
     type ItemRetrievePlacementResponse as ItemRetrievePlacementResponse,
+    type ItemRetrieveReviewsResponse as ItemRetrieveReviewsResponse,
     type ItemSetFinalResponse as ItemSetFinalResponse,
     type ItemListResponsesItemsCursorGetPagination as ItemListResponsesItemsCursorGetPagination,
     type ItemCreateParams as ItemCreateParams,
@@ -573,6 +672,8 @@ export declare namespace Items {
     type ItemDeleteAllParams as ItemDeleteAllParams,
     type ItemRetrieveCountParams as ItemRetrieveCountParams,
     type ItemRetrievePlacementParams as ItemRetrievePlacementParams,
+    type ItemRetrieveReviewsParams as ItemRetrieveReviewsParams,
     type ItemSetFinalParams as ItemSetFinalParams,
+    type ItemSetReviewParams as ItemSetReviewParams,
   };
 }

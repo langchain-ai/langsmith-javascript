@@ -163,6 +163,25 @@ describe('resource items', () => {
   });
 
   // Mock server tests are disabled
+  test.skip('retrieveReviews: only required params', async () => {
+    const responsePromise = client.annotationQueues.items.retrieveReviews('item_id', {
+      queue_id: 'queue_id',
+    });
+    const rawResponse = await responsePromise.asResponse();
+    expect(rawResponse).toBeInstanceOf(Response);
+    const response = await responsePromise;
+    expect(response).not.toBeInstanceOf(Response);
+    const dataAndResponse = await responsePromise.withResponse();
+    expect(dataAndResponse.data).toBe(response);
+    expect(dataAndResponse.response).toBe(rawResponse);
+  });
+
+  // Mock server tests are disabled
+  test.skip('retrieveReviews: required and optional params', async () => {
+    const response = await client.annotationQueues.items.retrieveReviews('item_id', { queue_id: 'queue_id' });
+  });
+
+  // Mock server tests are disabled
   test.skip('setFinal: only required params', async () => {
     const responsePromise = client.annotationQueues.items.setFinal('key', {
       queue_id: 'queue_id',
@@ -180,6 +199,32 @@ describe('resource items', () => {
   // Mock server tests are disabled
   test.skip('setFinal: required and optional params', async () => {
     const response = await client.annotationQueues.items.setFinal('key', {
+      queue_id: 'queue_id',
+      item_id: 'item_id',
+      score: 0,
+      value: 'value',
+      values: ['string'],
+    });
+  });
+
+  // Mock server tests are disabled
+  test.skip('setReview: only required params', async () => {
+    const responsePromise = client.annotationQueues.items.setReview('key', {
+      queue_id: 'queue_id',
+      item_id: 'item_id',
+    });
+    const rawResponse = await responsePromise.asResponse();
+    expect(rawResponse).toBeInstanceOf(Response);
+    const response = await responsePromise;
+    expect(response).not.toBeInstanceOf(Response);
+    const dataAndResponse = await responsePromise.withResponse();
+    expect(dataAndResponse.data).toBe(response);
+    expect(dataAndResponse.response).toBe(rawResponse);
+  });
+
+  // Mock server tests are disabled
+  test.skip('setReview: required and optional params', async () => {
+    const response = await client.annotationQueues.items.setReview('key', {
       queue_id: 'queue_id',
       item_id: 'item_id',
       score: 0,

@@ -27,6 +27,9 @@ export {
 } from './annotation-queues';
 export {
   Items,
+  type AnnotationQueueItemAgreementState,
+  type AnnotationQueueItemAnswer,
+  type AnnotationQueueItemKeyReviews,
   type ItemCreateResponse,
   type ItemUpdateResponse,
   type ItemListResponse,
@@ -34,6 +37,7 @@ export {
   type ItemDeleteAllResponse,
   type ItemRetrieveCountResponse,
   type ItemRetrievePlacementResponse,
+  type ItemRetrieveReviewsResponse,
   type ItemSetFinalResponse,
   type ItemCreateParams,
   type ItemUpdateParams,
@@ -43,7 +47,9 @@ export {
   type ItemDeleteAllParams,
   type ItemRetrieveCountParams,
   type ItemRetrievePlacementParams,
+  type ItemRetrieveReviewsParams,
   type ItemSetFinalParams,
+  type ItemSetReviewParams,
   type ItemListResponsesItemsCursorGetPagination,
 } from './items';
 export {

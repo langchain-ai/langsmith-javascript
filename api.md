@@ -353,6 +353,9 @@ Methods:
 
 Types:
 
+- <code><a href="./src/resources/annotation-queues/items.ts">AnnotationQueueItemAgreementState</a></code>
+- <code><a href="./src/resources/annotation-queues/items.ts">AnnotationQueueItemAnswer</a></code>
+- <code><a href="./src/resources/annotation-queues/items.ts">AnnotationQueueItemKeyReviews</a></code>
 - <code><a href="./src/resources/annotation-queues/items.ts">ItemCreateResponse</a></code>
 - <code><a href="./src/resources/annotation-queues/items.ts">ItemUpdateResponse</a></code>
 - <code><a href="./src/resources/annotation-queues/items.ts">ItemListResponse</a></code>
@@ -360,6 +363,7 @@ Types:
 - <code><a href="./src/resources/annotation-queues/items.ts">ItemDeleteAllResponse</a></code>
 - <code><a href="./src/resources/annotation-queues/items.ts">ItemRetrieveCountResponse</a></code>
 - <code><a href="./src/resources/annotation-queues/items.ts">ItemRetrievePlacementResponse</a></code>
+- <code><a href="./src/resources/annotation-queues/items.ts">ItemRetrieveReviewsResponse</a></code>
 - <code><a href="./src/resources/annotation-queues/items.ts">ItemSetFinalResponse</a></code>
 
 Methods:
@@ -372,7 +376,9 @@ Methods:
 - <code title="post /api/v1/platform/annotation-queues/{queue_id}/items/delete">client.annotationQueues.items.<a href="./src/resources/annotation-queues/items.ts">deleteAll</a>(queueID, { ...params }) -> ItemDeleteAllResponse</code>
 - <code title="get /api/v1/platform/annotation-queues/{queue_id}/items/count">client.annotationQueues.items.<a href="./src/resources/annotation-queues/items.ts">retrieveCount</a>(queueID, { ...params }) -> ItemRetrieveCountResponse</code>
 - <code title="get /api/v1/platform/annotation-queues/{queue_id}/items/{item_id}/placement">client.annotationQueues.items.<a href="./src/resources/annotation-queues/items.ts">retrievePlacement</a>(itemID, { ...params }) -> ItemRetrievePlacementResponse</code>
+- <code title="get /api/v1/platform/annotation-queues/{queue_id}/items/{item_id}/reviews">client.annotationQueues.items.<a href="./src/resources/annotation-queues/items.ts">retrieveReviews</a>(itemID, { ...params }) -> ItemRetrieveReviewsResponse</code>
 - <code title="put /api/v1/platform/annotation-queues/{queue_id}/items/{item_id}/finals/{key}">client.annotationQueues.items.<a href="./src/resources/annotation-queues/items.ts">setFinal</a>(key, { ...params }) -> ItemSetFinalResponse</code>
+- <code title="put /api/v1/platform/annotation-queues/{queue_id}/items/{item_id}/reviews/{key}">client.annotationQueues.items.<a href="./src/resources/annotation-queues/items.ts">setReview</a>(key, { ...params }) -> AnnotationQueueItemKeyReviews</code>
 
 # PromptWebhooks
 

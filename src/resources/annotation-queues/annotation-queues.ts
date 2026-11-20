@@ -3,6 +3,9 @@
 import { APIResource } from '../../core/resource';
 import * as ItemsAPI from './items';
 import {
+  AnnotationQueueItemAgreementState,
+  AnnotationQueueItemAnswer,
+  AnnotationQueueItemKeyReviews,
   ItemClearFinalParams,
   ItemCreateParams,
   ItemCreateResponse,
@@ -17,8 +20,11 @@ import {
   ItemRetrieveCountResponse,
   ItemRetrievePlacementParams,
   ItemRetrievePlacementResponse,
+  ItemRetrieveReviewsParams,
+  ItemRetrieveReviewsResponse,
   ItemSetFinalParams,
   ItemSetFinalResponse,
+  ItemSetReviewParams,
   ItemUpdateParams,
   ItemUpdateResponse,
   Items,
@@ -815,6 +821,9 @@ export declare namespace AnnotationQueues {
 
   export {
     Items as Items,
+    type AnnotationQueueItemAgreementState as AnnotationQueueItemAgreementState,
+    type AnnotationQueueItemAnswer as AnnotationQueueItemAnswer,
+    type AnnotationQueueItemKeyReviews as AnnotationQueueItemKeyReviews,
     type ItemCreateResponse as ItemCreateResponse,
     type ItemUpdateResponse as ItemUpdateResponse,
     type ItemListResponse as ItemListResponse,
@@ -822,6 +831,7 @@ export declare namespace AnnotationQueues {
     type ItemDeleteAllResponse as ItemDeleteAllResponse,
     type ItemRetrieveCountResponse as ItemRetrieveCountResponse,
     type ItemRetrievePlacementResponse as ItemRetrievePlacementResponse,
+    type ItemRetrieveReviewsResponse as ItemRetrieveReviewsResponse,
     type ItemSetFinalResponse as ItemSetFinalResponse,
     type ItemListResponsesItemsCursorGetPagination as ItemListResponsesItemsCursorGetPagination,
     type ItemCreateParams as ItemCreateParams,
@@ -832,6 +842,8 @@ export declare namespace AnnotationQueues {
     type ItemDeleteAllParams as ItemDeleteAllParams,
     type ItemRetrieveCountParams as ItemRetrieveCountParams,
     type ItemRetrievePlacementParams as ItemRetrievePlacementParams,
+    type ItemRetrieveReviewsParams as ItemRetrieveReviewsParams,
     type ItemSetFinalParams as ItemSetFinalParams,
+    type ItemSetReviewParams as ItemSetReviewParams,
   };
 }
