@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.14.0](https://github.com/langchain-ai/langsmith-javascript/compare/v0.13.1...v0.14.0) (2026-11-21)
+
+
+### ⚠ BREAKING CHANGES
+
+* add cursor-paginated workspace secrets listing
+
+### Features
+
+* add cursor-paginated workspace secrets listing ([494974e](https://github.com/langchain-ai/langsmith-javascript/commit/494974e215c231adf78fa0c040c469e492f679fa))
+* **feedback:** delete feedback from Go ([6ef5a91](https://github.com/langchain-ai/langsmith-javascript/commit/6ef5a915f7a1a0493aa3896bc9901ea7c06b7977))
+
+
+### Bug Fixes
+
+* **robin:** keep Terminal-Bench verifiers running through a dropped connection ([42bdd02](https://github.com/langchain-ai/langsmith-javascript/commit/42bdd0217959d0a49a8bd0d8c45a411fa6b79caa))
+* **run-rules:** return backfill_id on create and list every outcomes page in backfill logs ([984efa4](https://github.com/langchain-ai/langsmith-javascript/commit/984efa4221d57dfa993942970335263ab5fa4615))
+
 ## [0.13.1](https://github.com/langchain-ai/langsmith-javascript/compare/v0.13.0...v0.13.1) (2026-11-20)
 
 
