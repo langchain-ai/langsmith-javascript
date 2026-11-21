@@ -127,17 +127,24 @@ export namespace VolumeResponse {
 
 export interface VolumeCreateParams {
   /**
-   * Name is unique within the workspace.
+   * Name of the volume, unique within the workspace.
    */
   name: string;
 
   /**
-   * SizeBytes is the volume's capacity, rounded up to a whole GiB.
+   * Capacity in bytes, rounded up to a whole GiB.
    */
   size_bytes: number;
 
+  /**
+   * Free-text description, at most 1024 characters.
+   */
   description?: string;
 
+  /**
+   * Labels to filter and identify the volume by. Keys are lowercase letters, digits,
+   * dots and hyphens.
+   */
   labels?: { [key: string]: string };
 }
 
@@ -166,8 +173,14 @@ export interface VolumeCloneParams {
    */
   name: string;
 
+  /**
+   * Free-text description of the new volume, at most 1024 characters.
+   */
   description?: string;
 
+  /**
+   * Labels for the new volume. Keys are lowercase letters, digits, dots and hyphens.
+   */
   labels?: { [key: string]: string };
 }
 
