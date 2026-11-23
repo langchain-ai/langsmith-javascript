@@ -390,6 +390,8 @@ export interface FeedbackBase {
   comment: string | null;
   correction: string | object | null;
   feedback_source: APIFeedbackSource | ModelFeedbackSource | KVMap | null;
+  /** The thread the feedback is about, for thread feedback. */
+  feedback_thread_id?: string | null;
 }
 
 export interface FeedbackCreate extends FeedbackBase {

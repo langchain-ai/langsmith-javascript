@@ -720,6 +720,48 @@ describe("Client", () => {
       await client.createFeedback({ runId: "x", key: "Foo" }).catch(() => {});
     });
 
+    it("sends thread feedback with its project and no run", async () => {
+      const mockFetch = jest.fn<typeof fetch>().mockResolvedValue(
+        new Response("{}", {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+      const client = new Client({
+        apiUrl: "http://localhost:1984",
+        apiKey: "test-api-key",
+        fetchImplementation: mockFetch,
+      });
+      const projectId = "550e8400-e29b-41d4-a716-446655440001";
+
+      await client.createFeedback({
+        key: "resolved",
+        score: 1,
+        projectId,
+        threadId: "thread-1",
+      });
+
+      const [url, init] = mockFetch.mock.calls[0];
+      expect(new URL(String(url)).pathname).toBe("/feedback");
+      const body = JSON.parse(init?.body as string);
+      expect(body).toEqual(
+        expect.objectContaining({
+          feedback_thread_id: "thread-1",
+          session_id: projectId,
+          run_id: null,
+        }),
+      );
+
+      await expect(
+        client.createFeedback(null, "resolved", {
+          projectId,
+          traceId: "550e8400-e29b-41d4-a716-446655440000",
+          // @ts-expect-error threadId is not a legacy option.
+          threadId: "thread-1",
+        }),
+      ).rejects.toThrow(/threadId cannot be combined/);
+    });
+
     it("warns without a sessionId on other deployments", async () => {
       const { client, paths } = infoClient(false);
       // warnOnce dedupes per process, so this must be the only test that warns.

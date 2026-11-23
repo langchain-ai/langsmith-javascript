@@ -528,6 +528,8 @@ interface FeedbackCreate {
   extend_trace_retention?: boolean;
   /** Agent address as an LRN string. */
   address?: string;
+  /** The thread the feedback is about, for thread feedback. */
+  feedback_thread_id?: string;
 }
 
 interface FeedbackUpdate {
@@ -638,6 +640,7 @@ export type CreateFeedbackParams = CreateFeedbackOptions &
         sessionId: string;
         projectId?: never;
         address?: never;
+        threadId?: never;
       }
     | {
         /** The run to provide feedback on. */
@@ -646,11 +649,18 @@ export type CreateFeedbackParams = CreateFeedbackOptions &
         address: AgentAddress;
         sessionId?: never;
         projectId?: never;
+        threadId?: never;
       }
     | {
         runId?: null;
         /** The project (or experiment) to provide feedback on. */
         projectId: string;
+        /**
+         * A thread (conversation) in the project to provide feedback on, as its
+         * traces record it. Thread feedback scores the whole conversation, the
+         * way a thread evaluator does.
+         */
+        threadId?: string;
         sessionId?: never;
         address?: never;
       }
@@ -1064,6 +1074,7 @@ export class AutoBatchQueue {
       apiUrl: item.apiUrl,
       workspaceId: item.workspaceId,
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       itemPromiseResolve: itemPromiseResolve!,
       itemPromise,
       size,
@@ -2056,6 +2067,7 @@ export class Client implements LangSmithTracingClientInterface {
       if (event.name === "new_token") {
         // Remove the kwargs containing the token data
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
         const { kwargs: _, ...rest } = event;
         return rest;
       }
@@ -6131,17 +6143,22 @@ export class Client implements LangSmithTracingClientInterface {
       startTime,
       extendTraceRetention,
       address: rawAddress,
+      threadId,
     }: CreateFeedbackOptions & {
       runId?: string | null;
       sessionId?: string;
       projectId?: string;
       /** Send the feedback to this agent instead of a project. */
       address?: AgentAddress;
+      threadId?: string;
     } = typeof runIdOrParams === "object" && runIdOrParams !== null
       ? runIdOrParams
       : { runId: runIdOrParams, key: keyArg as string, ...optionsArg };
     const address = ensureAgent(rawAddress);
     rejectConflicting(sessionId ?? projectId, address);
+    if (threadId !== undefined && (runId || traceId)) {
+      throw new Error("threadId cannot be combined with runId or traceId");
+    }
     if (!runId && !projectId) {
       throw new Error("One of runId or projectId must be provided");
     }
@@ -6183,6 +6200,7 @@ export class Client implements LangSmithTracingClientInterface {
       session_id: sessionId ?? projectId,
       start_time: startTime,
       extend_trace_retention: extendTraceRetention,
+      feedback_thread_id: threadId,
     };
     const samplingId = traceId ?? runId;
     if (samplingId != null && !this._shouldSample(samplingId)) {
