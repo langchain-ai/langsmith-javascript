@@ -53,6 +53,12 @@ export {
   type ItemListResponsesItemsCursorGetPagination,
 } from './items';
 export {
+  Reviewers,
+  type ReviewerListResponse,
+  type ReviewerListParams,
+  type ReviewerListResponsesItemsCursorGetPagination,
+} from './reviewers';
+export {
   Runs,
   type RunCreateResponse,
   type RunUpdateResponse,

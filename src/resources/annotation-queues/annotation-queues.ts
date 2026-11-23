@@ -29,6 +29,13 @@ import {
   ItemUpdateResponse,
   Items,
 } from './items';
+import * as ReviewersAPI from './reviewers';
+import {
+  ReviewerListParams,
+  ReviewerListResponse,
+  ReviewerListResponsesItemsCursorGetPagination,
+  Reviewers,
+} from './reviewers';
 import * as RunsAPI from './runs';
 import {
   RunCreateByKeyParams,
@@ -58,6 +65,7 @@ import * as RunsAPI_ from '../runs/runs';
 export class AnnotationQueues extends APIResource {
   runs: RunsAPI.Runs = new RunsAPI.Runs(this._client);
   items: ItemsAPI.Items = new ItemsAPI.Items(this._client);
+  reviewers: ReviewersAPI.Reviewers = new ReviewersAPI.Reviewers(this._client);
 
   /**
    * Get Annotation Queue
@@ -776,6 +784,7 @@ export interface AnnotationQueueRetrieveTotalArchivedParams {
 
 AnnotationQueues.Runs = Runs;
 AnnotationQueues.Items = Items;
+AnnotationQueues.Reviewers = Reviewers;
 
 export declare namespace AnnotationQueues {
   export {
@@ -845,5 +854,12 @@ export declare namespace AnnotationQueues {
     type ItemRetrieveReviewsParams as ItemRetrieveReviewsParams,
     type ItemSetFinalParams as ItemSetFinalParams,
     type ItemSetReviewParams as ItemSetReviewParams,
+  };
+
+  export {
+    Reviewers as Reviewers,
+    type ReviewerListResponse as ReviewerListResponse,
+    type ReviewerListResponsesItemsCursorGetPagination as ReviewerListResponsesItemsCursorGetPagination,
+    type ReviewerListParams as ReviewerListParams,
   };
 }

@@ -380,6 +380,16 @@ Methods:
 - <code title="put /api/v1/platform/annotation-queues/{queue_id}/items/{item_id}/finals/{key}">client.annotationQueues.items.<a href="./src/resources/annotation-queues/items.ts">setFinal</a>(key, { ...params }) -> ItemSetFinalResponse</code>
 - <code title="put /api/v1/platform/annotation-queues/{queue_id}/items/{item_id}/reviews/{key}">client.annotationQueues.items.<a href="./src/resources/annotation-queues/items.ts">setReview</a>(key, { ...params }) -> AnnotationQueueItemKeyReviews</code>
 
+## Reviewers
+
+Types:
+
+- <code><a href="./src/resources/annotation-queues/reviewers.ts">ReviewerListResponse</a></code>
+
+Methods:
+
+- <code title="get /api/v1/platform/annotation-queues/{queue_id}/reviewers">client.annotationQueues.reviewers.<a href="./src/resources/annotation-queues/reviewers.ts">list</a>(queueID, { ...params }) -> ReviewerListResponsesItemsCursorGetPagination</code>
+
 # PromptWebhooks
 
 Types:
