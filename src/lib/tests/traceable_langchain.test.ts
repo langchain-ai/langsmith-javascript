@@ -1,5 +1,6 @@
 /* eslint-disable no-process-env */
 import { traceable } from "../traceable.js";
+import { RunTree } from "../run_trees.js";
 import { getAssumedTreeFromCalls } from "./utils/tree.js";
 import { mockClient } from "./utils/mock_client.js";
 import { FakeChatModel } from "@langchain/core/utils/testing";
@@ -22,6 +23,35 @@ describe("to langchain", () => {
   ]);
   const parser = new StringOutputParser();
   const chain = prompt.pipe(llm).pipe(parser);
+
+  test("explicit RunTree parent", async () => {
+    const { client, callSpy } = mockClient();
+    const parent = new RunTree({
+      name: "parent",
+      run_type: "chain",
+      client,
+      tracingEnabled: true,
+    });
+    await parent.postRun();
+
+    const callbacks = await getLangchainCallbacks(parent);
+    await llm.invoke("Hello world", { callbacks });
+    await awaitAllCallbacks();
+    await parent.end({});
+    await parent.patchRun();
+
+    const tree = await getAssumedTreeFromCalls(callSpy.mock.calls, client);
+    expect(tree).toMatchObject({
+      nodes: ["parent:0", "FakeChatModel:1"],
+      edges: [["parent:0", "FakeChatModel:1"]],
+      data: {
+        "FakeChatModel:1": {
+          parent_run_id: parent.id,
+          trace_id: parent.trace_id,
+        },
+      },
+    });
+  });
 
   test("invoke", async () => {
     const { client, callSpy } = mockClient();
