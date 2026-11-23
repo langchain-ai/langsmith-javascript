@@ -196,7 +196,8 @@ function processGeminiInputs(inputs: KVMap): KVMap {
           return "parts" in item && Array.isArray(item.parts);
         };
 
-        const role = "role" in content ? content.role : "user";
+        let role = "role" in content ? content.role : "user";
+        if (role === "model") role = "assistant";
         const parts = isContent(content) ? content.parts ?? [] : [content];
 
         const textParts: string[] = [];

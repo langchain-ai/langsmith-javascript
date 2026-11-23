@@ -1,6 +1,48 @@
 import { describe, it, expect } from "vitest";
 import { createGeminiUsageMetadata } from "../wrappers/gemini.utils.js";
-import type { UsageMetadata } from "@google/genai";
+import { wrapGemini } from "../wrappers/gemini.js";
+import { mockClient } from "./utils/vitest_mock_client.js";
+import { getAssumedTreeFromCalls } from "./utils/tree.js";
+import type { GenerateContentParameters, UsageMetadata } from "@google/genai";
+
+describe("wrapGemini inputs", () => {
+  it("logs model turns with the assistant role", async () => {
+    const { client, callSpy } = mockClient();
+    const gemini = wrapGemini(
+      {
+        models: {
+          generateContent: async (_params: GenerateContentParameters) => ({
+            candidates: [
+              {
+                content: { role: "model", parts: [{ text: "Lyon." }] },
+                finishReason: "STOP",
+              },
+            ],
+          }),
+          generateContentStream: async () => undefined,
+        },
+      },
+      { client, tracingEnabled: true },
+    );
+
+    await gemini.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [
+        { role: "user", parts: [{ text: "Capital of France?" }] },
+        { role: "model", parts: [{ text: "Paris." }] },
+        { role: "user", parts: [{ text: "And its second city?" }] },
+      ],
+    });
+
+    const tree = await getAssumedTreeFromCalls(callSpy.mock.calls, client);
+    expect(tree.data["ChatGoogleGenerativeAI:0"].inputs.messages).toEqual([
+      { role: "user", content: "Capital of France?" },
+      { role: "assistant", content: "Paris." },
+      { role: "user", content: "And its second city?" },
+    ]);
+  });
+});
+
 describe("create usage metadata", () => {
   it("basic usage", () => {
     const usage: UsageMetadata = {
