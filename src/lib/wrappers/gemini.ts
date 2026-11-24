@@ -404,12 +404,21 @@ function _getGeminiInvocationParams(
     | GenerateContentParameters
     | undefined;
 
+  const stopSequences = config?.config?.stopSequences as
+    | string
+    | string[]
+    | undefined;
+  const ls_stop =
+    (typeof stopSequences === "string" ? [stopSequences] : stopSequences) ??
+    undefined;
+
   return {
     ls_provider: "google",
     ls_model_type: "chat" as const,
     ls_model_name: config?.model || "unknown",
     ls_temperature: config?.config?.temperature,
     ls_max_tokens: config?.config?.maxOutputTokens,
+    ls_stop,
     ls_invocation_params: prepopulatedInvocationParams,
   };
 }
