@@ -1,12 +1,18 @@
 import { convertAnthropicUsageToInputTokenDetails } from "../utils/usage.js";
 import { createUsageMetadata } from "../wrappers/anthropic.js";
+import { extractInputTokenDetails } from "../utils/vercel.js";
+import {
+  correctUsageFromResults,
+  extractUsageMetadata,
+} from "../experimental/anthropic/usage.js";
+import type { RunTree } from "../run_trees.js";
 
 describe("convertAnthropicUsageToInputTokenDetails", () => {
   test("1h cache key has no trailing r", () => {
     const result = convertAnthropicUsageToInputTokenDetails({
       cache_creation: { ephemeral_1h_input_tokens: 200 },
     });
-    expect(result).toHaveProperty("ephemeral_1hr_input_tokens", 200);
+    expect(result).toHaveProperty("ephemeral_1h_input_tokens", 200);
   });
 
   test("legacy format maps to ephemeral_5m_input_tokens", () => {
@@ -76,7 +82,7 @@ describe("createUsageMetadata", () => {
     expect(result?.total_tokens).toBe(1650); // 1600 + 50
     expect(result?.input_token_details?.cache_read).toBe(500);
     expect(result?.input_token_details?.ephemeral_5m_input_tokens).toBe(800);
-    expect(result?.input_token_details?.ephemeral_1hr_input_tokens).toBe(200);
+    expect(result?.input_token_details?.ephemeral_1h_input_tokens).toBe(200);
   });
 
   test("only cache_read", () => {
@@ -94,5 +100,68 @@ describe("createUsageMetadata", () => {
   test("returns undefined when usage is falsy", () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     expect(createUsageMetadata(null as any)).toBeUndefined();
+  });
+});
+
+describe("1h cache creation tokens", () => {
+  const usage = {
+    input_tokens: 10,
+    output_tokens: 5,
+    cache_creation: {
+      ephemeral_1h_input_tokens: 200,
+      ephemeral_5m_input_tokens: 100,
+    },
+  };
+
+  test("extractUsageMetadata keeps 1h tokens in input_token_details", () => {
+    const result = extractUsageMetadata(usage);
+    expect(result.input_token_details).toEqual({
+      ephemeral_5m_input_tokens: 100,
+      ephemeral_1h_input_tokens: 200,
+    });
+    expect(result.input_tokens).toBe(310);
+  });
+
+  test("correctUsageFromResults counts 1h tokens in cache_creation", () => {
+    const usageMetadata = extractUsageMetadata(usage);
+    const run = {
+      extra: {
+        metadata: { ls_model_name: "claude", usage_metadata: usageMetadata },
+      },
+    } as unknown as RunTree;
+
+    correctUsageFromResults(
+      {
+        claude: {
+          inputTokens: 10,
+          outputTokens: 5,
+          cacheReadInputTokens: 0,
+          cacheCreationInputTokens: 300,
+        },
+      },
+      [run],
+    );
+
+    expect(run.extra?.metadata?.usage_metadata.input_token_details).toEqual({
+      ephemeral_5m_input_tokens: 100,
+      ephemeral_1h_input_tokens: 200,
+    });
+  });
+
+  test("vercel extractInputTokenDetails emits the 1h key", () => {
+    const providerMetadata = { anthropic: { usage } };
+    const expected = {
+      ephemeral_5m_input_tokens: 100,
+      ephemeral_1h_input_tokens: 200,
+    };
+    expect(
+      extractInputTokenDetails({ inputTokens: 10 }, providerMetadata),
+    ).toEqual(expected);
+    expect(
+      extractInputTokenDetails(
+        { inputTokens: { total: 10 } } as never,
+        providerMetadata,
+      ),
+    ).toEqual(expected);
   });
 });
