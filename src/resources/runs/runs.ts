@@ -348,7 +348,7 @@ export interface Run {
   /**
    * `status` is the completion status of the run.
    */
-  status?: 'SUCCESS' | 'ERROR' | 'PENDING';
+  status?: 'SUCCESS' | 'ERROR' | 'PENDING' | 'INTERRUPTED' | 'CANCELLED';
 
   /**
    * `tags` lists user-defined tags on this run.
