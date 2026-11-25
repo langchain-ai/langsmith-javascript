@@ -43,6 +43,67 @@ describe("wrapGemini inputs", () => {
   });
 });
 
+describe("wrapGemini invocation params", () => {
+  const runWithConfig = async (config?: Record<string, unknown>) => {
+    const { client, callSpy } = mockClient();
+    const gemini = wrapGemini(
+      {
+        models: {
+          generateContent: async (_params: GenerateContentParameters) => ({
+            candidates: [
+              {
+                content: { role: "model", parts: [{ text: "Lyon." }] },
+                finishReason: "STOP",
+              },
+            ],
+          }),
+          generateContentStream: async () => undefined,
+        },
+      },
+      { client, tracingEnabled: true },
+    );
+
+    await gemini.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: "Capital of France?",
+      ...(config ? { config } : {}),
+    });
+
+    const tree = await getAssumedTreeFromCalls(callSpy.mock.calls, client);
+    return tree.data["ChatGoogleGenerativeAI:0"].extra?.metadata as Record<
+      string,
+      unknown
+    >;
+  };
+
+  it("records stop sequences as ls_stop", async () => {
+    const metadata = await runWithConfig({
+      temperature: 0.2,
+      maxOutputTokens: 64,
+      stopSequences: ["END"],
+    });
+
+    expect(metadata.ls_stop).toEqual(["END"]);
+    expect(metadata.ls_temperature).toBe(0.2);
+    expect(metadata.ls_max_tokens).toBe(64);
+  });
+
+  it("wraps a bare string stop sequence in a list", async () => {
+    const metadata = await runWithConfig({ stopSequences: "END" });
+
+    expect(metadata.ls_stop).toEqual(["END"]);
+  });
+
+  it("omits ls_stop when no stop sequences are set", async () => {
+    const withoutConfig = await runWithConfig();
+    const withEmptyConfig = await runWithConfig({ temperature: 0.2 });
+
+    expect(withoutConfig.ls_provider).toBe("google");
+    expect(withoutConfig).not.toHaveProperty("ls_stop");
+    expect(withEmptyConfig).not.toHaveProperty("ls_stop");
+  });
+});
+
 describe("create usage metadata", () => {
   it("basic usage", () => {
     const usage: UsageMetadata = {
