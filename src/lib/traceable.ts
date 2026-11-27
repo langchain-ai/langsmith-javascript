@@ -14,6 +14,7 @@ import {
   ExtractedUsageMetadata,
 } from "./schemas.js";
 import { allowUnprocessedPayloads, isEnvTracingEnabled } from "./env.js";
+import { getRunStatusFromError } from "./utils/error.js";
 import {
   ROOT,
   AsyncLocalStorageProviderSingleton,
@@ -1036,7 +1037,13 @@ export function traceable<Func extends (...args: any[]) => any>(
                 // The source stream errored: end the run with the error and the
                 // chunks received so far instead of leaving it pending.
                 finished = true;
-                await currentRunTree?.end(undefined, String(e));
+                await currentRunTree?.end(
+                  undefined,
+                  String(e),
+                  undefined,
+                  undefined,
+                  getRunStatusFromError(e),
+                );
                 await handleRunOutputs({
                   runTree: currentRunTree,
                   rawOutputs: await handleChunks(chunks),
@@ -1073,7 +1080,14 @@ export function traceable<Func extends (...args: any[]) => any>(
             }
           },
           async cancel(reason) {
-            if (!finished) await currentRunTree?.end(undefined, "Cancelled");
+            if (!finished)
+              await currentRunTree?.end(
+                undefined,
+                "Cancelled",
+                undefined,
+                undefined,
+                "cancelled",
+              );
             await handleRunOutputs({
               runTree: currentRunTree,
               rawOutputs: await handleChunks(chunks),
@@ -1120,7 +1134,13 @@ export function traceable<Func extends (...args: any[]) => any>(
           }
         } catch (e) {
           hasError = true;
-          await currentRunTree?.end(undefined, String(e));
+          await currentRunTree?.end(
+            undefined,
+            String(e),
+            undefined,
+            undefined,
+            getRunStatusFromError(e),
+          );
           throw e;
         } finally {
           if (!finished) {
@@ -1128,7 +1148,13 @@ export function traceable<Func extends (...args: any[]) => any>(
             if (iterator.return) {
               await iterator.return(undefined);
             }
-            await currentRunTree?.end(undefined, "Cancelled");
+            await currentRunTree?.end(
+              undefined,
+              "Cancelled",
+              undefined,
+              undefined,
+              "cancelled",
+            );
           }
           await handleRunOutputs({
             runTree: currentRunTree,
@@ -1292,7 +1318,13 @@ export function traceable<Func extends (...args: any[]) => any>(
                 )[_LC_RUN_OUTPUT_PROCESSING_STARTED_KEY] = true;
               }
               // Don't wait for child runs on error - fail fast
-              await currentRunTree?.end(undefined, String(error));
+              await currentRunTree?.end(
+                undefined,
+                String(error),
+                undefined,
+                undefined,
+                getRunStatusFromError(error),
+              );
               await handleEnd({
                 runTree: currentRunTree,
                 postRunPromise,

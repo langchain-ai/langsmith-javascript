@@ -6,6 +6,7 @@ import {
   BaseRun,
   KVMap,
   RunCreate,
+  RunEndStatus,
   RunUpdate,
 } from "./schemas.js";
 import {
@@ -101,6 +102,7 @@ export interface RunTreeConfig {
   metadata?: KVMap;
   tags?: string[];
   error?: string;
+  status?: RunEndStatus;
   serialized?: object;
   inputs?: KVMap;
   outputs?: KVMap;
@@ -333,6 +335,7 @@ export class RunTree implements BaseRun {
   extra: KVMap;
   tags?: string[];
   error?: string;
+  status?: RunEndStatus;
   serialized: object;
   inputs: KVMap;
   outputs?: KVMap;
@@ -586,8 +589,14 @@ export class RunTree implements BaseRun {
     error?: string,
     endTime = Date.now(),
     metadata?: KVMap,
+    status?: RunEndStatus,
   ): Promise<void> {
     this.outputs = this.outputs ?? outputs;
+    // The first error wins, and so does the status that came with it: a
+    // cancel arriving after a real error must not relabel that error.
+    if (status !== undefined && this.error === undefined) {
+      this.status = this.status ?? status;
+    }
     this.error = this.error ?? error;
     this.end_time = this.end_time ?? endTime;
     if (metadata && Object.keys(metadata).length > 0) {
@@ -636,6 +645,7 @@ export class RunTree implements BaseRun {
       extra: runExtra,
       serialized: run.serialized,
       error: run.error,
+      status: run.status,
       inputs: run.inputs,
       outputs: run.outputs,
       session_name: run.project_name,
@@ -1024,6 +1034,7 @@ export class RunTree implements BaseRun {
           start_time: runData.start_time,
           outputs: runData.outputs,
           error: runData.error,
+          status: runData.status,
           parent_run_id: runData.parent_run_id,
           session_name: runData.session_name,
           address: runData.address,
@@ -1058,6 +1069,7 @@ export class RunTree implements BaseRun {
           start_time: this._serialized_start_time ?? this.start_time,
           end_time: this.end_time,
           error: this.error,
+          status: this.status,
           outputs: this.outputs,
           parent_run_id: this.parent_run?.id ?? this.parent_run_id,
           reference_example_id: this.reference_example_id,

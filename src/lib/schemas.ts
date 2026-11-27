@@ -216,13 +216,26 @@ export interface Run extends BaseRun {
 }
 
 export interface RunCreate extends BaseRun {
+  /**
+   * Explicit terminal status. Servers that do not recognize it ignore it
+   * and derive the status from `error`. Tracers send `RunEndStatus` values.
+   */
+  status?: string;
   revision_id?: string;
   child_runs?: this[];
   session_name?: string;
   address?: AgentAddress;
 }
 
+/** Explicit terminal run statuses a tracer may send besides success/error. */
+export type RunEndStatus = "cancelled" | "interrupted";
+
 export interface RunUpdate {
+  /**
+   * Explicit terminal status (see `RunEndStatus`); ignored by servers that do
+   * not know it.
+   */
+  status?: string;
   id?: string;
   name?: string;
   run_type?: string;

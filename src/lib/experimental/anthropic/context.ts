@@ -56,6 +56,9 @@ export class StreamManager {
   private transcriptPathKeys: Set<string> = new Set();
   private resultModelUsage?: SDKResultMessage["modelUsage"];
 
+  /** Set when the conversation was aborted rather than failing. */
+  cancelled = false;
+
   postRunQueue: Promise<void>[] = [];
   runTrees: RunTree[] = [];
 
@@ -614,7 +617,13 @@ export class StreamManager {
       for (const tool of Object.values(this.tools)) {
         if (tool == null) continue;
         if (tool.outputs == null && tool.error == null) {
-          await tool.end(undefined, "Run not completed (conversation ended)");
+          await tool.end(
+            undefined,
+            "Run not completed (conversation ended)",
+            undefined,
+            undefined,
+            this.cancelled ? "cancelled" : undefined,
+          );
         }
       }
 
@@ -625,6 +634,9 @@ export class StreamManager {
             await subagent.end(
               undefined,
               "Run not completed (conversation ended)",
+              undefined,
+              undefined,
+              this.cancelled ? "cancelled" : undefined,
             );
           } else {
             await subagent.end();

@@ -15,6 +15,39 @@ const WRAPPED_TOOL_HANDLER_SYMBOL = Symbol.for(
 );
 
 /**
+ * Messages the Claude Agent SDK's own abort error carries. It is a bare
+ * `extends Error` (name stays "Error", class name minified), so it can only be
+ * recognised by message, and only once the caller's signal has fired.
+ */
+const SDK_ABORT_MESSAGES = new Set([
+  "Claude Code process aborted by user",
+  "Operation aborted",
+  "Connection aborted by user",
+  "Connection aborted",
+]);
+
+/**
+ * An error counts as an abort when it is named `AbortError`, is (or wraps via
+ * `cause`) the signal's own `reason`, or, with the signal fired, is the SDK's
+ * own abort error. A fired signal alone, or a message that merely mentions
+ * "abort", is not enough: unrelated failures after the abort stay errors.
+ */
+function isAbortError(error: unknown, signal?: AbortSignal): boolean {
+  if (typeof error !== "object" || error === null) return false;
+  const { name, message, cause } = error as {
+    name?: unknown;
+    message?: unknown;
+    cause?: unknown;
+  };
+  if (name === "AbortError") return true;
+  if (!signal?.aborted) return false;
+  if (signal.reason !== undefined) {
+    if (error === signal.reason || cause === signal.reason) return true;
+  }
+  return typeof message === "string" && SDK_ABORT_MESSAGES.has(message);
+}
+
+/**
  * Wraps the Claude Agent SDK's query function to add LangSmith tracing.
  * Traces the entire agent interaction including all streaming messages.
  * @internal Use `wrapClaudeAgentSDK` instead.
@@ -26,7 +59,12 @@ function wrapClaudeAgentQuery<
     originalGenerator: AsyncGenerator<SDKMessage, void, unknown>,
     prompt: string | AsyncIterable<SDKMessage> | undefined,
     streamManager: StreamManager,
+    signal?: AbortSignal,
   ) {
+    // Distinguishes normal exhaustion and real errors from the consumer
+    // closing the generator early (`break` calls `return()`, no throw).
+    let exhausted = false;
+    let failed = false;
     try {
       let systemCount = 0;
       for await (const message of originalGenerator) {
@@ -40,7 +78,26 @@ function wrapClaudeAgentQuery<
         await streamManager.addMessage(message);
         yield message;
       }
+      exhausted = true;
+    } catch (error) {
+      failed = true;
+      // An aborted query is a deliberate stop, not a failure. The marker is
+      // read when the traced function records the error on the root run.
+      if (isAbortError(error, signal)) {
+        streamManager.cancelled = true;
+        // Thrown values can be primitives or frozen; never let marking mask
+        // the original error.
+        try {
+          if (typeof error === "object" && error !== null) {
+            (error as { ls_run_status?: string }).ls_run_status = "cancelled";
+          }
+        } catch {
+          // ignore
+        }
+      }
+      throw error;
     } finally {
+      if (!exhausted && !failed) streamManager.cancelled = true;
       await streamManager.finish();
     }
   }
@@ -189,6 +246,7 @@ function wrapClaudeAgentQuery<
         actualGenerator,
         params.prompt,
         streamManager,
+        params.options?.abortController?.signal,
       );
 
       for (const method of Object.getOwnPropertyNames(

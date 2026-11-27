@@ -203,3 +203,21 @@ export function isConflictingEndpointsError(
     (err as Record<string, unknown>).code === ERR_CONFLICTING_ENDPOINTS
   );
 }
+
+/**
+ * The explicit run status an error asks to be traced with.
+ *
+ * Only an error exposing `ls_run_status` of `cancelled` or `interrupted`
+ * (own property or class attribute, e.g. set by the library that throws it) is
+ * marked; any other value is ignored. No error class is recognized by name, and
+ * timeouts and unmarked aborts stay errors.
+ */
+export function getRunStatusFromError(
+  err: unknown,
+): "cancelled" | "interrupted" | undefined {
+  if (typeof err !== "object" || err === null) return undefined;
+  const status = (err as Record<string, unknown>).ls_run_status;
+  return status === "cancelled" || status === "interrupted"
+    ? status
+    : undefined;
+}
