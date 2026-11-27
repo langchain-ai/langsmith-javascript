@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.14.1](https://github.com/langchain-ai/langsmith-javascript/compare/v0.14.0...v0.14.1) (2026-11-27)
+
+
+### Features
+
+* accept cancelled run status in readers ([f7e74a9](https://github.com/langchain-ai/langsmith-javascript/commit/f7e74a927f1a0d0bb80ddc3c3e2a6f0ac673eb94))
+* **annotation-queues:** list a queue's reviewers with their progress ([b69efc8](https://github.com/langchain-ai/langsmith-javascript/commit/b69efc88efbc70e6cbdd2d4cc1f14429c514f1bc))
+* **sdks:** emit ls_run_status on OTEL spans and test Claude Agent SDK cancel paths (LIN-734) ([11ccbe7](https://github.com/langchain-ai/langsmith-javascript/commit/11ccbe70b128d6476acf7f701a6b29eabb51e7b1))
+
+
+### Bug Fixes
+
+* **sdk:** log Gemini model turns with the assistant role in wrapper inputs ([d87590b](https://github.com/langchain-ai/langsmith-javascript/commit/d87590b78b21e613ed38b5ac15b5ea40fcfa842d))
+* **sdks:** patch vulnerable Java, JavaScript and Python SDK dependencies ([da16271](https://github.com/langchain-ai/langsmith-javascript/commit/da1627152fd9037257f82858de07b7846bd361cf))
+
+
+### Build System
+
+* **deps:** patch fast-uri in JavaScript webpack export test ([13e1574](https://github.com/langchain-ai/langsmith-javascript/commit/13e1574fe2567b908c05c99d7278c63692cf7289))
+
 ## [0.14.0](https://github.com/langchain-ai/langsmith-javascript/compare/v0.13.1...v0.14.0) (2026-11-23)
 
 
