@@ -1836,6 +1836,68 @@ describe("wrapClaudeAgentSDK", () => {
     });
   });
 
+  describe("run status when the query stops early", () => {
+    const makeFailingSDK = (error: Error) => ({
+      ...createMockSDK(),
+      query: async function* (_params: MockQueryParams) {
+        yield { type: "system", session_id: "session_abc123" };
+        yield {
+          type: "assistant",
+          parent_tool_use_id: null,
+          message: {
+            id: "msg_1",
+            role: "assistant",
+            content: [
+              { type: "tool_use", id: "tool_1", name: "Bash", input: {} },
+            ],
+            usage: { input_tokens: 10, output_tokens: 5 },
+          },
+        } as any;
+        throw error;
+      },
+    });
+
+    const runQuery = async (error: Error) => {
+      const { client, callSpy } = mockClient();
+      const wrapped = wrapClaudeAgentSDK(makeFailingSDK(error), {
+        client,
+        tracingEnabled: true,
+      });
+      await expect(
+        (async () => {
+          for await (const _message of wrapped.query({ prompt: "go" })) {
+            // consume stream
+          }
+        })(),
+      ).rejects.toBe(error);
+      const res = await getAssumedTreeFromCalls(callSpy.mock.calls, client);
+      return Object.values(res.data) as any[];
+    };
+
+    test("abort marks the root run and orphaned tool run cancelled", async () => {
+      const abort = new Error("aborted");
+      abort.name = "AbortError";
+      const runs = await runQuery(abort);
+
+      const root = runs.find((run) => run.parent_run_id == null);
+      const tool = runs.find((run) => run.name === "Bash");
+      expect(root.status).toBe("cancelled");
+      expect(tool.status).toBe("cancelled");
+      expect(tool.error).toContain("conversation ended");
+    });
+
+    test("other failures stay errors", async () => {
+      const runs = await runQuery(new Error("transport died"));
+
+      const root = runs.find((run) => run.parent_run_id == null);
+      const tool = runs.find((run) => run.name === "Bash");
+      expect(root.status).toBeUndefined();
+      expect(root.error).toContain("transport died");
+      expect(tool.status).toBeUndefined();
+      expect(tool.error).toContain("conversation ended");
+    });
+  });
+
   test("throws error if wrapped again", () => {
     const mockSDK = createMockSDK();
     const wrapped = wrapClaudeAgentSDK(mockSDK);

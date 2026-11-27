@@ -242,6 +242,43 @@ describe("exportBatch — patch operation", () => {
   });
 });
 
+describe("ls_run_status attribute", () => {
+  const exportRun = (run: Record<string, any>) => {
+    const span = makeSpanMock();
+    const translator = makeTranslator(span);
+    translator.exportBatch(
+      [
+        {
+          operation: "post",
+          id: "run-1",
+          trace_id: "trace-1",
+          run: run as any,
+        },
+      ],
+      new Map([["run-1", DUMMY_CONTEXT]]),
+    );
+    return span._attributes["langsmith.metadata.ls_run_status"];
+  };
+  const end_time = new Date().toISOString();
+
+  it.each(["cancelled", "interrupted"])(
+    "sets %s on a terminal run",
+    (status) => {
+      expect(exportRun(makeRunCreate({ status, end_time }))).toBe(status);
+    },
+  );
+
+  it("ignores non-terminal runs, other statuses and plain errors", () => {
+    expect(exportRun(makeRunCreate({ status: "cancelled" }))).toBeUndefined();
+    expect(
+      exportRun(makeRunCreate({ status: "success", end_time })),
+    ).toBeUndefined();
+    expect(
+      exportRun(makeRunCreate({ error: "TimeoutError", end_time })),
+    ).toBeUndefined();
+  });
+});
+
 describe("usage_metadata", () => {
   it("sets langsmith.usage_metadata from extra.metadata", () => {
     const span = makeSpanMock();

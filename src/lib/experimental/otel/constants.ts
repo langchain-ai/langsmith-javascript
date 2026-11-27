@@ -40,6 +40,7 @@ export const LANGSMITH_SESSION_NAME = "langsmith.trace.session_name";
 export const LANGSMITH_RUN_TYPE = "langsmith.span.kind";
 export const LANGSMITH_NAME = "langsmith.trace.name";
 export const LANGSMITH_METADATA = "langsmith.metadata";
+export const LANGSMITH_RUN_STATUS = "langsmith.metadata.ls_run_status";
 export const LANGSMITH_TAGS = "langsmith.span.tags";
 export const LANGSMITH_RUNTIME = "langsmith.span.runtime";
 export const LANGSMITH_REQUEST_STREAMING = "langsmith.request.streaming";

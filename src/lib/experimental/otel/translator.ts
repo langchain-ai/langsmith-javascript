@@ -260,6 +260,16 @@ export class LangSmithToOTELTranslator {
       }
     }
 
+    // Only deliberate stops are marked; timeouts and unmarked aborts stay
+    // errors. Only a terminal run carries the status.
+    const status = (runInfo as { status?: string }).status;
+    if (
+      (status === "cancelled" || status === "interrupted") &&
+      runInfo.end_time
+    ) {
+      span.setAttribute(constants.LANGSMITH_RUN_STATUS, status);
+    }
+
     const tags = runInfo.tags;
     if (tags && Array.isArray(tags)) {
       span.setAttribute(constants.LANGSMITH_TAGS, tags.join(", "));
